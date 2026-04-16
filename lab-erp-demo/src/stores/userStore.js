@@ -119,6 +119,12 @@ export const useUserStore = defineStore('user', () => {
 
     const hasWrnBadge = computed(() => userBadges.value.some(b => b.badgeName === 'wrn'))
 
+    // 🚩✍ Getter: 团队队长判断
+    const isTeamLeader = computed(() => {
+        const role = normalizeRole(activeUserInfo.value?.role)
+        const leaderRoles = ['DEV', 'ALGORITHM', 'DATA', 'RESEARCH']
+        return leaderRoles.includes(role)
+    })
     // ✅ 新增：同步更新头像的方法
     const updateAvatar = (newAvatarUrl) => {
         if (isErpLoggedIn.value && erpUserInfo.value) {

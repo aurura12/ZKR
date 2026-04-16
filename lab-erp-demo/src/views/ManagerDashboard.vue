@@ -8,6 +8,25 @@
 
       <div class="header-right">
         <el-button
+            v-if="isAdmin"
+            type="danger"
+            size="large"
+            @click="$router.push('/admin/leader-management')"            style="font-weight: bold; border-radius: 8px; padding: 12px 24px; margin-right: 8px;"
+        >
+          <el-icon style="margin-right: 6px"><Setting /></el-icon>
+          队长管理
+        </el-button>
+        <!--●📕新增队长工作台-->
+        <el-button
+            v-if="showLeaderDashboard"
+            type="warning"
+            size="large"
+            @click="$router.push('/leader/dashboard')"            style="font-weight: bold; border-radius: 8px; padding: 12px 24px; margin-right: 8px;"
+        >
+          <el-icon style="margin-right: 6px"><User /></el-icon>
+          队长工作台
+        </el-button>
+        <el-button
             v-if="showBusinessLaunch"
             type="primary"
             size="large"
@@ -171,7 +190,7 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import request from '@/utils/request'
 
 import * as echarts from 'echarts'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus,User,Setting } from '@element-plus/icons-vue'
 import ProjectDetail from '@/views/ProjectDetail.vue'
 import { useRouter } from "vue-router" // 修正：组件内通常用 useRouter
 import { useUserStore } from '@/stores/userStore'
@@ -204,6 +223,21 @@ const showResearchLaunch = computed(() => {
     || researchInitiatorWhitelist.includes(name)
 })
 const showBusinessLaunch = computed(() => userStore.isErpLoggedIn && String(userStore.activeUserInfo?.role || '').toUpperCase() === 'BUSINESS')
+
+const isAdmin = computed(() => {
+  if (!userStore.isErpLoggedIn) return false
+  const role = String(userStore.activeUserInfo?.role || '').toUpperCase()
+  const username = String(userStore.activeUserInfo?.username || '').trim()
+  const adminUsernames = ['zhangqi', 'guojianwen', 'jiaomiao']
+  return role === 'ADMIN' || adminUsernames.includes(username.toLowerCase())
+})
+
+const showLeaderDashboard = computed(() => {
+  if (!userStore.isErpLoggedIn) return false
+  const role = String(userStore.activeUserInfo?.role || '').toUpperCase()
+  const leaderRoles = ['DEV', 'ALGORITHM', 'DATA', 'RESEARCH']
+  return leaderRoles.includes(role)
+})
 
 // 1. 行业映射字典
 const industryMap = {

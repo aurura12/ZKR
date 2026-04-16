@@ -9,7 +9,7 @@ import org.springframework.http.HttpStatus;
 
 /**
  * 解决 Vue History 模式刷新 404 的问题
- * 当后端找不到路径时，不再返回 404，而是返回 index.html
+ * 当后端找不到路径时，不再返回 404，而是返回 index.htmlRemove-Item -Force package-lock.json
  */
 @Configuration
 public class SpaRedirectConfig {

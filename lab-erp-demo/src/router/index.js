@@ -13,6 +13,11 @@ import CreateResearchView from '../views/CreateResearchView.vue'
 import UserProfile from '../views/UserProfile.vue'
 import AdminCreateUserView from '../views/AdminCreateUserView.vue'
 import PersonalProcurementView from '../views/PersonalProcurementView.vue'
+import LeaderDashboardView from '../views/LeaderDashboardView.vue'
+import LeaderManagementView from '../views/LeaderManagementView.vue'
+
+
+
 import {
   DOMAIN_ERP,
   canAccessRouteDomain,
@@ -122,6 +127,26 @@ const router = createRouter({
       path: '/admin/users/create',
       name: 'admin-users-create',
       component: AdminCreateUserView,
+      meta: {
+        requiresAuth: true,
+        requiresProvisionAdmin: true,
+        routeDomain: DOMAIN_ERP
+      }
+    },
+      //TODO === 轨道 C：领导驾驶舱 (Leader 视图) ===
+    {
+      path: '/leader/dashboard',
+      name: 'leader-dashboard',
+      component: LeaderDashboardView,
+      meta: {
+        requiresAuth: true,
+        routeDomain: DOMAIN_ERP
+      }
+    },
+    {
+      path: '/admin/leader-management',
+      name: 'leader-management',
+      component: LeaderManagementView,
       meta: {
         requiresAuth: true,
         requiresProvisionAdmin: true,

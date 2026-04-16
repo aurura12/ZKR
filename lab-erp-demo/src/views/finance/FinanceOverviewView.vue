@@ -110,7 +110,8 @@
       <!-- Tier Cards -->
       <div v-if="!selectedTier" class="tier-cards">
         <div
-          v-for="tier in ['S','A','B','C','N']"
+
+          v-for="tier in ['S','C','B','A','N']"
           :key="tier"
           class="tier-card"
           :class="'tier-card-' + tier.toLowerCase()"
