@@ -55,6 +55,15 @@ export const financeNavigationItems = [
     highlights: ['期间选择', '批处理执行', '结果汇总']
   },
   {
+    path: '/finance/batch-control',
+    routeName: 'finance-batch-control',
+    label: '跑批控制',
+    eyebrow: '系统',
+    title: '跑批控制台',
+    description: '管理系统定时跑批任务，支持暂停、手动触发和项目级精细控制。',
+    highlights: ['暂停/启用', '手动触发', '项目级控制']
+  },
+  {
     path: '/finance/clearing',
     routeName: 'finance-clearing',
     label: '清算',
@@ -107,6 +116,15 @@ export const financeNavigationItems = [
     title: '全局业务智能助手',
     description: '',
     highlights: ['会话流', '全局上下文', '助手动作']
+  },
+  {
+    path: '/finance/attendance',
+    routeName: 'finance-attendance',
+    label: '考勤工资',
+    eyebrow: '考勤',
+    title: '考勤工资',
+    description: '钉钉考勤打卡数据总览与纠偏。',
+    highlights: ['打卡明细', '月度汇总', '纠偏申请']
   }
 ]
 
@@ -168,27 +186,35 @@ export const financeRoutes = [
       }),
       withFinanceMeta({
         ...financeNavigationItems[4],
-        component: () => import('@/views/finance/ClearingCenterView.vue')
+        component: () => import('@/views/finance/BatchControlView.vue')
       }),
       withFinanceMeta({
         ...financeNavigationItems[5],
-        component: () => import('@/views/finance/DividendCenterView.vue')
+        component: () => import('@/views/finance/ClearingCenterView.vue')
       }),
       withFinanceMeta({
         ...financeNavigationItems[6],
-        component: () => import('@/views/finance/AdjustmentCenterView.vue')
+        component: () => import('@/views/finance/DividendCenterView.vue')
       }),
       withFinanceMeta({
         ...financeNavigationItems[7],
-        component: () => import('@/views/finance/FinanceExpenseCenterView.vue')
+        component: () => import('@/views/finance/AdjustmentCenterView.vue')
       }),
       withFinanceMeta({
         ...financeNavigationItems[8],
-        component: () => import('@/views/finance/RagSearchView.vue')
+        component: () => import('@/views/finance/FinanceExpenseCenterView.vue')
       }),
       withFinanceMeta({
         ...financeNavigationItems[9],
+        component: () => import('@/views/finance/RagSearchView.vue')
+      }),
+      withFinanceMeta({
+        ...financeNavigationItems[10],
         component: () => import('@/views/finance/FinanceAiChatView.vue')
+      }),
+      withFinanceMeta({
+        ...financeNavigationItems[11],
+        component: () => import('@/views/finance/FinanceAttendanceView.vue')
       })
     ]
   }
