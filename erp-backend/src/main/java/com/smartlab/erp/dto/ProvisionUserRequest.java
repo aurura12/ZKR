@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 @Data
 public class ProvisionUserRequest {
     @NotBlank(message = "用户名不能为空")
@@ -18,4 +20,6 @@ public class ProvisionUserRequest {
 
     @NotNull(message = "账号域不能为空")
     private AccountDomain domain;
+
+    private BigDecimal dailyWage;
 }

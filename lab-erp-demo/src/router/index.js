@@ -15,6 +15,7 @@ import AdminCreateUserView from '../views/AdminCreateUserView.vue'
 import PersonalProcurementView from '../views/PersonalProcurementView.vue'
 import LeaderDashboardView from '../views/LeaderDashboardView.vue'
 import LeaderManagementView from '../views/LeaderManagementView.vue'
+import WageManagementView from '../views/WageManagementView.vue'
 
 
 
@@ -110,8 +111,7 @@ const router = createRouter({
       name: 'profile',
       component: UserProfile,
       meta: {
-        requiresAuth: true,
-        routeDomain: DOMAIN_ERP
+        requiresAuth: true
       }
     },
     {
@@ -127,6 +127,16 @@ const router = createRouter({
       path: '/admin/users/create',
       name: 'admin-users-create',
       component: AdminCreateUserView,
+      meta: {
+        requiresAuth: true,
+        requiresProvisionAdmin: true,
+        routeDomain: DOMAIN_ERP
+      }
+    },
+    {
+      path: '/admin/wage-management',
+      name: 'wage-management',
+      component: WageManagementView,
       meta: {
         requiresAuth: true,
         requiresProvisionAdmin: true,

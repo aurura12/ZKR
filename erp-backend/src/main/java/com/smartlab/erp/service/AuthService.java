@@ -25,6 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.HashMap;
@@ -117,6 +118,11 @@ public class AuthService {
         AccountDomain domain = resolveProvisionDomain(request.getDomain());
         validateUserUniqueness(request.getUsername());
 
+        BigDecimal wage = request.getDailyWage();
+        if (wage == null || wage.compareTo(BigDecimal.ZERO) <= 0) {
+            wage = new BigDecimal("300.00");
+        }
+
         String normalizedUsername = request.getUsername().trim();
         String initialPassword = normalizedUsername + "123";
         User user = User.builder()
@@ -128,6 +134,7 @@ public class AuthService {
                 .role(normalizeRegisterRole(request.getRole()))
                 .accountDomain(domain)
                 .active(true)
+                .dailyWage(wage)
                 .build();
 
         userRepository.save(user);

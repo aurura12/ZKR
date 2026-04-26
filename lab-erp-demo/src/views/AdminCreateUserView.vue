@@ -36,6 +36,11 @@
           </el-select>
         </div>
 
+        <div class="field-block">
+          <label>日工资 (元/天)</label>
+          <el-input-number v-model="form.dailyWage" :min="0" :precision="2" :step="10" placeholder="默认 300.00" />
+        </div>
+
       </div>
 
       <div class="footer-row">
@@ -60,7 +65,8 @@ const form = reactive({
   username: '',
   name: '',
   role: '',
-  domain: 'ERP'
+  domain: 'ERP',
+  dailyWage: 300.00
 })
 
 const submitting = ref(false)
@@ -85,13 +91,15 @@ const handleSubmit = async () => {
       username: form.username.trim(),
       name: form.name.trim(),
       role: form.role,
-      domain: form.domain
+      domain: form.domain,
+      dailyWage: form.dailyWage
     })
     ElMessage.success(response?.message || `账号创建成功，初始密码为：${form.username.trim()}123`)
     form.username = ''
     form.name = ''
     form.role = ''
     form.domain = 'ERP'
+    form.dailyWage = 300.00
   } catch (error) {
     ElMessage.error(error.response?.data?.message || error.message || '账号创建失败')
   } finally {
