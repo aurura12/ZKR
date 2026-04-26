@@ -18,7 +18,7 @@ services:
 
   erp-backend:
     container_name: zkr-erp-backend
-    image: 127.0.0.1:5555/zhangqi_backend:v1.67
+    image: 127.0.0.1:5555/zhangqi_backend:v1.79
     restart: unless-stopped
     depends_on:
       postgres:
@@ -47,6 +47,8 @@ services:
       FINANCE_RAG_INDEX_NAME: ${FINANCE_RAG_INDEX_NAME:-finance-rag-index}
       FINANCE_RAG_CONNECT_TIMEOUT_SECONDS: ${FINANCE_RAG_CONNECT_TIMEOUT_SECONDS:-5}
       FINANCE_RAG_REQUEST_TIMEOUT_SECONDS: ${FINANCE_RAG_REQUEST_TIMEOUT_SECONDS:-120}
+      DINGTALK_APP_KEY: ${DINGTALK_APP_KEY}
+      DINGTALK_APP_SECRET: ${DINGTALK_APP_SECRET}
     volumes:
       - backend-uploads:${APP_UPLOADS_DIR}
     networks:
@@ -111,7 +113,7 @@ services:
 
   lab-erp-demo:
     container_name: zkr-lab-erp-demo
-    image: 127.0.0.1:5555/zhangqi_frontend:v1.100
+    image: 127.0.0.1:5555/zhangqi_frontend:v1.115
     restart: unless-stopped
     ports:
       - "${FRONTEND_PUBLIC_PORT}:80"

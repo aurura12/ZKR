@@ -466,29 +466,22 @@
               </div>
               <div v-else class="execution-text">{{ implementationStatusText }}</div>
             </div>
+            <div class="smart-block">
+              <div class="execution-label">预计收入（元）</div>
+              <template v-if="canEditProjectDynamicInfo">
+                <el-input
+                  v-model="dynamicInfoForm.estimatedRevenue"
+                  type="number"
+                  placeholder="请输入预计收入金额"
+                />
+              </template>
+              <div v-else class="execution-text">{{ formatMoney(project.value?.estimatedRevenue || project.value?.budget) }}</div>
+            </div>
             <div v-if="canEditProjectDynamicInfo" class="smart-block smart-block-actions">
               <div class="action-row">
                 <el-button type="primary" size="small" :loading="projectDynamicInfoSaving" @click="saveProjectDynamicInfo">保存动态信息</el-button>
               </div>
             </div>
-            <div v-if="selectedProjectStatus === 'IMPLEMENTING'" class="smart-block">
-              <div class="execution-label">全员任务看板</div>
-            <div v-if="!memberTaskCards.length" class="execution-text">当前尚未规划成员任务。</div>
-            <div v-else class="schedule-list compact-list">
-              <div v-for="item in memberTaskCards" :key="`board-${item.userId}`" class="schedule-item">
-                <div class="schedule-header">
-                  <strong>{{ item.name }}</strong>
-                  <span class="schedule-role">{{ formatRole(item.role) }}</span>
-                </div>
-                <div class="execution-text">任务：{{ item.taskName || '待规划任务' }}</div>
-                <div class="execution-text">产出：{{ item.expectedOutput || '待定义产出' }}</div>
-                <div class="execution-text">截止：{{ item.expectedEndDate || '待定' }}</div>
-                <div class="schedule-status-row">
-                  <span class="schedule-state">{{ item.managerConfirmed ? '经理已确认' : (item.completed ? '成员已提交' : '进行中') }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -994,7 +987,7 @@
               style="width: 100%"
               popper-class="project-manager-select-popper"
           >
-            <el-option v-for="user in managerCandidates" :key="user.id" :label="user.name" :value="user.id">
+            <el-option v-for="user in managerCandidates" :key="user.id" :label="user.label || user.name" :value="user.id">
               <div class="option-row manager-option-row">
                 <img :src="user.avatar" class="avatar-small">
                 <span class="option-name">{{ user.name }}</span>
@@ -1014,11 +1007,11 @@
               style="width: 100%"
               popper-class="project-team-select-popper"
           >
-            <el-option v-for="user in memberCandidates" :key="user.id" :label="user.name" :value="user.id">
-               <div class="option-row member-option-row">
-                <img :src="user.avatar" class="avatar-small">
+            <el-option v-for="user in memberCandidates" :key="user.id" :label="`${user.name} / ${formatRole(user.role)}`" :value="user.id">
+                <div class="option-row member-option-row">
+                 <img :src="user.avatar" class="avatar-small">
                 <span class="option-name">{{ user.name }}</span>
-                <span class="option-role">{{ user.role }}</span>
+                <span class="option-role">{{ formatRole(user.role) }}</span>
               </div>
             </el-option>
           </el-select>
@@ -1104,17 +1097,17 @@
       <el-form label-position="top" :model="promotionSetupForm">
         <el-form-item label="推广执行人 (Promotion IC)" required>
           <el-select v-model="promotionSetupForm.promotionIcUserId" filterable placeholder="选择推广执行人" style="width: 100%">
-            <el-option v-for="user in allUsers" :key="user.id" :label="user.label" :value="user.id" />
+            <el-option v-for="user in productMemberAddCandidates" :key="`promotion-ic-${user.id}`" :label="user.label" :value="user.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="推广参与成员 (至少2人，含主理人)" required>
           <el-select v-model="promotionSetupForm.promotionMemberIds" multiple filterable placeholder="选择推广成员" style="width: 100%">
-            <el-option v-for="user in allUsers" :key="`promotion-${user.id}`" :label="user.label" :value="user.id" />
+            <el-option v-for="user in productMemberAddCandidates" :key="`promotion-${user.id}`" :label="user.label" :value="user.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="Demo 工程师 (精确4人)" required>
           <el-select v-model="promotionSetupForm.demoEngineerIds" multiple filterable placeholder="选择Demo工程师" style="width: 100%">
-            <el-option v-for="user in allUsers" :key="`demo-${user.id}`" :label="user.label" :value="user.id" />
+            <el-option v-for="user in productMemberAddCandidates" :key="`demo-${user.id}`" :label="user.label" :value="user.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="工程文件责任人" required>
@@ -1357,6 +1350,11 @@ import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ExpenseSubmissionForm from '@/components/finance/ExpenseSubmissionForm.vue'
 import { getErpLandingRoute } from '@/router/domainAccess'
+import {
+  getProjectWorkflowMemberRoles,
+  getProductWorkflowMemberRoles,
+  getResearchWorkflowMemberRoles
+} from '@/api/workflowMemberRoles'
 
 const route = useRoute()
 const userStore = useUserStore()
@@ -1374,6 +1372,7 @@ const project = ref(null)
 const loading = ref(true)
 const defaultAvatar = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
 const hiddenAvatar = 'https://api.dicebear.com/7.x/shapes/svg?seed=masked'
+const workflowMemberRoleRows = ref([])
 
 // 里程碑相关状态
 const showAddMilestone = ref(false)
@@ -1439,7 +1438,8 @@ const dynamicInfoForm = ref({
   goalDescription: '',
   projectTier: '',
   techStackDescription: '',
-  implementationStatus: ''
+  implementationStatus: '',
+  estimatedRevenue: ''
 })
 const projectMemberLoading = ref(false)
 const gitRepoLoading = ref(false)
@@ -1659,8 +1659,16 @@ const demoUploadedCount = computed(() => {
 })
 const demoResponsibleCandidates = computed(() => {
   const ids = new Set((promotionSetupForm.value.demoEngineerIds || []).map(id => String(id)))
-  const base = ids.size > 0 ? allUsers.value.filter(user => ids.has(String(user.id))) : allUsers.value
-  return [...base].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hans-CN'))
+  const base = workflowMemberRoleRows.value.length > 0 ? workflowMemberRoleRows.value : allUsers.value
+  const filtered = ids.size > 0
+    ? base.filter(user => ids.has(String(user.userId || user.id || '')))
+    : base
+  return [...filtered]
+    .map(user => ({
+      ...user,
+      label: `${user.name || user.username || user.id} / ${formatRole(user.role || 'MEMBER')}`
+    }))
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hans-CN'))
 })
 const getDemoOwnerName = category => {
   const field = demoOwnerFieldMap[category]
@@ -1809,7 +1817,7 @@ const canEditProjectDynamicInfo = computed(() => {
   if (!activeUserId.value) return false
   const stage = String(project.value?.projectStatus || '').toUpperCase()
   if (stage === 'COMPLETED') return false
-  return activeUserRole.value === 'ADMIN' || canEditImplementationStatus.value
+  return activeUserRole.value === 'ADMIN' || canEditImplementationStatus.value || isManager.value
 })
 const hasFeasibilityReportUploaded = computed(() => {
   const hasUrl = Boolean(String(project.value?.feasibilityReportUrl || '').trim())
@@ -2006,11 +2014,22 @@ const managerArchiveBreadcrumbs = computed(() => {
 })
 const productMemberAddCandidates = computed(() => {
   const existingIds = new Set((project.value?.members || []).map(member => String(member.userId || '')))
-  return allUsers.value.filter(user => !existingIds.has(String(user.id)))
+  const base = workflowMemberRoleRows.value.length > 0 ? workflowMemberRoleRows.value : allUsers.value
+  return base
+    .filter(user => !existingIds.has(String(user.userId || user.id || '')))
+    .map(user => ({
+      ...user,
+      label: `${user.name || user.username || user.id} / ${formatRole(user.role || 'MEMBER')}`
+    }))
 })
 const projectMemberAddCandidates = computed(() => {
   const existingIds = new Set((project.value?.members || []).map(member => String(member.userId || '')))
-  return allUsers.value.filter(user => !existingIds.has(String(user.id)))
+  return allUsers.value
+    .filter(user => !existingIds.has(String(user.userId || user.id || '')))
+    .map(user => ({
+      ...user,
+      label: `${user.name || user.username || user.id} / ${formatRole(user.role || 'MEMBER')}`
+    }))
 })
 const resolveProjectResponsibilityRole = member => {
   const projectRole = normalizeRoleAlias(member?.role)
@@ -2135,7 +2154,7 @@ const isDevOrAlgorithmRole = (role) => {
   const normalized = normalizeRoleAlias(role)
   return normalized === 'DEV' || normalized === 'ALGORITHM'
 }
-const isTeamBuildSelectableRole = role => isDevOrAlgorithmRole(role) || isDataRole(role)
+const isTeamBuildSelectableRole = role => isDevOrAlgorithmRole(role) || isDataRole(role) || normalizeRoleAlias(role) === 'RESEARCH'
 const normalizeRoleAlias = role => {
   const normalized = normalizeRole(role)
   if (normalized === 'ALGO') return 'ALGORITHM'
@@ -2148,14 +2167,42 @@ const normalizeBuildTeamPayloadRole = role => {
   return normalized
 }
 
+const candidateRoleRank = role => {
+  const normalized = normalizeRoleAlias(role)
+  const order = {
+    BUSINESS: 0,
+    BD: 0,
+    DATA: 1,
+    DATA_ENGINEER: 1,
+    DEV: 2,
+    ALGORITHM: 3,
+    RESEARCH: 4,
+    ADMIN: 5,
+    MEMBER: 6
+  }
+  return Object.prototype.hasOwnProperty.call(order, normalized) ? order[normalized] : 99
+}
+
+const sortCandidatesByRole = (list, roleAccessor = item => item?.role) => {
+  return [...(list || [])].sort((a, b) => {
+    const roleDiff = candidateRoleRank(roleAccessor(a)) - candidateRoleRank(roleAccessor(b))
+    if (roleDiff !== 0) return roleDiff
+    const nameDiff = String(a?.name || a?.username || a?.label || '').localeCompare(String(b?.name || b?.username || b?.label || ''), 'zh-Hans-CN')
+    if (nameDiff !== 0) return nameDiff
+    return String(a?.id || a?.userId || '').localeCompare(String(b?.id || b?.userId || ''))
+  })
+}
+
 // 组队弹窗的选项
 const managerCandidates = computed(() => {
   if (!project.value) return []
-  return (project.value.members || [])
+  const base = workflowMemberRoleRows.value.length > 0 ? workflowMemberRoleRows.value : (project.value.members || [])
+  return sortCandidatesByRole(base)
       .filter(m => isBusinessRole(m.role) || isDataRole(m.role))
       .map(m => ({
         ...m,
-        id: m.id || m.userId
+        id: m.id || m.userId,
+        label: `${m.name || m.username || m.id} / ${formatRole(m.role || 'MEMBER')}`
       }))
       .filter(m => !!m.id)
 })
@@ -2186,35 +2233,34 @@ const defaultProjectDataEngineer = computed(() => {
 const memberCandidates = computed(() => {
   const candidateMap = new Map()
 
-  ;(project.value?.members || []).forEach(member => {
-    const id = String(member.userId || member.id || '')
-    if (!id || !isTeamBuildSelectableRole(member.role)) return
-    candidateMap.set(id, {
-      ...member,
-      id,
-      role: normalizeRoleAlias(member.role),
-      avatar: member.hiddenAvatar ? hiddenAvatar : (member.avatar || defaultAvatar)
+  const appendCandidate = (item, source = 'legacy') => {
+    const id = String(item?.userId || item?.id || '').trim()
+    const role = normalizeRoleAlias(item?.role)
+    if (!id || !isTeamBuildSelectableRole(role)) return
+    const optionKey = `${id}-${role}`
+    if (candidateMap.has(optionKey)) return
+    candidateMap.set(optionKey, {
+      ...item,
+      id: optionKey,
+      userId: id,
+      role,
+      source,
+      avatar: item?.hiddenAvatar ? hiddenAvatar : (item?.avatar || defaultAvatar)
     })
-  })
+  }
 
-  allUsers.value.forEach(user => {
-    const id = String(user.id || '')
-    if (!id || !isTeamBuildSelectableRole(user.role) || candidateMap.has(id)) return
-    candidateMap.set(id, {
-      ...user,
-      id,
-      role: normalizeRoleAlias(user.role)
-    })
-  })
+  ;(project.value?.members || []).forEach(member => appendCandidate(member, 'project-member'))
+  workflowMemberRoleRows.value.forEach(row => appendCandidate(row, 'workflow-role'))
+
+  allUsers.value.forEach(user => appendCandidate(user, 'all-users'))
 
   const defaultDataId = String(defaultProjectDataEngineer.value?.id || '')
-  return Array.from(candidateMap.values()).sort((a, b) => {
-    const aId = String(a.id || '')
-    const bId = String(b.id || '')
-    if (aId === defaultDataId) return -1
-    if (bId === defaultDataId) return 1
-    if (isDataRole(a.role) !== isDataRole(b.role)) return isDataRole(a.role) ? -1 : 1
-    return String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hans-CN')
+  return sortCandidatesByRole(Array.from(candidateMap.values()), item => item.role).sort((a, b) => {
+    const aUserId = String(a.userId || a.id || '')
+    const bUserId = String(b.userId || b.id || '')
+    if (aUserId === defaultDataId) return -1
+    if (bUserId === defaultDataId) return 1
+    return 0
   })
 })
 
@@ -2439,7 +2485,8 @@ const saveProjectDynamicInfo = async () => {
       goalDescription: String(dynamicInfoForm.value.goalDescription || '').trim(),
       projectTier: String(dynamicInfoForm.value.projectTier || '').trim() || null,
       techStackDescription: String(dynamicInfoForm.value.techStackDescription || '').trim(),
-      implementationStatus: String(dynamicInfoForm.value.implementationStatus || '').trim()
+      implementationStatus: String(dynamicInfoForm.value.implementationStatus || '').trim(),
+      estimatedRevenue: dynamicInfoForm.value.estimatedRevenue ? Number(dynamicInfoForm.value.estimatedRevenue) : null
     })
     ElMessage.success('动态信息已更新')
     await fetchProject()
@@ -2628,6 +2675,7 @@ const fetchProject = async () => {
     await fetchChatBootstrap()
     await fetchProductTaskAssignments()
     await fetchProjectTaskAssignments()
+    await fetchWorkflowMemberRoles(targetId)
   } catch (e) {
     console.error('项目加载失败:', e)
     ElMessage.error("获取项目详情失败")
@@ -2636,12 +2684,34 @@ const fetchProject = async () => {
   }
 }
 
+const fetchWorkflowMemberRoles = async (targetId) => {
+  if (!targetId) {
+    workflowMemberRoleRows.value = []
+    return
+  }
+  try {
+    const flowType = String(project.value?.flowType || inferProjectFlowType(project.value || {})).toUpperCase()
+    let res
+    if (flowType === 'PRODUCT') {
+      res = await getProductWorkflowMemberRoles(targetId)
+    } else if (flowType === 'RESEARCH') {
+      res = await getResearchWorkflowMemberRoles(targetId)
+    } else {
+      res = await getProjectWorkflowMemberRoles(targetId)
+    }
+    workflowMemberRoleRows.value = res.data || res || []
+  } catch {
+    workflowMemberRoleRows.value = []
+  }
+}
+
 const syncProjectDynamicInfoForm = () => {
   dynamicInfoForm.value = {
     goalDescription: executionOverview.value?.plan?.goalDescription || '',
     projectTier: String(executionOverview.value?.plan?.projectTier || project.value?.projectTier || ''),
     techStackDescription: executionOverview.value?.plan?.techStackDescription || '',
-    implementationStatus: readTaggedDescriptionValue(project.value?.description, '实施状态') || ''
+    implementationStatus: readTaggedDescriptionValue(project.value?.description, '实施状态') || '',
+    estimatedRevenue: project.value?.estimatedRevenue || ''
   }
 }
 
@@ -3118,7 +3188,7 @@ const submitBuildTeam = async () => {
     .map(userId => {
       const user = memberCandidates.value.find(candidate => String(candidate.id) === String(userId))
       const payloadRole = normalizeBuildTeamPayloadRole(user?.role)
-      return { userId: String(userId), role: payloadRole, weight: Number(teamMemberWeights.value[userId] || 0) }
+      return { userId: String(user?.userId || userId).split('-')[0], role: payloadRole, weight: Number(teamMemberWeights.value[userId] || 0) }
     })
 
   const payload = {
@@ -3864,8 +3934,9 @@ const fetchAllUsers = async () => {
   if (allUsers.value.length > 0) return // 避免重复加载
   try {
     const res = await request.get('/api/users')
-    allUsers.value = (res.data || res).map(u => ({
+    const users = (res.data || res).map(u => ({
       id: u.userId,
+      userId: u.userId,
       name: u.name || u.username,
       username: u.username,
       label: u.name && u.username && u.name !== u.username ? `${u.name} (${u.username})` : (u.name || u.username),
@@ -3873,6 +3944,16 @@ const fetchAllUsers = async () => {
       avatar: u.hiddenAvatar ? hiddenAvatar : (u.avatar || defaultAvatar),
       hiddenAvatar: u.hiddenAvatar
     }))
+    const zhangQi = users.find(user => String(user.userId || '') === '000010')
+    if (zhangQi) {
+      users.push({
+        ...zhangQi,
+        id: `${zhangQi.userId}__DEV`,
+        role: 'DEV',
+        label: `${zhangQi.name || zhangQi.username || zhangQi.userId}（开发）`
+      })
+    }
+    allUsers.value = users
   } catch (error) {
     console.error('加载所有用户失败:', error)
     ElMessage.error('加载用户列表失败')
