@@ -49,7 +49,151 @@ docker inspect zkr-lab-erp-demo --format '{{.Config.Image}}'
 docker inspect zkr-erp-backend --format '{{.Config.Image}}'
 ```
 
-## 构建与发布新版本
+## 跑批控制系统（Finance Batch Control）
+
+### 概述
+
+跑批控制系统用于可视化管理 ERP 系统内的两个后台自动任务，支持暂停/恢复执行、修改执行时间、手动触发和项目级精细控制。数据通过 `DynamicBatchSchedulerConfig` 动态调度，修改后立即生效。
+
+### 数据表
+
+| 表名 | 用途 |
+|------|------|
+| `batch_job_control` | 全局任务级调度参数（启用状态、cron、触发历史） |
+| `batch_project_cost_control` | 项目级成本跑批控制（启用状态、优先级、备注） |
+
+### 任务一：项目成本跑批（FINANCE_COST_BATCH）
+
+**功能**：每晚自动汇总前一天所有项目成员的工时成本，写入 `finance_cost_entry` 和 `finance_cost_summary`。
+
+**目标**：财务核算系统依赖每日工时成本数据，确保报表准确。
+
+**工作过程**：
+1. 每天 00:00（上海时区）从 `batch_job_control` 读取 cron、enabled 状态
+2. 如为 disabled，跳过执行
+3. 按 `batch_project_cost_control` 中 enabled=true 的项目逐个汇总前一天工时
+4. 结果写入 `finance_cost_entry`（按人/天/项目）和 `finance_cost_summary`（按项目/账期）
+5. 完成后更新 `batch_job_control.last_triggered_at / last_status / last_message`
+
+**数据库写操作**：
+- `finance_cost_entry`（insert）
+- `finance_cost_summary`（insert/update）
+- `batch_job_control`（update last_run）
+
+**触发条件**：
+- 自动：从 `batch_job_control.schedule_mode` 读取 cron 表达式动态调度（默认 `0 0 0 * * *`，每天 00:00）
+- 手动：`POST /api/batch/jobs/run?jobKey=FINANCE_COST_BATCH`
+
+### 任务二：钉钉考勤拉取（ATTENDANCE_PULL）
+
+**功能**：每天凌晨自动从钉钉考勤接口拉取前一天的员工打卡记录，写入 `attendance_record`。
+
+**目标**：同步钉钉打卡数据到本地，供工资核算使用。
+
+**工作过程**：
+1. 每天凌晨 2:00（固定）从 `batch_job_control` 读取 enabled 状态
+2. 如为 disabled，跳过执行
+3. 调用钉钉 `/attendance/list` 分页拉取前一天的考勤记录
+4. 遍历钉钉用户列表，每次最多 50 人批量写入 `attendance_record`（去重）
+5. 完成后更新 `batch_job_control.last_triggered_at / last_status / last_message`
+
+**数据库写操作**：
+- `attendance_record`（insert，userId + userCheckTime + checkType 去重）
+- `dingtalk_user_directory`（upsert）
+- `batch_job_control`（update last_run）
+
+**触发条件**：
+- 自动：`POST /api/batch/jobs/run?jobKey=ATTENDANCE_PULL`
+- 手动：`POST /api/batch/jobs/run?jobKey=ATTENDANCE_PULL`
+
+### 调度器实现：`DynamicBatchSchedulerConfig`
+
+使用 Spring `TaskScheduler`（非固定 `@Scheduled` cron），动态调度逻辑：
+- `configureTasks()`：注册 `ThreadPoolTaskScheduler`（线程池大小 4）
+- `scheduleOrRescheduleJob(job)`：根据 `batch_job_control` 中的 enabled / cron 参数动态注册/取消任务
+- 每次调用 `updateJobControl()` 时触发 `triggerReschedule(jobKey)`，让 cron 变更实时生效
+
+### REST API
+
+#### 列表全局任务
+```
+GET /api/batch/jobs
+Response: FinanceApiResponse<List<BatchJobControlVO>>
+```
+
+#### 更新任务参数
+```
+PUT /api/batch/jobs?jobKey=<key>&enabled=<true|false>&runAtHour=<0-23>&runAtMinute=<0-59>
+```
+
+#### 手动触发任务
+```
+POST /api/batch/jobs/run?jobKey=<FINANCE_COST_BATCH|ATTENDANCE_PULL>
+```
+
+#### 列表项目成本控制
+```
+GET /api/batch/projects
+Response: FinanceApiResponse<List<BatchProjectCostControlVO>>
+```
+
+#### 更新项目成本控制
+```
+PUT /api/batch/projects?projectId=<id>&enabled=<true|false>&priority=<1-999>&note=<string>
+```
+
+### BatchJobControlVO 字段说明
+
+| 字段 | 说明 |
+|------|------|
+| `job_key` | 任务唯一标识（FINANCE_COST_BATCH / ATTENDANCE_PULL） |
+| `display_name` | 任务展示名 |
+| `enabled` | 全局启用/暂停 |
+| `schedule_mode` | MANUAL_ONLY / DAILY_TIME |
+| `run_at_hour` | 执行小时（0-23，上海时区） |
+| `run_at_minute` | 执行分钟（0-59） |
+| `last_triggered_at` | 上次触发时间 |
+| `last_status` | COMPLETED / FAILED / TRIGGERED / RUNNING |
+| `last_message` | 执行结果摘要 |
+
+### BatchProjectCostControlVO 字段说明
+
+| 字段 | 说明 |
+|------|------|
+| `project_id` | 项目ID（对应 sys_project.project_id） |
+| `project_name` | 项目名称 |
+| `enabled` | 是否参与成本跑批 |
+| `priority` | 优先级（数字越小优先级越高，范围 1-999） |
+| `note` | 备注 |
+| `updated_at` | 更新时间 |
+
+
+## Bug 修复记录
+
+### Finance 侧边栏导航错误 (2026-04-26)
+
+**现象**：Finance 系统左侧侧边栏点击后进入其他栏目，而非目标栏目。例如点击"跑批控制"显示清算中心内容，点击"清算"显示分红中心内容。
+
+**根因**：`lab-erp-demo/src/router/financeRoutes.js` 第 187-217 行，路由定义使用了错误的 `financeNavigationItems` 数组索引。第 6 条路由（跑批控制）错误引用了 `financeNavigationItems[11]`（考勤工资的路径/名称），而非 `[4]`，导致后续全部路由的 path/name 与 component 错位映射。
+
+**错误代码位置**：`lab-erp-demo/src/router/financeRoutes.js:187-217`
+
+**错误映射**：
+
+| 侧边栏点击 | 实际渲染组件 | 应渲染组件 |
+|-----------|-------------|-----------|
+| 跑批控制 | ClearingCenterView | BatchControlView |
+| 清算 | DividendCenterView | ClearingCenterView |
+| 分红 | AdjustmentCenterView | DividendCenterView |
+| 调账 | FinanceExpenseCenterView | AdjustmentCenterView |
+| 报销采购 | RagSearchView | FinanceExpenseCenterView |
+| 全局业务检索 | FinanceAiChatView | RagSearchView |
+| 全局业务助手 | FinanceAttendanceView | FinanceAiChatView |
+| 考勤工资 | (无对应路由) | FinanceAttendanceView |
+
+**修复措施**：将路由定义中的 `financeNavigationItems` 索引从 `[11,4,5,6,7,8,9,10]` 修正为 `[4,5,6,7,8,9,10,11]`，确保每条路由的路径、名称与渲染组件一一对应。
+
+**改后结果**：所有 11 个侧边栏栏目点击后正确进入对应功能页面。
 
 ### 查询下一版本号
 

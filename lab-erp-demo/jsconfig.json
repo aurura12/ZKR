@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "exclude": ["node_modules",
+    "../erp-backend/src/main/resources/static/dist"
+  ]
+}

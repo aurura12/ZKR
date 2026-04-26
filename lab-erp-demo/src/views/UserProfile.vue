@@ -59,6 +59,40 @@
             </button>
           </div>
         </div>
+
+        <div class="section">
+          <h3>🕐 考勤记录</h3>
+          <div class="attendance-calendar">
+            <div class="attendance-month-nav">
+              <el-button size="small" @click="prevMonth" :disabled="attendanceLoading">‹</el-button>
+              <span class="attendance-month-label">{{ attendanceYear }}年{{ attendanceMonth + 1 }}月</span>
+              <el-button size="small" @click="nextMonth" :disabled="attendanceLoading">›</el-button>
+            </div>
+            <div class="attendance-summary">
+              <div class="summary-item normal">
+                <span class="summary-dot normal"></span>
+                <span>正常 {{ monthStats.normal }} 天</span>
+              </div>
+              <div class="summary-item late">
+                <span class="summary-dot late"></span>
+                <span>迟到 {{ monthStats.late }} 次</span>
+              </div>
+              <div class="summary-item early">
+                <span class="summary-dot early"></span>
+                <span>早退 {{ monthStats.early }} 次</span>
+              </div>
+            </div>
+            <div class="calendar-grid">
+              <div v-for="day in calendarDays" :key="day.date" class="calendar-cell" :class="day.className" :title="day.tooltip">
+                <span class="day-num">{{ day.day }}</span>
+                <span v-if="day.checkIn" class="check-icon">↑{{ day.checkIn }}</span>
+                <span v-if="day.checkOut" class="check-icon">↓{{ day.checkOut }}</span>
+              </div>
+            </div>
+            <div v-if="attendanceLoading" class="attendance-loading">加载中...</div>
+            <div v-else-if="!attendanceRecords.length" class="attendance-empty">本月暂无打卡记录</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -99,7 +133,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '@/stores/userStore'
 import { useRouter, useRoute } from 'vue-router'
 import request from '@/utils/request'
@@ -199,6 +233,106 @@ const handleLogout = () => {
     router.push('/login')
   }
 }
+
+// 考勤相关状态
+const attendanceLoading = ref(false)
+const attendanceRecords = ref([])
+const attendanceYear = ref(new Date().getFullYear())
+const attendanceMonth = ref(new Date().getMonth())
+
+const monthStats = computed(() => {
+  const thisMonthRecords = attendanceRecords.value
+  return {
+    normal: thisMonthRecords.filter(r => r.timeResult === 'Normal').length,
+    late: thisMonthRecords.filter(r => r.timeResult === 'Late' || r.timeResult === 'SeriousLate').length,
+    early: thisMonthRecords.filter(r => r.timeResult === 'Early').length
+  }
+})
+
+const calendarDays = computed(() => {
+  const year = attendanceYear.value
+  const month = attendanceMonth.value
+  const firstDay = new Date(year, month, 1).getDay() || 7
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const days = []
+
+  // 填充空白
+  for (let i = 1; i < firstDay; i++) {
+    days.push({ date: '', day: '', className: 'empty' })
+  }
+
+  // 填充日期
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const dayRecords = attendanceRecords.value.filter(r => r.workDate === dateStr)
+    const checkInRec = dayRecords.find(r => r.checkType === 'OnDuty')
+    const checkOutRec = dayRecords.find(r => r.checkType === 'OffDuty')
+
+    const hasLate = dayRecords.some(r => r.timeResult === 'Late' || r.timeResult === 'SeriousLate')
+    const hasEarly = dayRecords.some(r => r.timeResult === 'Early')
+    const hasNormal = dayRecords.some(r => r.timeResult === 'Normal' || r.timeResult === 'Absenteeism')
+    const hasNoRecord = dayRecords.length === 0
+
+    let className = ''
+    if (hasLate) className = 'late'
+    else if (hasEarly) className = 'early'
+    else if (hasNormal) className = 'normal'
+
+    let tooltip = dateStr
+    if (checkInRec) tooltip += ` 上班:${new Date(checkInRec.userCheckTime).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'})} ${checkInRec.timeResult || ''}`
+    if (checkOutRec) tooltip += ` 下班:${new Date(checkOutRec.userCheckTime).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'})} ${checkOutRec.timeResult || ''}`
+
+    days.push({
+      date: dateStr,
+      day: d,
+      className,
+      checkIn: checkInRec ? new Date(checkInRec.userCheckTime).toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit', hour12: false}) : null,
+      checkOut: checkOutRec ? new Date(checkOutRec.userCheckTime).toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit', hour12: false}) : null,
+      tooltip
+    })
+  }
+  return days
+})
+
+const fetchAttendance = async () => {
+  if (!userStore.activeUserInfo?.userId) return
+  attendanceLoading.value = true
+  try {
+    const from = `${attendanceYear.value}-${String(attendanceMonth.value + 1).padStart(2, '0')}-01`
+    const lastDay = new Date(attendanceYear.value, attendanceMonth.value + 1, 0).getDate()
+    const to = `${attendanceYear.value}-${String(attendanceMonth.value + 1).padStart(2, '0')}-${lastDay}`
+    const res = await request.get('/api/attendance/records', {
+      params: { userId: userStore.activeUserInfo.userId, from, to }
+    })
+    attendanceRecords.value = Array.isArray(res) ? res : (res.data || [])
+  } catch (e) {
+    attendanceRecords.value = []
+  } finally {
+    attendanceLoading.value = false
+  }
+}
+
+const prevMonth = () => {
+  if (attendanceMonth.value === 0) {
+    attendanceMonth.value = 11
+    attendanceYear.value--
+  } else {
+    attendanceMonth.value--
+  }
+  fetchAttendance()
+}
+
+const nextMonth = () => {
+  if (attendanceMonth.value === 11) {
+    attendanceMonth.value = 0
+    attendanceYear.value++
+  } else {
+    attendanceMonth.value++
+  }
+  fetchAttendance()
+}
+
+onMounted(fetchAttendance)
 </script>
 
 <style scoped>
@@ -400,5 +534,112 @@ const handleLogout = () => {
   font-size: 13px;
   color: var(--text-sub);
   margin: 0 0 8px 0;
+}
+
+/* 考勤日历样式 */
+.attendance-calendar {
+  background: var(--science-canvas);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+}
+
+.attendance-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.attendance-month-label {
+  font-weight: 600;
+  font-size: 14px;
+  min-width: 100px;
+  text-align: center;
+}
+
+.attendance-summary {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.summary-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.summary-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.summary-dot.normal { background: #22c55e; }
+.summary-dot.late { background: #ef4444; }
+.summary-dot.early { background: #f59e0b; }
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-cell {
+  aspect-ratio: 1;
+  background: var(--science-surface);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  gap: 1px;
+  border: 1px solid var(--border-soft);
+  position: relative;
+  min-height: 36px;
+}
+
+.calendar-cell.empty {
+  background: transparent;
+  border: none;
+}
+
+.calendar-cell.normal {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.calendar-cell.late {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.calendar-cell.early {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.day-num {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.check-icon {
+  font-size: 9px;
+  color: var(--text-sub);
+  line-height: 1;
+}
+
+.attendance-loading,
+.attendance-empty {
+  text-align: center;
+  padding: 16px;
+  color: var(--text-sub);
+  font-size: 13px;
 }
 </style>

@@ -13,7 +13,7 @@
       <div class="nav-left">
         <div class="logo-box">
           <span class="logo-icon">♟️</span>
-          <span class="logo-text">国科九天</span>
+          <span class="logo-text">智能博弈实验室</span>
         </div>
 
         <div class="role-badge" :class="badgeClass">
@@ -76,12 +76,30 @@
     <el-drawer v-model="showMessageDrawer" title="站内消息" size="420px">
       <div v-if="!messages.length" class="drawer-empty">暂无消息</div>
       <div v-else class="message-list">
-        <div v-for="message in messages" :key="message.id" class="message-card" :class="{ unread: !message.read }" @click="markMessageRead(message)">
-          <div class="message-title-row">
-            <strong>{{ message.title }}</strong>
+        <div
+          v-for="message in messages"
+          :key="message.id"
+          class="message-card"
+          :class="{ unread: !message.read, expanded: expandedIds.has(message.id) }"
+        >
+          <div class="message-title-row" @click="toggleExpand(message)">
+            <div class="message-title-left">
+              <span class="expand-icon">{{ expandedIds.has(message.id) ? '▼' : '▶' }}</span>
+              <strong>{{ message.title }}</strong>
+            </div>
             <span class="message-time">{{ message.createdAt }}</span>
           </div>
-          <div class="message-content">{{ message.content }}</div>
+          <div class="message-body" v-show="expandedIds.has(message.id)">
+            <div class="message-content">{{ message.content }}</div>
+            <div class="message-actions">
+              <el-button v-if="message.projectId" type="primary" size="small" @click="goToProject(message)">
+                前往项目
+              </el-button>
+              <el-button v-if="!message.read" type="success" size="small" @click="markMessageRead(message)">
+                标记已读
+              </el-button>
+            </div>
+          </div>
         </div>
       </div>
     </el-drawer>
@@ -144,6 +162,7 @@ const showMessageDrawer = ref(false)
 const showBadgeDialog = ref(false)
 const messages = ref([])
 const unreadMessageCount = ref(0)
+const expandedIds = ref(new Set())
 const userOptions = ref([])
 const badgeForm = ref({ userId: '', badgeName: '', badgeIcon: '🏅', badgeColor: '#f59e0b', hiddenAvatar: false })
 const displayAvatar = computed(() => userStore.activeUserInfo?.hiddenAvatar ? 'https://api.dicebear.com/7.x/shapes/svg?seed=masked' : (userStore.activeUserInfo?.avatar || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'))
@@ -213,6 +232,25 @@ const markMessageRead = async message => {
   await request.patch(`/api/messages/${message.id}/read`)
   message.read = true
   unreadMessageCount.value = Math.max(0, unreadMessageCount.value - 1)
+}
+
+const toggleExpand = message => {
+  if (expandedIds.value.has(message.id)) {
+    expandedIds.value.delete(message.id)
+  } else {
+    expandedIds.value.add(message.id)
+    if (!message.read) {
+      markMessageRead(message)
+    }
+  }
+  expandedIds.value = new Set(expandedIds.value)
+}
+
+const goToProject = message => {
+  showMessageDrawer.value = false
+  if (message.projectId) {
+    router.push(`/workspace/project/${message.projectId}`)
+  }
 }
 
 const openBadgeDialog = async () => {
@@ -530,7 +568,6 @@ body {
   border-radius: 14px;
   border: 1px solid var(--border-soft);
   background: var(--science-surface);
-  cursor: pointer;
 }
 
 .message-card.unread {
@@ -538,10 +575,34 @@ body {
   box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15);
 }
 
+.message-card.expanded {
+  border-color: var(--science-blue);
+}
+
 .message-title-row {
   display: flex;
   justify-content: space-between;
   gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.message-title-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.expand-icon {
+  font-size: 10px;
+  color: var(--text-sub);
+  flex-shrink: 0;
+}
+
+.message-body {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
 }
 
 .message-time,
@@ -551,8 +612,13 @@ body {
 }
 
 .message-content {
-  margin-top: 6px;
   line-height: 1.6;
+}
+
+.message-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
 }
 
 .dark .el-overlay .el-drawer,

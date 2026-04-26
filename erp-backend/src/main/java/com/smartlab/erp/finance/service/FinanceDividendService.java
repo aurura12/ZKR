@@ -217,7 +217,7 @@ public class FinanceDividendService {
     }
 
     private FinanceClearingSheet getEligibleClearingSheet(String projectId) {
-        FinanceClearingSheet clearingSheet = clearingSheetRepository.findTopByProject_ProjectIdOrderByIdDesc(projectId)
+        FinanceClearingSheet clearingSheet = clearingSheetRepository.findTopByProject_ProjectIdOrderByLedgerMonthDescIdDesc(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("No clearing sheet found for project: " + projectId));
         if (clearingSheet.getStatus() != FinanceClearingStatus.CLEARED) {
             throw new IllegalArgumentException("Project must be cleared before preparing dividends");

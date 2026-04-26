@@ -56,6 +56,17 @@ service.interceptors.response.use(
     },
     error => {
         console.error('请求出错:', error)
+        if (error.response) {
+            const status = error.response.status
+            const data = error.response.data
+            if (data && data.message && typeof data.message === 'string') {
+                error.message = data.message
+            } else if (status === 403) {
+                error.message = '当前账号无此权限'
+            } else if (status === 503) {
+                error.message = '服务暂不可用，请稍后重试'
+            }
+        }
         return Promise.reject(error)
     }
 )

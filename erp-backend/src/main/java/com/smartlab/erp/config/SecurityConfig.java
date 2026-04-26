@@ -8,6 +8,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -43,6 +48,7 @@ public class SecurityConfig {
 
     private static final String[] FINANCE_API_PATTERNS = {
             "/api/finance/**",
+            "/api/messages/**",
             "/api/adjustment/**",
             "/api/batch/**",
             "/api/clearing/**",
@@ -112,6 +118,7 @@ public class SecurityConfig {
                         //    (注意顺序：先放行登录/注册 API，再拦截其他 API)
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/users").permitAll() // 注册接口
+                        .requestMatchers("/api/attendance/**").access(this::requireAttendanceDomain)
                         .requestMatchers(FINANCE_API_PATTERNS).access(this::requireFinanceDomain)
                         .requestMatchers("/api/**").access(this::requireErpDomain)
 
@@ -121,18 +128,48 @@ public class SecurityConfig {
                         .anyRequest().permitAll()
                 )
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .exceptionHandling(ex -> ex
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpStatus.FORBIDDEN.value());
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                            response.getWriter().write("{\"message\":\"当前账号无此权限\"}");
+                        })
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                            response.getWriter().write("{\"message\":\"当前账号未登录或登录已过期\"}");
+                        })
+                );
 
         return http.build();
     }
 
     private AuthorizationDecision requireFinanceDomain(Supplier<Authentication> authentication,
-                                                       RequestAuthorizationContext context) {
+                                                        RequestAuthorizationContext context) {
         return requireAccountDomain(authentication, AccountDomain.FINANCE);
     }
 
+    private AuthorizationDecision requireAttendanceDomain(Supplier<Authentication> authentication,
+                                                       RequestAuthorizationContext context) {
+        Authentication auth = authentication.get();
+        if (auth == null || !auth.isAuthenticated()) {
+            return new AuthorizationDecision(false);
+        }
+
+        Object principal = auth.getPrincipal();
+        if (!(principal instanceof UserPrincipal userPrincipal)) {
+            return new AuthorizationDecision(false);
+        }
+
+        AccountDomain domain = userPrincipal.getAccountDomain();
+        return new AuthorizationDecision(domain == AccountDomain.ERP || domain == AccountDomain.FINANCE);
+    }
+
     private AuthorizationDecision requireErpDomain(Supplier<Authentication> authentication,
-                                                   RequestAuthorizationContext context) {
+                                                    RequestAuthorizationContext context) {
         return requireAccountDomain(authentication, AccountDomain.ERP);
     }
 

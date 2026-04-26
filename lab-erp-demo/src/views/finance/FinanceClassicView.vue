@@ -86,7 +86,6 @@ let timer = null
 
 const moduleLinks = [
   { path: '/finance/wallets', eyebrow: '资金', title: '钱包余额', description: '查看账户余额与流水明细。' },
-  { path: '/finance/cost-batches', eyebrow: '核算', title: '成本跑批', description: '按会计期间执行批量核算。' },
   { path: '/finance/clearing', eyebrow: '结算', title: '自动清算中心', description: '处理差异与结算执行。' },
   { path: '/finance/dividends', eyebrow: '分配', title: '分红中心', description: '管理分红单与确认流程。' },
   { path: '/finance/adjustments', eyebrow: '调账', title: '手工调账', description: '记录借贷调整与审计轨迹。' },

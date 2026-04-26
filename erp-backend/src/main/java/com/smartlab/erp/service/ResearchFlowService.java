@@ -40,11 +40,13 @@ public class ResearchFlowService {
 
     private final SysProjectRepository projectRepository;
     private final SysProjectMemberRepository projectMemberRepository;
+    private final ProjectMemberParticipationService projectMemberParticipationService;
     private final UserRepository userRepository;
     private final ResearchProjectProfileRepository researchProjectProfileRepository;
     private final ProjectAssetRepository projectAssetRepository;
     private final MiddlewareAssetRepository middlewareAssetRepository;
     private final MiddlewareRoyaltyRosterRepository middlewareRoyaltyRosterRepository;
+    private final WorkflowMemberRoleSyncService workflowMemberRoleSyncService;
 
     private static final List<ResearchStatus> WORKFLOW_ORDER = List.of(
             ResearchStatus.INIT,
@@ -542,14 +544,19 @@ public class ResearchFlowService {
             SysProjectMember member = existing.get();
             member.setRole(role);
             projectMemberRepository.save(member);
+            workflowMemberRoleSyncService.sync(FlowType.RESEARCH.name(), projectId, user.getUserId(), member.getRole());
+            projectMemberParticipationService.recordJoin(projectId, user, member.getJoinedAt());
             return;
         }
-        projectMemberRepository.save(SysProjectMember.builder()
+        SysProjectMember member = SysProjectMember.builder()
                 .projectId(projectId)
                 .user(user)
                 .role(role)
                 .weight(0)
-                .build());
+                .build();
+        projectMemberRepository.save(member);
+        workflowMemberRoleSyncService.sync(FlowType.RESEARCH.name(), projectId, user.getUserId(), member.getRole());
+        projectMemberParticipationService.recordJoin(projectId, user, member.getJoinedAt());
     }
 
     private User resolveUser(String userId, User fallback) {
@@ -598,6 +605,9 @@ public class ResearchFlowService {
     private void applyStatus(SysProject project, ResearchProjectProfile profile, ResearchStatus status) {
         project.setResearchStatus(status);
         profile.setStatus(status);
+        if (status == ResearchStatus.ARCHIVE || status == ResearchStatus.SHELVED) {
+            project.setEndDate(Instant.now());
+        }
         projectRepository.save(project);
         researchProjectProfileRepository.save(profile);
     }

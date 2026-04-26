@@ -79,6 +79,7 @@ public class ProjectService {
             "project_chat_message",
             "project_execution_plan",
             "project_git_repository",
+            "project_member_participation_history",
             "project_member_schedule",
             "project_milestone",
             "project_subtask",
@@ -94,12 +95,14 @@ public class ProjectService {
     private final ProjectSubtaskRepository projectSubtaskRepository;
     private final ProjectExecutionPlanRepository executionPlanRepository;
     private final ProjectMemberScheduleRepository projectMemberScheduleRepository;
+    private final ProjectMemberParticipationService projectMemberParticipationService;
     private final ProductIdeaDetailRepository productIdeaDetailRepository;
     private final ResearchProjectProfileRepository researchProjectProfileRepository;
     private final StateMachineService stateMachineService;
     private final ProjectFinancialMetricsService projectFinancialMetricsService;
     private final RbacService rbacService;
     private final InternalMessageService internalMessageService;
+    private final WorkflowMemberRoleSyncService workflowMemberRoleSyncService;
     private final JdbcTemplate jdbcTemplate;
 
     @Value("${file.upload-dir:./uploads}")
@@ -321,6 +324,8 @@ public class ProjectService {
             member.setManagerWeight(sanitizeRatio(managerWeight));
         }
         projectMemberRepository.save(member);
+        workflowMemberRoleSyncService.sync(project.getFlowType().name(), project.getProjectId(), user.getUserId(), member.getRole());
+        projectMemberParticipationService.recordJoin(project.getProjectId(), user, member.getJoinedAt());
         return existing.isEmpty();
     }
 
@@ -439,6 +444,8 @@ public class ProjectService {
             managerMember.setWeight(sanitizeRatio(managerMember.getWeight()));
         }
         projectMemberRepository.save(managerMember);
+        workflowMemberRoleSyncService.sync(project.getFlowType().name(), project.getProjectId(), managerMember.getUser().getUserId(), managerMember.getRole());
+        projectMemberParticipationService.recordJoin(project.getProjectId(), managerMember.getUser(), managerMember.getJoinedAt());
     }
 
     public ProjectTierEnum resolveProjectTier(ProjectExecutionPlan executionPlan, SysProject project) {
@@ -795,6 +802,9 @@ public class ProjectService {
         }
 
         project.setProjectStatus(newStatus);
+        if (newStatus == ProjectStatus.COMPLETED) {
+            project.setEndDate(Instant.now());
+        }
         projectRepository.save(project);
         notifyProjectMembers(projectId, userId, "PROJECT_STATUS", "项目进度已更新", "项目状态已变更为：" + newStatus.getStageName());
     }
@@ -1088,6 +1098,10 @@ public class ProjectService {
         plan.setTechStackDescription(techStackDescription);
         executionPlanRepository.save(plan);
 
+        if (request.getEstimatedRevenue() != null) {
+            project.setEstimatedRevenue(request.getEstimatedRevenue());
+            project.setBudget(request.getEstimatedRevenue());
+        }
         project.setProjectTier(request.getProjectTier());
         String description = upsertProjectTier(project.getDescription(), request.getProjectTier());
         description = upsertFeasibilityReportStatus(description, hasFeasibilityReport(project) ? "已上传" : "未上传");
@@ -1122,7 +1136,7 @@ public class ProjectService {
         return projectMemberRepository.findByProjectIdAndUserUserId(projectId, userId)
                 .filter(member -> {
                     String role = member.getRole() == null ? "" : member.getRole().trim().toUpperCase();
-                    return Set.of("DATA", "DATA_ENGINEER").contains(role);
+                    return Set.of("DATA", "DATA_ENGINEER", "MANAGER", "PM").contains(role);
                 })
                 .isPresent();
     }

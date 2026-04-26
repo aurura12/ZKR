@@ -34,7 +34,7 @@
           style="width: 100%"
           popper-class="project-data-engineer-select-popper"
         >
-          <el-option v-for="u in dataEngineers" :key="u.id" :label="u.name" :value="u.id" />
+          <el-option v-for="u in dataEngineers" :key="u.id" :label="`${u.name} / ${u.role}`" :value="u.id" />
         </el-select>
 
         <div class="field-hint mb-3">
@@ -66,6 +66,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
+import { getProjectWorkflowRoleCandidates } from '@/api/workflowMemberRoles'
 
 const router = useRouter()
 const submitting = ref(false)
@@ -102,13 +103,15 @@ const canSubmit = computed(() => Boolean(
 
 onMounted(async () => {
   try {
-    const users = await request.get('/api/users')
-    const list = users.data || users || []
+    const candidatesRes = await getProjectWorkflowRoleCandidates()
+    const candidateList = candidatesRes.data || candidatesRes || []
+    const list = candidateList.length > 0 ? candidateList : ((await request.get('/api/users')).data || [])
     dataEngineers.value = list
-      .filter(u => String(u.accountDomain || 'ERP').toUpperCase() === 'ERP')
       .filter(u => isDataRole(u.role))
       .map(u => ({
-        id: u.userId,
+        id: `${u.userId}-${u.role}`,
+        userId: u.userId,
+        role: u.role,
         name: u.name && u.username ? `${u.name}（${u.username}）` : (u.name || u.username)
       }))
   } catch {

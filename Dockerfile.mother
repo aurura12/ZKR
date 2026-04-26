@@ -1,0 +1,16 @@
+FROM docker:27.5.1-cli
+
+RUN apk add --no-cache \
+    bash=5.2.37-r0 \
+    git=2.47.3-r0 \
+    curl=8.14.1-r2 \
+    nodejs=22.15.1-r0 \
+    npm=10.9.1-r0 \
+    openjdk17-jdk=17.0.18_p8-r0 \
+    docker-cli-compose
+
+# First pass keeps the base image's root user so bind mounts and the Docker
+# socket stay writable/usable in long-lived workspaces across host setups.
+WORKDIR /workspace
+
+CMD ["bash"]

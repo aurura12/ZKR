@@ -8,6 +8,7 @@ public class ProjectDynamicInfoUpdateRequest {
     private ProjectTierEnum projectTier;
     private String techStackDescription;
     private String implementationStatus;
+    private java.math.BigDecimal estimatedRevenue;
 
     public String getGoalDescription() {
         return goalDescription;
@@ -39,5 +40,13 @@ public class ProjectDynamicInfoUpdateRequest {
 
     public void setImplementationStatus(String implementationStatus) {
         this.implementationStatus = implementationStatus;
+    }
+
+    public java.math.BigDecimal getEstimatedRevenue() {
+        return estimatedRevenue;
+    }
+
+    public void setEstimatedRevenue(java.math.BigDecimal estimatedRevenue) {
+        this.estimatedRevenue = estimatedRevenue;
     }
 }

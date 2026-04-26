@@ -68,6 +68,7 @@ public class ProjectFlowService {
     private final SysProjectMemberRepository projectMemberRepository;
     private final ProjectExecutionPlanRepository executionPlanRepository;
     private final ProjectService projectService;
+    private final ProjectMemberParticipationService projectMemberParticipationService;
     private final ProjectMemberScheduleRepository memberScheduleRepository;
     private final ExecutionFileRepository executionFileRepository;
     private final ExecutionArchiveFolderRepository executionArchiveFolderRepository;
@@ -421,6 +422,8 @@ public class ProjectFlowService {
                         .weight(0)
                         .managerWeight(0)
                         .build());
+                projectMemberRepository.findByProjectIdAndUserUserId(projectId, userId)
+                        .ifPresent(projectMemberParticipationService::recordJoin);
                 memberScheduleRepository.findByProjectIdAndUserId(projectId, userId)
                         .orElseGet(() -> memberScheduleRepository.save(ProjectMemberSchedule.builder()
                                 .projectId(projectId)
@@ -439,9 +442,12 @@ public class ProjectFlowService {
                 }
                 added++;
             }
+            projectMemberRepository.findByProjectIdAndUserUserId(projectId, userId)
+                    .ifPresent(member -> projectMemberParticipationService.recordJoin(projectId, member.getUser(), member.getJoinedAt()));
         }
 
         for (String userId : removeUserIds) {
+            projectMemberParticipationService.recordLeave(projectId, userId, Instant.now());
             long delta = projectMemberRepository.deleteByProjectIdAndUserUserId(projectId, userId);
             if (delta > 0) {
                 memberScheduleRepository.deleteByProjectIdAndUserId(projectId, userId);

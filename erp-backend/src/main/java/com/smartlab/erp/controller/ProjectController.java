@@ -7,6 +7,7 @@ import com.smartlab.erp.dto.ProjectDetailResponse;
 import com.smartlab.erp.dto.ProjectMemberEarningsResponse;
 import com.smartlab.erp.dto.ProjectSubtaskRequest;
 import com.smartlab.erp.dto.ProjectSubtaskResponse;
+import com.smartlab.erp.dto.WorkflowMemberRoleDTO;
 import com.smartlab.erp.entity.SysProject;
 import com.smartlab.erp.entity.ProjectStatus;
 import com.smartlab.erp.entity.ProductStatus;
@@ -16,6 +17,7 @@ import com.smartlab.erp.finance.service.FinanceExpenseSubmissionService;
 import com.smartlab.erp.security.UserPrincipal;
 import com.smartlab.erp.service.ProjectFinancialMetricsService;
 import com.smartlab.erp.service.ProjectService;
+import com.smartlab.erp.service.WorkflowMemberRoleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
@@ -41,6 +43,7 @@ public class ProjectController {
     private final ProjectService projectService;
     private final FinanceExpenseSubmissionService financeExpenseSubmissionService;
     private final ProjectFinancialMetricsService projectFinancialMetricsService;
+    private final WorkflowMemberRoleService workflowMemberRoleService;
 
     // ================== 🟢 核心修复：列表查询接口 ==================
 
@@ -93,6 +96,18 @@ public class ProjectController {
     public ResponseEntity<ProjectDetailResponse> getProject(@PathVariable String id,
                                                             @AuthenticationPrincipal UserPrincipal currentUser) {
         return ResponseEntity.ok(projectService.getProjectDetail(id, currentUser));
+    }
+
+    @GetMapping("/{id}/workflow-member-roles")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<WorkflowMemberRoleDTO>> getWorkflowMemberRoles(@PathVariable String id) {
+        return ResponseEntity.ok(workflowMemberRoleService.getWorkflowMemberRoles("PROJECT", id));
+    }
+
+    @GetMapping("/role-candidates")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<WorkflowMemberRoleDTO>> getRoleCandidates() {
+        return ResponseEntity.ok(workflowMemberRoleService.getWorkflowRoleCandidates("PROJECT"));
     }
 
     @GetMapping("/{id}/earnings/me")
@@ -149,6 +164,28 @@ public class ProjectController {
                 "status", submission.getStatus().name(),
                 "type", submission.getSubmissionType().name(),
                 "message", "出差报销已提交至财务系统"
+        ));
+    }
+
+    @PostMapping(value = "/{id}/project-expenses", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> submitProjectExpense(
+            @PathVariable String id,
+            @Valid @ModelAttribute FinanceExpenseSubmissionCreateRequest request,
+            @RequestParam("expenseType") String expenseType,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        com.smartlab.erp.finance.enums.FinanceExpenseSubmissionType type;
+        try {
+            type = com.smartlab.erp.finance.enums.FinanceExpenseSubmissionType.valueOf(expenseType);
+        } catch (IllegalArgumentException e) {
+            throw new com.smartlab.erp.exception.BusinessException("不支持的成本类型: " + expenseType);
+        }
+        FinanceExpenseSubmission submission = financeExpenseSubmissionService.submitProjectExpense(id, request, currentUser.getId(), type);
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "id", submission.getId(),
+                "status", submission.getStatus().name(),
+                "type", submission.getSubmissionType().name(),
+                "message", "项目成本已提交"
         ));
     }
 

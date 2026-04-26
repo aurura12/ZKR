@@ -5,9 +5,11 @@ import com.smartlab.erp.dto.ProductMemberUpdateRequest;
 import com.smartlab.erp.dto.ProductPromotionSetupRequest;
 import com.smartlab.erp.dto.ProductTaskAssignmentDTO;
 import com.smartlab.erp.dto.ProductTaskAssignmentUpdateRequest;
+import com.smartlab.erp.dto.WorkflowMemberRoleDTO;
 import com.smartlab.erp.entity.SysProject;
 import com.smartlab.erp.enums.DemoFileType;
 import com.smartlab.erp.service.ProductFlowService;
+import com.smartlab.erp.service.WorkflowMemberRoleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -36,6 +38,7 @@ import java.util.List;
 public class ProductFlowController {
 
     private final ProductFlowService productFlowService;
+    private final WorkflowMemberRoleService workflowMemberRoleService;
 
     // === Task 2: Idea 创意孵化 =============================================
 
@@ -107,4 +110,15 @@ public class ProductFlowController {
             @RequestBody ProductTaskAssignmentUpdateRequest request) {
         return ResponseEntity.ok(productFlowService.updateTaskAssignments(projectId, request));
     }
+
+    @GetMapping("/{projectId}/workflow-member-roles")
+    public ResponseEntity<List<WorkflowMemberRoleDTO>> getWorkflowMemberRoles(@PathVariable String projectId) {
+        return ResponseEntity.ok(workflowMemberRoleService.getWorkflowMemberRoles("PRODUCT", projectId));
+    }
+
+    @GetMapping("/role-candidates")
+    public ResponseEntity<List<WorkflowMemberRoleDTO>> getRoleCandidates() {
+        return ResponseEntity.ok(workflowMemberRoleService.getWorkflowRoleCandidates("PRODUCT"));
+    }
+
 }

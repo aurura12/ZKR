@@ -2,9 +2,11 @@ package com.smartlab.erp.controller;
 
 import com.smartlab.erp.dto.ResearchInitiateRequest;
 import com.smartlab.erp.dto.ResearchStatusTransitionRequest;
+import com.smartlab.erp.dto.WorkflowMemberRoleDTO;
 import com.smartlab.erp.entity.MiddlewareAsset;
 import com.smartlab.erp.entity.SysProject;
 import com.smartlab.erp.service.ResearchFlowService;
+import com.smartlab.erp.service.WorkflowMemberRoleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -27,6 +29,7 @@ import java.util.Map;
 public class ResearchFlowController {
 
     private final ResearchFlowService researchFlowService;
+    private final WorkflowMemberRoleService workflowMemberRoleService;
 
     // === Task 2: 阶段 1 - 发起与初探 =======================================
 
@@ -72,5 +75,15 @@ public class ResearchFlowController {
             @RequestParam("docType") String docType) {
         Map<String, Object> result = researchFlowService.uploadResearchKeyDoc(projectId, file, docType);
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/{projectId}/workflow-member-roles")
+    public ResponseEntity<java.util.List<WorkflowMemberRoleDTO>> getWorkflowMemberRoles(@PathVariable String projectId) {
+        return ResponseEntity.ok(workflowMemberRoleService.getWorkflowMemberRoles("RESEARCH", projectId));
+    }
+
+    @GetMapping("/role-candidates")
+    public ResponseEntity<java.util.List<WorkflowMemberRoleDTO>> getRoleCandidates() {
+        return ResponseEntity.ok(workflowMemberRoleService.getResearchRoleCandidates());
     }
 }

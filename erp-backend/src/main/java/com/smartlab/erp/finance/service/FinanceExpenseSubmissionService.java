@@ -46,6 +46,18 @@ public class FinanceExpenseSubmissionService {
     @Value("${file.upload-dir:./uploads}")
     private String uploadDir;
 
+    @Value("${auth.admin-usernames:Zhangqi,guojianwen,jiaomiao}")
+    private String adminUsernamesConfig;
+
+    private boolean isAdminUser(User user) {
+        if (user == null) return false;
+        if ("ADMIN".equalsIgnoreCase(user.getRole())) return true;
+        if (user.getUsername() == null || user.getUsername().isBlank()) return false;
+        return java.util.Set.of(adminUsernamesConfig.split(",")).stream()
+                .map(String::trim).filter(s -> !s.isEmpty())
+                .anyMatch(name -> name.equalsIgnoreCase(user.getUsername().trim()));
+    }
+
     @Transactional
     public FinanceExpenseSubmission submitPersonalProcurement(FinanceExpenseSubmissionCreateRequest request, String userId) {
         User submitter = loadErpSubmitter(userId);
@@ -63,6 +75,27 @@ public class FinanceExpenseSubmissionService {
         validateCommonRequest(request);
         validateTravelRequest(request);
         return financeExpenseSubmissionRepository.save(buildSubmission(request, submitter, project, FinanceExpenseSubmissionType.PROJECT_TRAVEL_REIMBURSEMENT));
+    }
+
+    @Transactional
+    public FinanceExpenseSubmission submitProjectExpense(String projectId,
+                                                         FinanceExpenseSubmissionCreateRequest request,
+                                                         String userId,
+                                                         FinanceExpenseSubmissionType expenseType) {
+        User submitter = userRepository.findById(userId)
+                .orElseThrow(() -> new PermissionDeniedException("当前用户不存在或会话已过期"));
+        SysProject project = sysProjectRepository.findById(projectId)
+                .orElseThrow(() -> new BusinessException("项目不存在"));
+        boolean admin = isAdminUser(submitter);
+        if (!admin && submitter.getAccountDomain() != AccountDomain.ERP) {
+            throw new PermissionDeniedException("仅 ERP 账号或管理员可提交项目成本");
+        }
+        if (!admin) {
+            sysProjectRepository.findProjectByIdAndUser(projectId, userId)
+                    .orElseThrow(() -> new PermissionDeniedException("项目不存在或无权限提交项目成本"));
+        }
+        validateCommonRequest(request);
+        return financeExpenseSubmissionRepository.save(buildSubmission(request, submitter, project, expenseType));
     }
 
     @Transactional(readOnly = true)

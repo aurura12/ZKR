@@ -45,6 +45,7 @@ public class FinanceWalletOverviewResponse {
         private BigDecimal totalMiddlewareProfit;
         private BigDecimal totalPromotionExpense;
         private BigDecimal totalAdjustmentAmount;
+        private Instant createdAt;
         private Instant updatedAt;
     }
 }

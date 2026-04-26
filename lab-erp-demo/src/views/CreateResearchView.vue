@@ -12,15 +12,15 @@
         <el-input v-model="form.budget" type="number" placeholder="预算 budget（必填）" class="mb-3" />
 
         <el-select v-model="form.hostUserId" filterable clearable placeholder="主持人 Host（可选，默认发起人）" style="width: 100%" class="mb-3">
-          <el-option v-for="u in users" :key="`host-${u.id}`" :label="u.name + ' (' + (u.role || 'N/A') + ')'" :value="u.id" />
+          <el-option v-for="u in users" :key="u.optionKey" :label="u.label" :value="u.value" />
         </el-select>
 
         <el-select v-model="form.chiefEngineerUserId" filterable clearable placeholder="总工程师 Chief Engineer（可选）" style="width: 100%" class="mb-3">
-          <el-option v-for="u in users" :key="`chief-${u.id}`" :label="u.name + ' (' + (u.role || 'N/A') + ')'" :value="u.id" />
+          <el-option v-for="u in users" :key="u.optionKey" :label="u.label" :value="u.value" />
         </el-select>
 
         <el-select v-model="form.coreMemberIds" filterable multiple placeholder="核心成员（必选至少2人）" style="width: 100%">
-          <el-option v-for="u in users" :key="`core-${u.id}`" :label="u.name + ' (' + (u.role || 'N/A') + ')'" :value="u.id" />
+          <el-option v-for="u in users" :key="u.optionKey" :label="u.label" :value="u.value" />
         </el-select>
         <div class="form-tip">提示：核心成员至少选择2人（不含发起人）</div>
       </div>
@@ -35,11 +35,13 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
+import { getResearchWorkflowMemberRoles, getResearchWorkflowRoleCandidates } from '@/api/workflowMemberRoles'
 
 const router = useRouter()
+const route = useRoute()
 const submitting = ref(false)
 const users = ref([])
 
@@ -59,11 +61,44 @@ const canSubmit = computed(() => Boolean(
   (form.value.coreMemberIds || []).length >= 2
 ))
 
+const rowKey = row => `${String(row?.userId || '').trim()}-${String(row?.role || '').trim()}`
+
+const mapRows = rows => (rows || [])
+  .filter(row => String(row?.userId || '').trim())
+  .map(row => {
+    const name = row.name || row.username || row.userId
+    const role = row.role || 'N/A'
+    return {
+      ...row,
+      id: String(row.userId),
+      optionKey: rowKey(row),
+      value: rowKey(row),
+      label: `${name} / ${role}`
+    }
+  })
+
+const unwrapUserId = value => String(value || '').split('-')[0] || ''
+
 onMounted(async () => {
   try {
+    const workflowId = String(route.query.workflowId || route.query.projectId || '').trim()
+    if (workflowId) {
+      const res = await getResearchWorkflowMemberRoles(workflowId)
+      const list = res.data || res || []
+      users.value = mapRows(list)
+      return
+    }
+
+    const roleCandidatesRes = await getResearchWorkflowRoleCandidates()
+    const roleCandidates = roleCandidatesRes.data || roleCandidatesRes || []
+    if (roleCandidates.length > 0) {
+      users.value = mapRows(roleCandidates)
+      return
+    }
+
     const res = await request.get('/api/users')
     const list = res.data || res || []
-    users.value = list.map(u => ({ id: u.userId, name: u.name || u.username, role: u.role }))
+    users.value = mapRows(list)
   } catch {
     users.value = []
   }
@@ -77,9 +112,9 @@ const submit = async () => {
       idea: form.value.idea.trim(),
       innovationPoint: form.value.innovationPoint.trim(),
       budget: Number(form.value.budget),
-      hostUserId: form.value.hostUserId || null,
-      chiefEngineerUserId: form.value.chiefEngineerUserId || null,
-      coreMemberIds: form.value.coreMemberIds
+      hostUserId: unwrapUserId(form.value.hostUserId) || null,
+      chiefEngineerUserId: unwrapUserId(form.value.chiefEngineerUserId) || null,
+      coreMemberIds: (form.value.coreMemberIds || []).map(unwrapUserId).filter(Boolean)
     })
     const project = res.data || res || {}
     ElMessage.success('科研创新发起成功')

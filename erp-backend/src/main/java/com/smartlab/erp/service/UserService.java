@@ -1,7 +1,13 @@
 package com.smartlab.erp.service;
 
+import com.smartlab.erp.entity.ProjectMemberParticipationHistory;
+import com.smartlab.erp.entity.SysProject;
+import com.smartlab.erp.entity.SysProjectMember;
 import com.smartlab.erp.enums.AccountDomain;
 import com.smartlab.erp.entity.User;
+import com.smartlab.erp.repository.ProjectMemberParticipationHistoryRepository;
+import com.smartlab.erp.repository.SysProjectMemberRepository;
+import com.smartlab.erp.repository.SysProjectRepository;
 import com.smartlab.erp.repository.UserBadgeRepository;
 import com.smartlab.erp.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -20,6 +27,13 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserBadgeRepository userBadgeRepository;
+    private final SysProjectRepository projectRepository;
+    private final SysProjectMemberRepository projectMemberRepository;
+    private final ProjectMemberParticipationHistoryRepository historyRepository;
+
+    private static boolean isActive(User user) {
+        return user != null && Boolean.TRUE.equals(user.getActive());
+    }
 
     /**
      * ✅ 查询所有用户
@@ -32,6 +46,7 @@ public class UserService {
                     AccountDomain userDomain = user.getAccountDomain() == null ? AccountDomain.ERP : user.getAccountDomain();
                     return userDomain == effectiveDomain;
                 })
+                .filter(UserService::isActive)
                 .peek(this::enrichUser)
                 .toList();
     }
@@ -54,6 +69,7 @@ public class UserService {
 
     public List<User> findAllUsers() {
         return userRepository.findAll().stream()
+                .filter(UserService::isActive)
                 .peek(this::enrichUser)
                 .toList();
     }
@@ -67,5 +83,31 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("用户不存在: " + userId));
         user.setDailyWage(dailyWage);
         userRepository.save(user);
+    }
+
+    @Transactional
+    public void deactivateUser(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在: " + userId));
+        if (!Boolean.TRUE.equals(user.getActive())) {
+            throw new RuntimeException("该用户已离职");
+        }
+        user.setActive(false);
+        userRepository.save(user);
+
+        List<SysProject> participatedProjects = projectRepository.findParticipatedProjects(userId);
+        Instant now = Instant.now();
+        for (SysProject project : participatedProjects) {
+            projectMemberRepository.findByProjectIdAndUserUserId(project.getProjectId(), userId)
+                    .ifPresent(member -> {
+                        historyRepository.findTopByProject_ProjectIdAndUser_UserIdAndLeftAtIsNullOrderByJoinedAtDesc(
+                                project.getProjectId(), userId)
+                                .ifPresent(history -> {
+                                    history.setLeftAt(now);
+                                    historyRepository.save(history);
+                                });
+                        projectMemberRepository.delete(member);
+                    });
+        }
     }
 }

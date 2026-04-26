@@ -48,4 +48,11 @@ public class AdminUserController {
         userService.updateDailyWage(userId, request.getDailyWage());
         return ResponseEntity.ok(Map.of("message", "日工资更新成功"));
     }
+
+    @PostMapping("/{userId}/deactivate")
+    public ResponseEntity<Map<String, String>> deactivateUser(@PathVariable String userId) {
+        requireProvisionAdmin();
+        userService.deactivateUser(userId);
+        return ResponseEntity.ok(Map.of("message", "用户已离职"));
+    }
 }

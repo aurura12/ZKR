@@ -61,6 +61,7 @@
                   <th>分红收入</th>
                   <th>版权费收入</th>
                   <th>调账净额</th>
+                  <th>入职时间</th>
                   <th>更新时间</th>
                 </tr>
               </thead>
@@ -73,6 +74,7 @@
                   <td class="amount amount--positive">{{ formatFinanceCurrency(wallet.totalDividendEarned) }}</td>
                   <td class="amount amount--positive">{{ formatFinanceCurrency(wallet.totalRoyaltyEarned ?? wallet.finTotalRoyaltyEarned) }}</td>
                   <td :class="amountClass(wallet.totalAdjustmentAmount)">{{ formatFinanceDelta(wallet.totalAdjustmentAmount) }}</td>
+                  <td>{{ formatFinanceDateTime(wallet.createdAt ?? wallet.created_at) }}</td>
                   <td>{{ formatFinanceDateTime(wallet.updatedAt ?? wallet.updated_at) }}</td>
                 </tr>
               </tbody>

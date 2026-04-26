@@ -414,6 +414,7 @@ public class FinanceReportingService {
                                 .totalMiddlewareProfit(FinanceAmounts.scale(wallet.getTotalMiddlewareProfit()))
                                 .totalPromotionExpense(FinanceAmounts.scale(wallet.getTotalPromotionExpense()))
                                 .totalAdjustmentAmount(FinanceAmounts.scale(wallet.getTotalAdjustmentAmount()))
+                                .createdAt(wallet.getCreatedAt())
                                 .updatedAt(wallet.getUpdatedAt())
                                 .build())
                         .toList())

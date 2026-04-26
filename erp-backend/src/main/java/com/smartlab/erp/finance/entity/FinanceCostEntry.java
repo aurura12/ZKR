@@ -13,7 +13,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
-@Table(name = "finance_cost_entry", indexes = {
+@Table(name = "finance_cost_entry", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_finance_cost_entry_project_user_day", columnNames = {"project_id", "user_id", "accrual_date"})
+}, indexes = {
         @Index(name = "idx_finance_cost_entry_batch_project", columnList = "batch_id,project_id"),
         @Index(name = "idx_finance_cost_entry_month", columnList = "ledger_month")
 })
@@ -43,8 +45,14 @@ public class FinanceCostEntry {
     @Column(name = "ledger_month", nullable = false, length = 7)
     private String ledgerMonth;
 
+    @Column(name = "accrual_date", nullable = false)
+    private java.time.LocalDate accrualDate;
+
     @Column(name = "work_hours", precision = 10, scale = 2)
     private BigDecimal workHours;
+
+    @Column(name = "daily_wage_snapshot", precision = 10, scale = 2)
+    private BigDecimal dailyWageSnapshot;
 
     @Column(name = "labor_cost", precision = 15, scale = 2)
     private BigDecimal laborCost;

@@ -12,5 +12,7 @@ public interface FinanceClearingSheetRepository extends JpaRepository<FinanceCle
 
     Optional<FinanceClearingSheet> findTopByProject_ProjectIdOrderByIdDesc(String projectId);
 
+    Optional<FinanceClearingSheet> findTopByProject_ProjectIdOrderByLedgerMonthDescIdDesc(String projectId);
+
     Optional<FinanceClearingSheet> findByProject_ProjectIdAndLedgerMonth(String projectId, String ledgerMonth);
 }

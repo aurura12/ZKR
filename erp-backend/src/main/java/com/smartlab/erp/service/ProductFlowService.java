@@ -65,12 +65,14 @@ public class ProductFlowService {
     private final SysProjectMemberRepository projectMemberRepository;
     private final ProductIdeaDetailRepository productIdeaDetailRepository;
     private final ProjectMemberScheduleRepository projectMemberScheduleRepository;
+    private final ProjectMemberParticipationService projectMemberParticipationService;
     private final InternalMessageService internalMessageService;
     private final ProjectAssetRepository projectAssetRepository;
     private final ProjectChatMessageRepository projectChatMessageRepository;
     private final FinanceReferenceService financeReferenceService;
     private final FinanceWalletAccountRepository walletAccountRepository;
     private final FinanceWalletTransactionRepository walletTransactionRepository;
+    private final WorkflowMemberRoleSyncService workflowMemberRoleSyncService;
     private static final int MIN_TESTERS = 5;
     private static final BigDecimal PROMOTION_EXPENSE_RATE = new BigDecimal("0.05");
     private static final DateTimeFormatter DEADLINE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
@@ -134,6 +136,8 @@ public class ProductFlowService {
                     .weight(0)
                     .build();
             projectMemberRepository.save(member);
+            workflowMemberRoleSyncService.sync(FlowType.PRODUCT.name(), projectId, manager.getUserId(), member.getRole());
+            projectMemberParticipationService.recordJoin(projectId, manager, member.getJoinedAt());
         }
         ensureScheduleSlot(projectId, manager.getUserId());
 
@@ -188,38 +192,40 @@ public class ProductFlowService {
         }
 
         Map<DemoFileType, String> demoOwners = new EnumMap<>(DemoFileType.class);
-        demoOwners.put(DemoFileType.ENGINEERING, sanitizeUserId(request.getDemoEngineeringOwnerUserId()));
-        demoOwners.put(DemoFileType.DEMO_FILE, sanitizeUserId(request.getDemoFileOwnerUserId()));
-        demoOwners.put(DemoFileType.DESCRIPTION, sanitizeUserId(request.getDemoDescriptionOwnerUserId()));
-        demoOwners.put(DemoFileType.FEASIBILITY, sanitizeUserId(request.getDemoFeasibilityOwnerUserId()));
+        demoOwners.put(DemoFileType.ENGINEERING, sanitizeSelectionId(request.getDemoEngineeringOwnerUserId()));
+        demoOwners.put(DemoFileType.DEMO_FILE, sanitizeSelectionId(request.getDemoFileOwnerUserId()));
+        demoOwners.put(DemoFileType.DESCRIPTION, sanitizeSelectionId(request.getDemoDescriptionOwnerUserId()));
+        demoOwners.put(DemoFileType.FEASIBILITY, sanitizeSelectionId(request.getDemoFeasibilityOwnerUserId()));
         if (demoOwners.values().stream().anyMatch(id -> id == null || id.isBlank())) {
             throw new BusinessException("进入 Demo 阶段前，必须为四类 Demo 文件分别指定责任人");
         }
-        Set<String> demoEngineerIds = sanitizeIds(request.getDemoEngineerIds());
+        Set<String> demoEngineerIds = sanitizeSelectionIds(request.getDemoEngineerIds());
         for (Map.Entry<DemoFileType, String> entry : demoOwners.entrySet()) {
             if (!demoEngineerIds.contains(entry.getValue())) {
                 throw new BusinessException("" + formatDemoFileType(entry.getKey()) + " 的责任人必须来自 Demo 工程师名单");
             }
         }
 
-        if (!request.getPromotionMemberIds().contains(currentUser.getId())) {
+        Set<String> promotionMemberIds = sanitizeSelectionIds(request.getPromotionMemberIds());
+        if (!promotionMemberIds.contains(currentUser.getId())) {
             throw new BusinessException("推广成员必须包含 Idea 主理人");
         }
 
         // 推广负责 IC
-        User promotionIc = userRepository.findById(request.getPromotionIcUserId())
+        String promotionIcUserId = sanitizeSelectionId(request.getPromotionIcUserId());
+        User promotionIc = userRepository.findById(promotionIcUserId)
                 .orElseThrow(() -> new BusinessException("推广负责 IC 用户不存在"));
         addMemberIfAbsent(projectId, promotionIc, "PROMOTION_IC");
 
         // 其他推广成员
-        for (String uid : request.getPromotionMemberIds()) {
+        for (String uid : promotionMemberIds) {
             User u = userRepository.findById(uid)
                     .orElseThrow(() -> new BusinessException("推广成员不存在: " + uid));
             addMemberIfAbsent(projectId, u, "PROMOTION");
         }
 
         // Demo 工程师（4名）
-        for (String uid : request.getDemoEngineerIds()) {
+        for (String uid : demoEngineerIds) {
             User u = userRepository.findById(uid)
                     .orElseThrow(() -> new BusinessException("Demo 工程师不存在: " + uid));
             addMemberIfAbsent(projectId, u, "DEMO_ENG");
@@ -254,7 +260,11 @@ public class ProductFlowService {
                     .weight(0)
                     .build();
             projectMemberRepository.save(member);
+            workflowMemberRoleSyncService.sync(FlowType.PRODUCT.name(), projectId, user.getUserId(), role);
+            projectMemberParticipationService.recordJoin(projectId, user, member.getJoinedAt());
         }
+        projectMemberRepository.findByProjectIdAndUserUserId(projectId, user.getUserId())
+                .ifPresent(member -> projectMemberParticipationService.recordJoin(projectId, user, member.getJoinedAt()));
         ensureScheduleSlot(projectId, user.getUserId());
     }
 
@@ -285,8 +295,8 @@ public class ProductFlowService {
             throw new PermissionDeniedException("仅 Manager 或发起主理人可调整成员");
         }
 
-        Set<String> addUserIds = sanitizeIds(request != null ? request.getAddUserIds() : null);
-        Set<String> removeUserIds = sanitizeIds(request != null ? request.getRemoveUserIds() : null);
+        Set<String> addUserIds = sanitizeSelectionIds(request != null ? request.getAddUserIds() : null);
+        Set<String> removeUserIds = sanitizeSelectionIds(request != null ? request.getRemoveUserIds() : null);
 
         if (ideaOwnerUserId != null && removeUserIds.contains(ideaOwnerUserId)) {
             throw new BusinessException("发起者不能被删除");
@@ -299,18 +309,22 @@ public class ProductFlowService {
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new BusinessException("用户不存在: " + userId));
             if (!projectMemberRepository.existsByProjectIdAndUserUserId(projectId, userId)) {
-                projectMemberRepository.save(SysProjectMember.builder()
+                SysProjectMember member = SysProjectMember.builder()
                         .projectId(projectId)
                         .user(user)
                         .role("MEMBER")
                         .weight(0)
-                        .build());
+                        .build();
+                projectMemberRepository.save(member);
+                workflowMemberRoleSyncService.sync(FlowType.PRODUCT.name(), projectId, userId, member.getRole());
+                projectMemberParticipationService.recordJoin(projectId, user, member.getJoinedAt());
                 ensureScheduleSlot(projectId, userId);
                 added++;
             }
         }
 
         for (String userId : removeUserIds) {
+            projectMemberParticipationService.recordLeave(projectId, userId, Instant.now());
             removed += projectMemberRepository.deleteByProjectIdAndUserUserId(projectId, userId);
             projectMemberScheduleRepository.deleteByProjectIdAndUserId(projectId, userId);
         }
@@ -440,6 +454,14 @@ public class ProductFlowService {
                 .map(id -> id == null ? "" : id.trim())
                 .filter(id -> !id.isBlank())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private String sanitizeSelectionId(String userId) {
+        return sanitizeUserId(userId);
+    }
+
+    private Set<String> sanitizeSelectionIds(java.util.List<String> ids) {
+        return sanitizeIds(ids);
     }
 
     private void ensureScheduleSlotsForMembers(String projectId) {
@@ -731,6 +753,7 @@ public class ProductFlowService {
             project.setProductStatus(ProductStatus.TESTING);
         } else {
             project.setProductStatus(ProductStatus.SHELVED);
+            project.setEndDate(Instant.now());
         }
         projectRepository.save(project);
 
@@ -962,6 +985,7 @@ public class ProductFlowService {
                     .weight(0)
                     .build();
             projectMemberRepository.save(managerMember);
+            workflowMemberRoleSyncService.sync(FlowType.PROJECT.name(), newProjectId, manager.getUserId(), managerMember.getRole());
         }
 
         log.info("[ProductFlow] 产品项目 {} 已生成正式项目 {} ，manager={}",

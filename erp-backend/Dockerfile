@@ -5,13 +5,11 @@ FROM maven:3.9.9-eclipse-temurin-17 AS build
 ARG APP_VERSION
 WORKDIR /app
 
-COPY .mvn/settings.xml /root/.m2/settings.xml
-
-COPY pom.xml ./
-RUN mvn -B -Dmaven.test.skip=true dependency:go-offline
+COPY pom.xml settings-aliyun.xml ./
+RUN mvn -B -Dmaven.test.skip=true dependency:go-offline -s settings-aliyun.xml
 
 COPY src ./src
-RUN mvn -B -Dmaven.test.skip=true package
+RUN mvn -B -Dmaven.test.skip=true package -s settings-aliyun.xml
 
 FROM eclipse-temurin:17-jre
 

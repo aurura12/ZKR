@@ -132,6 +132,7 @@ const submitting = ref(false)
 const form = ref(createInitialForm())
 
 const isTravelSubmission = computed(() => props.submissionType === 'PROJECT_TRAVEL_REIMBURSEMENT')
+const isProjectExpense = computed(() => ['PROJECT_HARDWARE_PROCUREMENT', 'PROJECT_EXTERNAL_TECH_SERVICE', 'PROJECT_REIMBURSEMENT'].includes(props.submissionType))
 const itemLabel = computed(() => isTravelSubmission.value ? '费用项目' : '采购物品')
 const itemPlaceholder = computed(() => isTravelSubmission.value ? '例如：高铁票 / 酒店 / 市内交通' : '例如：显示器 / 测试板卡 / 办公设备')
 const categoryPlaceholder = computed(() => isTravelSubmission.value ? '例如：交通 / 住宿 / 餐补' : '例如：硬件 / 软件 / 办公用品')
@@ -141,7 +142,17 @@ const supplierPlaceholder = computed(() => isTravelSubmission.value ? '例如：
 const occurredAtLabel = computed(() => isTravelSubmission.value ? '报销发生日期' : '采购日期')
 const purposeLabel = computed(() => isTravelSubmission.value ? '出差事由' : '采购用途')
 const purposePlaceholder = computed(() => isTravelSubmission.value ? '请说明出差目的、项目背景和报销原因' : '请说明采购用途、使用人和业务场景')
-const submitButtonLabel = computed(() => isTravelSubmission.value ? '提交出差报销' : '提交采购申请')
+const submitButtonLabel = computed(() => {
+  if (isProjectExpense.value) {
+    const labels = {
+      PROJECT_HARDWARE_PROCUREMENT: '提交硬件采购',
+      PROJECT_EXTERNAL_TECH_SERVICE: '提交技术服务',
+      PROJECT_REIMBURSEMENT: '提交报销'
+    }
+    return labels[props.submissionType] || '提交成本'
+  }
+  return isTravelSubmission.value ? '提交出差报销' : '提交采购申请'
+})
 const selectedInvoiceName = computed(() => form.value.invoiceFile?.name || '')
 const projectFlowLabel = computed(() => {
   const value = String(props.projectContext?.flowType || props.projectContext?.projectFlowType || '').toUpperCase()
@@ -253,7 +264,9 @@ const submitForm = async () => {
 
   submitting.value = true
   try {
-    const url = isTravelSubmission.value
+    const url = isProjectExpense.value
+      ? `/api/projects/${props.projectContext?.projectId || props.projectContext?.id}/project-expenses?expenseType=${props.submissionType}`
+      : isTravelSubmission.value
       ? `/api/projects/${props.projectContext?.projectId || props.projectContext?.id}/travel-reimbursements`
       : '/api/submissions/personal-procurement'
     const response = await request.post(url, buildPayload(), {

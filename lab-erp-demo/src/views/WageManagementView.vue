@@ -17,7 +17,14 @@
           <el-table-column prop="username" label="账号" width="140" />
           <el-table-column prop="role" label="角色" width="120" />
           <el-table-column prop="accountDomain" label="域" width="100" />
-          <el-table-column label="日工资 (元/天)" min-width="200">
+          <el-table-column label="状态" width="80">
+            <template #default="{ row }">
+              <el-tag :type="row.active ? 'success' : 'danger'" size="small">
+                {{ row.active ? '在职' : '离职' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="日工资 (元/天)" min-width="180">
             <template #default="{ row }">
               <el-input-number
                 v-model="row.dailyWage"
@@ -28,6 +35,22 @@
                 :disabled="savingIds.has(row.userId)"
                 @change="handleWageChange(row)"
               />
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="100" fixed="right">
+            <template #default="{ row }">
+              <el-popconfirm
+                v-if="row.active"
+                title="确认将该用户设为离职？"
+                confirm-button-text="确认"
+                cancel-button-text="取消"
+                @confirm="handleDeactivate(row)"
+              >
+                <template #reference>
+                  <el-button type="danger" size="small" :loading="savingIds.has(row.userId)">离职</el-button>
+                </template>
+              </el-popconfirm>
+              <span v-else style="color: var(--text-sub); font-size: 12px;">已离职</span>
             </template>
           </el-table-column>
         </el-table>
@@ -75,6 +98,19 @@ const handleWageChange = async (row) => {
   } catch (error) {
     ElMessage.error(error.message || '更新失败')
     fetchUsers()
+  } finally {
+    savingIds.value.delete(row.userId)
+  }
+}
+
+const handleDeactivate = async (row) => {
+  savingIds.value.add(row.userId)
+  try {
+    await request.post(`/api/admin/users/${row.userId}/deactivate`)
+    ElMessage.success(`${row.name} 已设为离职`)
+    fetchUsers()
+  } catch (error) {
+    ElMessage.error(error.message || '操作失败')
   } finally {
     savingIds.value.delete(row.userId)
   }

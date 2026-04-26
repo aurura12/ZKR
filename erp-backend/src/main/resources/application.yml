@@ -69,3 +69,7 @@ finance:
     index-name: ${FINANCE_RAG_INDEX_NAME:finance-rag-index}
     connect-timeout-seconds: ${FINANCE_RAG_CONNECT_TIMEOUT_SECONDS:5}
     request-timeout-seconds: ${FINANCE_RAG_REQUEST_TIMEOUT_SECONDS:120}
+
+dingtalk:
+  app-key: ${DINGTALK_APP_KEY:}
+  app-secret: ${DINGTALK_APP_SECRET:}

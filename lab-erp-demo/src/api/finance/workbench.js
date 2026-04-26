@@ -26,3 +26,13 @@ export const confirmDividendSheet = payload => request.post('/api/dividend/confi
 export const createAdjustment = payload => request.post('/api/adjustment/create', normalizeFinanceAdjustmentPayload(payload))
 
 export const getAdjustmentLogs = params => request.get('/api/adjustment/list', { params })
+
+export const getBatchJobs = () => request.get('/api/batch/jobs')
+
+export const updateBatchJob = params => request.put('/api/batch/jobs', null, { params })
+
+export const triggerBatchJob = params => request.post('/api/batch/jobs/run', null, { params })
+
+export const getBatchProjectControls = () => request.get('/api/batch/projects')
+
+export const updateBatchProjectControl = params => request.put('/api/batch/projects', null, { params })

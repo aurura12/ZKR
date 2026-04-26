@@ -9,6 +9,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.dao.InvalidDataAccessResourceUsageException;
 import org.springframework.stereotype.Component;
+import org.springframework.core.annotation.Order;
 
 import java.util.Arrays;
 import java.util.List;
@@ -17,6 +18,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
+@Order(1)
 public class AccountDomainDataInitializer implements ApplicationRunner {
 
     static final AccountDomain DOMAIN_ERP = AccountDomain.ERP;

@@ -1,5 +1,6 @@
 package com.smartlab.erp.controller;
 
+import com.smartlab.erp.enums.AccountDomain;
 import com.smartlab.erp.entity.User;
 import com.smartlab.erp.security.UserPrincipal;
 import com.smartlab.erp.service.UserService;
@@ -29,8 +30,9 @@ public class UserController {
      */
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<User>> getAllUsers() {
-        return ResponseEntity.ok(userService.findAllUsers());
+    public ResponseEntity<List<User>> getAllUsers(@AuthenticationPrincipal UserPrincipal currentUser) {
+        AccountDomain accountDomain = currentUser == null ? AccountDomain.ERP : currentUser.getAccountDomain();
+        return ResponseEntity.ok(userService.findAllUsers(accountDomain));
     }
 
     /**

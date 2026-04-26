@@ -100,7 +100,7 @@ public class ProjectFinancialMetricsService {
         }
 
         ProjectExecutionPlan executionPlan = executionPlanRepository.findByProjectId(projectId).orElse(null);
-        FinanceCostSummary latestSummary = costSummaryRepository.findTopByProject_ProjectIdOrderByIdDesc(projectId).orElse(null);
+        FinanceCostSummary latestSummary = costSummaryRepository.findTopByProject_ProjectIdOrderByLedgerMonthDescIdDesc(projectId).orElse(null);
         ProjectFinancialSnapshot snapshot = buildSnapshot(project, executionPlan, latestSummary);
         List<SysProjectMember> members = projectMemberRepository.findByProjectIdWithUser(projectId);
         int projectMemberCount = (int) members.stream()
@@ -270,7 +270,24 @@ public class ProjectFinancialMetricsService {
     }
 
     private int compareSummaryVersion(FinanceCostSummary left, FinanceCostSummary right) {
+        int monthCompare = compareLedgerMonth(left.getLedgerMonth(), right.getLedgerMonth());
+        if (monthCompare != 0) {
+            return monthCompare;
+        }
         return Long.compare(left.getId() == null ? 0L : left.getId(), right.getId() == null ? 0L : right.getId());
+    }
+
+    private int compareLedgerMonth(String left, String right) {
+        if (left == null && right == null) {
+            return 0;
+        }
+        if (left == null) {
+            return -1;
+        }
+        if (right == null) {
+            return 1;
+        }
+        return left.compareTo(right);
     }
 
     private boolean isExecutionPoolMember(SysProjectMember member) {

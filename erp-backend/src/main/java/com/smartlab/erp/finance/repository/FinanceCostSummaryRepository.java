@@ -13,5 +13,7 @@ public interface FinanceCostSummaryRepository extends JpaRepository<FinanceCostS
 
     Optional<FinanceCostSummary> findTopByProject_ProjectIdOrderByIdDesc(String projectId);
 
+    Optional<FinanceCostSummary> findTopByProject_ProjectIdOrderByLedgerMonthDescIdDesc(String projectId);
+
     List<FinanceCostSummary> findByProject_ProjectIdIn(List<String> projectIds);
 }

@@ -9,12 +9,12 @@ export const FINANCE_ALLOWED_ROLES = ['ADMIN', 'BUSINESS', 'DATA', 'RESEARCH']
 export const financeOverviewLinkTargets = {
   risk: 'finance-clearing',
   reconciliation: 'finance-clearing',
-  reporting: 'finance-cost-batches'
+  reporting: 'finance-batch-control'
 }
 
 export const createFinanceOverviewLinkActions = router => ({
   openClearingWorkbench: () => router.push({ name: financeOverviewLinkTargets.risk }),
-  openCostBatchWorkbench: () => router.push({ name: financeOverviewLinkTargets.reporting })
+  openBatchControlWorkbench: () => router.push({ name: financeOverviewLinkTargets.reporting })
 })
 
 export const financeNavigationItems = [
@@ -44,15 +44,6 @@ export const financeNavigationItems = [
     title: '钱包余额',
     description: '钱包余额与交易审计。',
     highlights: ['余额列表', '交易审计', '资金快照']
-  },
-  {
-    path: '/finance/cost-batches',
-    routeName: 'finance-cost-batches',
-    label: '成本跑批',
-    eyebrow: '核算',
-    title: '成本跑批工作台',
-    description: '会计期间核算与批处理执行。',
-    highlights: ['期间选择', '批处理执行', '结果汇总']
   },
   {
     path: '/finance/batch-control',
@@ -182,38 +173,34 @@ export const financeRoutes = [
       }),
       withFinanceMeta({
         ...financeNavigationItems[3],
-        component: () => import('@/views/finance/CostBatchView.vue')
-      }),
-      withFinanceMeta({
-        ...financeNavigationItems[4],
         component: () => import('@/views/finance/BatchControlView.vue')
       }),
       withFinanceMeta({
-        ...financeNavigationItems[5],
+        ...financeNavigationItems[4],
         component: () => import('@/views/finance/ClearingCenterView.vue')
       }),
       withFinanceMeta({
-        ...financeNavigationItems[6],
+        ...financeNavigationItems[5],
         component: () => import('@/views/finance/DividendCenterView.vue')
       }),
       withFinanceMeta({
-        ...financeNavigationItems[7],
+        ...financeNavigationItems[6],
         component: () => import('@/views/finance/AdjustmentCenterView.vue')
       }),
       withFinanceMeta({
-        ...financeNavigationItems[8],
+        ...financeNavigationItems[7],
         component: () => import('@/views/finance/FinanceExpenseCenterView.vue')
       }),
       withFinanceMeta({
-        ...financeNavigationItems[9],
+        ...financeNavigationItems[8],
         component: () => import('@/views/finance/RagSearchView.vue')
       }),
       withFinanceMeta({
-        ...financeNavigationItems[10],
+        ...financeNavigationItems[9],
         component: () => import('@/views/finance/FinanceAiChatView.vue')
       }),
       withFinanceMeta({
-        ...financeNavigationItems[11],
+        ...financeNavigationItems[10],
         component: () => import('@/views/finance/FinanceAttendanceView.vue')
       })
     ]

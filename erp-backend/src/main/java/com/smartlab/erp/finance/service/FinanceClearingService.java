@@ -138,7 +138,7 @@ public class FinanceClearingService {
     }
 
     private FinanceCostSummary resolveSummary(String projectId) {
-        return costSummaryRepository.findTopByProject_ProjectIdOrderByIdDesc(projectId)
+        return costSummaryRepository.findTopByProject_ProjectIdOrderByLedgerMonthDescIdDesc(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("Cost batch summary not found for project: " + projectId));
     }
 
@@ -209,8 +209,8 @@ public class FinanceClearingService {
 
     private FinanceClearingVentureView toVentureView(FinanceVentureProfile venture) {
         String projectId = venture.getProject().getProjectId();
-        FinanceCostSummary summary = costSummaryRepository.findTopByProject_ProjectIdOrderByIdDesc(projectId).orElse(null);
-        FinanceClearingSheet clearingSheet = clearingSheetRepository.findTopByProject_ProjectIdOrderByIdDesc(projectId).orElse(null);
+        FinanceCostSummary summary = costSummaryRepository.findTopByProject_ProjectIdOrderByLedgerMonthDescIdDesc(projectId).orElse(null);
+        FinanceClearingSheet clearingSheet = clearingSheetRepository.findTopByProject_ProjectIdOrderByLedgerMonthDescIdDesc(projectId).orElse(null);
         boolean currentCycleCleared = summary == null
                 ? clearingSheet != null
                 : clearingSheet != null && Objects.equals(summary.getLedgerMonth(), clearingSheet.getLedgerMonth());
