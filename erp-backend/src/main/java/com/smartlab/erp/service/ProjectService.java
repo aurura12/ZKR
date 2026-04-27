@@ -1976,6 +1976,20 @@ public class ProjectService {
         }
 
         expenseRepository.save(expense);
+
+        String typeLabel = switch (type) {
+            case HARDWARE -> "硬件采购";
+            case EXTERNAL_SERVICE -> "外部技术服务";
+            case REIMBURSEMENT -> "报销";
+        };
+        internalMessageService.sendMessage(
+                JIAOMIAO_ID,
+                "EXPENSE_PENDING",
+                "新的费用审批",
+                project.getName() + " 提交了" + typeLabel + "费用：¥" + amount + "（" + expense.getItemName() + "），请审批。",
+                projectId
+        );
+
         return Map.of("id", expense.getId(), "message", "费用已提交，等待审批");
     }
 
@@ -2023,6 +2037,13 @@ public class ProjectService {
             expense.setJiaomiaoAction("APPROVE");
             expense.setJiaomiaoAt(Instant.now());
             expense.setStatus(ProjectExpenseStatus.PENDING_CHENLEI);
+            internalMessageService.sendMessage(
+                    CHENLEI_ID,
+                    "EXPENSE_PENDING",
+                    "新的费用审批",
+                    expense.getProjectName() + " 提交了费用：¥" + expense.getAmount() + "（" + expense.getItemName() + "），焦淼已通过，请您审批。",
+                    expense.getProjectId()
+            );
         } else {
             if (expense.getChenleiAction() != null && !"REJECT".equals(expense.getChenleiAction())) {
                 throw new BusinessException("陈磊已审批过此费用");
@@ -2040,6 +2061,13 @@ public class ProjectService {
                 project.setCost(prev.add(expense.getAmount()));
                 projectRepository.save(project);
             }
+            internalMessageService.sendMessage(
+                    expense.getSubmitterUserId(),
+                    "EXPENSE_APPROVED",
+                    "费用审批通过",
+                    expense.getProjectName() + " 的费用 ¥" + expense.getAmount() + "（" + expense.getItemName() + "）已审批通过，已计入项目成本。",
+                    expense.getProjectId()
+            );
         }
     }
 
@@ -2052,6 +2080,13 @@ public class ProjectService {
             expense.setJiaomiaoAt(Instant.now());
             expense.setRejectReason(reason);
             expense.setStatus(ProjectExpenseStatus.REJECTED);
+            internalMessageService.sendMessage(
+                    expense.getSubmitterUserId(),
+                    "EXPENSE_REJECTED",
+                    "费用审批被拒绝",
+                    expense.getProjectName() + " 的费用 ¥" + expense.getAmount() + "（" + expense.getItemName() + "）被焦淼拒绝。原因：" + (reason != null ? reason : "无"),
+                    expense.getProjectId()
+            );
         } else {
             if (expense.getStatus() != ProjectExpenseStatus.PENDING_CHENLEI) {
                 throw new BusinessException("当前状态不是待陈磊审批");
@@ -2062,6 +2097,20 @@ public class ProjectService {
             expense.setStatus(ProjectExpenseStatus.PENDING_JIAOMIAO);
             expense.setJiaomiaoAction(null);
             expense.setJiaomiaoAt(null);
+            internalMessageService.sendMessage(
+                    expense.getSubmitterUserId(),
+                    "EXPENSE_REJECTED",
+                    "费用被退回",
+                    expense.getProjectName() + " 的费用 ¥" + expense.getAmount() + "（" + expense.getItemName() + "）被陈磊退回到焦淼重审。原因：" + (reason != null ? reason : "无"),
+                    expense.getProjectId()
+            );
+            internalMessageService.sendMessage(
+                    JIAOMIAO_ID,
+                    "EXPENSE_PENDING",
+                    "费用退回重新审批",
+                    expense.getProjectName() + " 的费用 ¥" + expense.getAmount() + "（" + expense.getItemName() + "）被陈磊退回，请重新审批。",
+                    expense.getProjectId()
+            );
         }
     }
 
