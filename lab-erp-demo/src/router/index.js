@@ -16,6 +16,7 @@ import PersonalProcurementView from '../views/PersonalProcurementView.vue'
 import LeaderDashboardView from '../views/LeaderDashboardView.vue'
 import LeaderManagementView from '../views/LeaderManagementView.vue'
 import WageManagementView from '../views/WageManagementView.vue'
+import ExpenseReviewView from '../views/finance/ExpenseReviewView.vue'
 
 
 
@@ -140,6 +141,15 @@ const router = createRouter({
       meta: {
         requiresAuth: true,
         requiresProvisionAdmin: true,
+        routeDomain: DOMAIN_ERP
+      }
+    },
+    {
+      path: '/expense-review',
+      name: 'expense-review',
+      component: ExpenseReviewView,
+      meta: {
+        requiresAuth: true,
         routeDomain: DOMAIN_ERP
       }
     },

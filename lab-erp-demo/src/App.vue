@@ -57,6 +57,7 @@
               <el-dropdown-item command="profile">👤 个人中心</el-dropdown-item>
               <el-dropdown-item v-if="showProvisionUserAction" command="provision-user">🪪 创建账号</el-dropdown-item>
               <el-dropdown-item v-if="showProvisionUserAction" command="wage-management">💰 工资管理</el-dropdown-item>
+              <el-dropdown-item v-if="showExpenseReviewEntry" command="expense-review">📋 费用审批</el-dropdown-item>
               <el-dropdown-item v-if="showProvisionUserAction" command="award-badge">🏅 发放勋章</el-dropdown-item>
               <el-dropdown-item v-if="showFullscreenCockpitEntry" command="fullscreen-cockpit">🖥️ 进入全屏驾驶舱</el-dropdown-item>
               <el-dropdown-item command="theme">{{ theme === 'dark' ? '☀ 切换浅色模式' : '☾ 切换深色模式' }}</el-dropdown-item>
@@ -158,6 +159,10 @@ const canAccessFinance = computed(() => FINANCE_ALLOWED_ROLES.includes(activeRol
 const showFinanceShortcut = computed(() => activeDomain.value === 'FINANCE' && canAccessFinance.value)
 const showCreateProductAction = computed(() => userStore.isErpLoggedIn)
 const showProvisionUserAction = computed(() => userStore.isErpLoggedIn && canAccessProvisioning(userStore.activeUserInfo?.username))
+const showExpenseReviewEntry = computed(() => {
+  const uid = String(userStore.activeUserInfo?.userId || '')
+  return uid === '000027' || uid === '000044'
+})
 const showFullscreenCockpitEntry = computed(() => activeDomain.value === 'FINANCE' && canAccessFinance.value)
 const showMessageDrawer = ref(false)
 const showBadgeDialog = ref(false)
@@ -322,6 +327,7 @@ const handleCommand = (cmd) => {
   else if (cmd === 'profile') router.push('/profile')
   else if (cmd === 'provision-user') router.push('/admin/users/create')
   else if (cmd === 'wage-management') router.push('/admin/wage-management')
+  else if (cmd === 'expense-review') router.push('/expense-review')
   else if (cmd === 'award-badge') openBadgeDialog()
   else if (cmd === 'fullscreen-cockpit') {
     requestBrowserFullscreen()

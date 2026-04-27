@@ -46,6 +46,7 @@
         </button>
       </div>
       <div v-if="userStore.isErpLoggedIn" class="detail-cta-row">
+        <el-button type="primary" plain @click="openExpenseDialog">💰 费用</el-button>
         <el-button v-if="isAdminUser" type="warning" plain @click="openCostAdjustDialog">📊 调整项目成本</el-button>
         <el-button v-if="canDeleteCurrentProject" type="danger" plain @click="deleteCurrentProject">删除项目</el-button>
       </div>
@@ -1395,6 +1396,41 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="showExpenseDialog" title="提交费用" width="520px" custom-class="tech-dialog">
+      <div class="execution-text">选择费用类型并填写必要信息，提交后将进入审批流程。</div>
+      <el-form label-position="top" style="margin-top: 16px;">
+        <el-form-item label="费用类型" required>
+          <el-select v-model="expenseForm.type" placeholder="请选择费用类型" style="width: 100%">
+            <el-option label="硬件采购" value="HARDWARE" />
+            <el-option label="外部技术服务" value="EXTERNAL_SERVICE" />
+            <el-option label="报销" value="REIMBURSEMENT" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="名称" required>
+          <el-input v-model="expenseForm.itemName" placeholder="例如：3090显卡采购、云服务月度费用" maxlength="200" />
+        </el-form-item>
+        <el-form-item label="金额 (元)" required>
+          <el-input-number v-model="expenseForm.amount" :min="0.01" :precision="2" :step="100" style="width: 100%" placeholder="0.00" />
+        </el-form-item>
+        <el-form-item label="发票/凭证">
+          <el-upload
+            v-model:file-list="expenseForm.invoiceFileList"
+            :auto-upload="false"
+            :limit="1"
+            list-type="picture"
+            accept=".jpg,.jpeg,.png,.pdf"
+          >
+            <el-button size="small" type="primary" plain>选择文件</el-button>
+            <template #tip><div class="el-upload__tip">支持 JPG/PNG/PDF，可选</div></template>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showExpenseDialog = false">取消</el-button>
+        <el-button type="primary" :loading="expenseSubmitting" @click="submitExpense">提交审批</el-button>
+      </template>
+    </el-dialog>
+
   </div>
 
   <div v-else class="error-state">未找到该项目信息，请重试。</div>
@@ -1480,6 +1516,9 @@ const showArchiveMoveDialog = ref(false)
 const showCostAdjustDialog = ref(false)
 const costAdjustForm = ref({ type: 'HARDWARE', itemName: '', amount: null, invoiceFileList: [] })
 const costAdjustSubmitting = ref(false)
+const showExpenseDialog = ref(false)
+const expenseForm = ref({ type: 'HARDWARE', itemName: '', amount: null, invoiceFileList: [] })
+const expenseSubmitting = ref(false)
 const productActionLoading = ref(false)
 const productMemberLoading = ref(false)
 const productTaskAssignmentLoading = ref(false)
@@ -2842,6 +2881,38 @@ const submitCostAdjust = async () => {
     ElMessage.error(e.response?.data?.message || e.message || '成本调整失败')
   } finally {
     costAdjustSubmitting.value = false
+  }
+}
+
+const openExpenseDialog = () => {
+  expenseForm.value = { type: 'HARDWARE', itemName: '', amount: null, invoiceFileList: [] }
+  showExpenseDialog.value = true
+}
+
+const submitExpense = async () => {
+  const { type, itemName, amount, invoiceFileList } = expenseForm.value
+  if (!itemName || !itemName.trim()) return ElMessage.warning('请输入名称')
+  if (!amount || amount <= 0) return ElMessage.warning('请输入有效金额')
+
+  const targetId = props.projectId || route.params.id
+  expenseSubmitting.value = true
+  try {
+    const form = new FormData()
+    form.append('expenseType', type)
+    form.append('itemName', itemName.trim())
+    form.append('amount', String(amount))
+    const file = invoiceFileList?.[0]?.raw
+    if (file) form.append('invoiceFile', file)
+
+    await request.post(`/api/projects/${targetId}/expenses`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    ElMessage.success('费用已提交，等待焦淼审批')
+    showExpenseDialog.value = false
+  } catch (e) {
+    ElMessage.error(e.response?.data?.message || e.message || '提交失败')
+  } finally {
+    expenseSubmitting.value = false
   }
 }
 

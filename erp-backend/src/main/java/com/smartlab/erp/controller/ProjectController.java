@@ -8,8 +8,11 @@ import com.smartlab.erp.dto.ProjectDetailResponse;
 import com.smartlab.erp.dto.ProjectMemberEarningsResponse;
 import com.smartlab.erp.dto.ProjectSubtaskRequest;
 import com.smartlab.erp.dto.ProjectSubtaskResponse;
+import com.smartlab.erp.dto.ReviewExpenseRequest;
+import com.smartlab.erp.dto.SubmitProjectExpenseRequest;
 import com.smartlab.erp.dto.WorkflowMemberRoleDTO;
 import com.smartlab.erp.entity.SysProject;
+import com.smartlab.erp.entity.ProjectExpense;
 import com.smartlab.erp.entity.ProjectStatus;
 import com.smartlab.erp.entity.ProductStatus;
 import com.smartlab.erp.finance.dto.FinanceExpenseSubmissionCreateRequest;
@@ -298,6 +301,38 @@ public class ProjectController {
         request.setAmount(new java.math.BigDecimal(amount));
         projectService.adjustProjectCost(projectId, request, invoiceFile);
         return ResponseEntity.ok(Map.of("message", "成本调整成功"));
+    }
+
+    @PostMapping("/{projectId}/expenses")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> submitProjectExpense(
+            @PathVariable String projectId,
+            @RequestParam("expenseType") String expenseType,
+            @RequestParam("itemName") String itemName,
+            @RequestParam("amount") String amount,
+            @RequestParam(value = "invoiceFile", required = false) MultipartFile invoiceFile) {
+        SubmitProjectExpenseRequest request = new SubmitProjectExpenseRequest();
+        request.setExpenseType(expenseType);
+        request.setItemName(itemName);
+        request.setAmount(amount);
+        return ResponseEntity.ok(projectService.submitProjectExpense(projectId, request, invoiceFile));
+    }
+
+    @PostMapping("/expenses/{expenseId}/review")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> reviewExpense(
+            @PathVariable Long expenseId,
+            @RequestBody ReviewExpenseRequest request) {
+        return ResponseEntity.ok(projectService.reviewExpense(expenseId, request));
+    }
+
+    @GetMapping("/expenses/review-list")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> getReviewList() {
+        return ResponseEntity.ok(Map.of(
+                "pending", projectService.getReviewableExpenses(),
+                "history", projectService.getReviewedHistory()
+        ));
     }
 
     @DeleteMapping("/{id}")

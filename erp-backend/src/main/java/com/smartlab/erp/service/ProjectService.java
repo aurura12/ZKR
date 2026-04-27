@@ -7,12 +7,16 @@ import com.smartlab.erp.dto.ManagedProjectsSummaryResponse;
 import com.smartlab.erp.dto.ProjectDetailResponse;
 import com.smartlab.erp.dto.ProjectDynamicInfoUpdateRequest;
 import com.smartlab.erp.dto.ProjectInitiateRequestDTO;
+import com.smartlab.erp.dto.ReviewExpenseRequest;
+import com.smartlab.erp.dto.SubmitProjectExpenseRequest;
 import com.smartlab.erp.dto.ProjectBuildTeamRequestDTO;
 import com.smartlab.erp.dto.ProjectSubtaskRequest;
 import com.smartlab.erp.dto.ProjectSubtaskResponse;
 import com.smartlab.erp.dto.MemberDTO;
 import com.smartlab.erp.entity.*;
 import com.smartlab.erp.enums.ProjectCostAdjustmentType;
+import com.smartlab.erp.enums.ProjectExpenseStatus;
+import com.smartlab.erp.enums.ProjectExpenseType;
 import com.smartlab.erp.enums.AccountDomain;
 import com.smartlab.erp.enums.ProjectTierEnum;
 import com.smartlab.erp.exception.BusinessException;
@@ -109,6 +113,7 @@ public class ProjectService {
     private final WorkflowMemberRoleSyncService workflowMemberRoleSyncService;
     private final FinanceCostSummaryRepository costSummaryRepository;
     private final ProjectCostAdjustmentRepository costAdjustmentRepository;
+    private final ProjectExpenseRepository expenseRepository;
     private final JdbcTemplate jdbcTemplate;
 
     @Value("${file.upload-dir:./uploads}")
@@ -1904,6 +1909,216 @@ public class ProjectService {
             return true;
         }
         return getAdminUsernames().contains(user.getUsername().trim());
+    }
+
+    private static final String JIAOMIAO_ID = "000027";
+    private static final String CHENLEI_ID = "000044";
+
+    @Transactional
+    public Map<String, Object> submitProjectExpense(String projectId, SubmitProjectExpenseRequest request, MultipartFile invoiceFile) {
+        UserPrincipal currentUser = AuthUtils.getCurrentUserPrincipal();
+        if (currentUser == null) {
+            throw new PermissionDeniedException("用户未登录或会话已过期");
+        }
+
+        SysProject project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new BusinessException("项目不存在: " + projectId));
+
+        ProjectExpenseType type;
+        try {
+            type = ProjectExpenseType.valueOf(request.getExpenseType().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("无效的费用类型: " + request.getExpenseType());
+        }
+
+        if (request.getItemName() == null || request.getItemName().isBlank()) {
+            throw new BusinessException("名称不能为空");
+        }
+        BigDecimal amount;
+        try {
+            amount = new BigDecimal(request.getAmount());
+        } catch (NumberFormatException e) {
+            throw new BusinessException("金额格式无效");
+        }
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("金额必须大于0");
+        }
+
+        ProjectExpense expense = ProjectExpense.builder()
+                .projectId(projectId)
+                .projectName(project.getName())
+                .expenseType(type)
+                .itemName(request.getItemName().trim())
+                .amount(amount)
+                .submitterUserId(currentUser.getId())
+                .submitterName(currentUser.getName())
+                .status(ProjectExpenseStatus.PENDING_JIAOMIAO)
+                .build();
+
+        if (invoiceFile != null && !invoiceFile.isEmpty()) {
+            try {
+                String originalFilename = invoiceFile.getOriginalFilename();
+                String ext = originalFilename != null && originalFilename.contains(".")
+                        ? originalFilename.substring(originalFilename.lastIndexOf("."))
+                        : "";
+                String storedName = UUID.randomUUID() + ext;
+                Path uploadPath = Paths.get(uploadDir, "project-expenses");
+                Files.createDirectories(uploadPath);
+                Path targetFile = uploadPath.resolve(storedName);
+                invoiceFile.transferTo(targetFile.toFile());
+                expense.setInvoiceFileName(originalFilename);
+                expense.setInvoiceFilePath(targetFile.toString());
+                expense.setInvoiceContentType(invoiceFile.getContentType());
+                expense.setInvoiceFileSize(invoiceFile.getSize());
+            } catch (IOException e) {
+                throw new BusinessException("发票文件上传失败: " + e.getMessage());
+            }
+        }
+
+        expenseRepository.save(expense);
+        return Map.of("id", expense.getId(), "message", "费用已提交，等待审批");
+    }
+
+    @Transactional
+    public Map<String, Object> reviewExpense(Long expenseId, ReviewExpenseRequest request) {
+        UserPrincipal currentUser = AuthUtils.getCurrentUserPrincipal();
+        if (currentUser == null) {
+            throw new PermissionDeniedException("用户未登录或会话已过期");
+        }
+
+        String uid = currentUser.getId();
+        if (!JIAOMIAO_ID.equals(uid) && !CHENLEI_ID.equals(uid)) {
+            throw new PermissionDeniedException("仅审批人可操作");
+        }
+        boolean isJiaomiao = JIAOMIAO_ID.equals(uid);
+
+        ProjectExpense expense = expenseRepository.findById(expenseId)
+                .orElseThrow(() -> new BusinessException("费用记录不存在"));
+
+        String action = request.getAction();
+        if (action == null || action.isBlank()) {
+            throw new BusinessException("缺少操作类型");
+        }
+        action = action.trim().toUpperCase();
+
+        switch (action) {
+            case "APPROVE" -> handleApprove(expense, isJiaomiao);
+            case "REJECT" -> handleReject(expense, isJiaomiao, request.getReason());
+            case "REVOKE" -> handleRevoke(expense, isJiaomiao);
+            default -> throw new BusinessException("无效操作: " + action);
+        }
+
+        expenseRepository.save(expense);
+        return Map.of("id", expense.getId(), "status", expense.getStatus().name(), "message", "操作成功");
+    }
+
+    private void handleApprove(ProjectExpense expense, boolean isJiaomiao) {
+        if (isJiaomiao) {
+            if (expense.getJiaomiaoAction() != null && !"REJECT".equals(expense.getJiaomiaoAction())) {
+                throw new BusinessException("焦淼已审批过此费用");
+            }
+            if (expense.getStatus() != ProjectExpenseStatus.PENDING_JIAOMIAO) {
+                throw new BusinessException("当前状态不是待焦淼审批");
+            }
+            expense.setJiaomiaoAction("APPROVE");
+            expense.setJiaomiaoAt(Instant.now());
+            expense.setStatus(ProjectExpenseStatus.PENDING_CHENLEI);
+        } else {
+            if (expense.getChenleiAction() != null && !"REJECT".equals(expense.getChenleiAction())) {
+                throw new BusinessException("陈磊已审批过此费用");
+            }
+            if (expense.getStatus() != ProjectExpenseStatus.PENDING_CHENLEI) {
+                throw new BusinessException("当前状态不是待陈磊审批");
+            }
+            expense.setChenleiAction("APPROVE");
+            expense.setChenleiAt(Instant.now());
+            expense.setStatus(ProjectExpenseStatus.APPROVED);
+
+            SysProject project = projectRepository.findById(expense.getProjectId()).orElse(null);
+            if (project != null) {
+                BigDecimal prev = project.getCost() != null ? project.getCost() : BigDecimal.ZERO;
+                project.setCost(prev.add(expense.getAmount()));
+                projectRepository.save(project);
+            }
+        }
+    }
+
+    private void handleReject(ProjectExpense expense, boolean isJiaomiao, String reason) {
+        if (isJiaomiao) {
+            if (expense.getStatus() != ProjectExpenseStatus.PENDING_JIAOMIAO) {
+                throw new BusinessException("当前状态不是待焦淼审批");
+            }
+            expense.setJiaomiaoAction("REJECT");
+            expense.setJiaomiaoAt(Instant.now());
+            expense.setRejectReason(reason);
+            expense.setStatus(ProjectExpenseStatus.REJECTED);
+        } else {
+            if (expense.getStatus() != ProjectExpenseStatus.PENDING_CHENLEI) {
+                throw new BusinessException("当前状态不是待陈磊审批");
+            }
+            expense.setChenleiAction("REJECT");
+            expense.setChenleiAt(Instant.now());
+            expense.setRejectReason(reason);
+            expense.setStatus(ProjectExpenseStatus.PENDING_JIAOMIAO);
+            expense.setJiaomiaoAction(null);
+            expense.setJiaomiaoAt(null);
+        }
+    }
+
+    private void handleRevoke(ProjectExpense expense, boolean isJiaomiao) {
+        if (isJiaomiao) {
+            if (expense.getJiaomiaoAction() == null || expense.getJiaomiaoAction().isBlank()) {
+                throw new BusinessException("焦淼尚未审批，无法反审批");
+            }
+            if (expense.getStatus() == ProjectExpenseStatus.PENDING_JIAOMIAO) {
+                throw new BusinessException("当前已是待焦淼审批状态");
+            }
+            if (expense.getChenleiAction() != null && !expense.getChenleiAction().isBlank()) {
+                throw new BusinessException("陈磊已审批，无法单独反审批");
+            }
+            expense.setJiaomiaoAction(null);
+            expense.setJiaomiaoAt(null);
+            expense.setStatus(ProjectExpenseStatus.PENDING_JIAOMIAO);
+        } else {
+            if (expense.getChenleiAction() == null || expense.getChenleiAction().isBlank()) {
+                throw new BusinessException("陈磊尚未审批，无法反审批");
+            }
+            if (expense.getStatus() == ProjectExpenseStatus.PENDING_CHENLEI) {
+                throw new BusinessException("当前已是待陈磊审批状态");
+            }
+            expense.setChenleiAction(null);
+            expense.setChenleiAt(null);
+            if (expense.getJiaomiaoAction() != null && "APPROVE".equals(expense.getJiaomiaoAction())) {
+                expense.setStatus(ProjectExpenseStatus.PENDING_CHENLEI);
+            } else {
+                expense.setStatus(ProjectExpenseStatus.PENDING_JIAOMIAO);
+            }
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProjectExpense> getReviewableExpenses() {
+        UserPrincipal currentUser = AuthUtils.getCurrentUserPrincipal();
+        if (currentUser == null) return List.of();
+        String uid = currentUser.getId();
+        if (!JIAOMIAO_ID.equals(uid) && !CHENLEI_ID.equals(uid)) return List.of();
+
+        boolean isJiaomiao = JIAOMIAO_ID.equals(uid);
+        if (isJiaomiao) {
+            return expenseRepository.findByStatusInOrderByCreatedAtDesc(
+                    List.of(ProjectExpenseStatus.PENDING_JIAOMIAO, ProjectExpenseStatus.PENDING_CHENLEI));
+        }
+        return expenseRepository.findByStatusOrderByCreatedAtDesc(ProjectExpenseStatus.PENDING_CHENLEI);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProjectExpense> getReviewedHistory() {
+        UserPrincipal currentUser = AuthUtils.getCurrentUserPrincipal();
+        if (currentUser == null) return List.of();
+        String uid = currentUser.getId();
+        if (!JIAOMIAO_ID.equals(uid) && !CHENLEI_ID.equals(uid)) return List.of();
+
+        return expenseRepository.findAllReviewed();
     }
 
     private ProjectSubtaskResponse toSubtaskResponse(ProjectSubtask task) {
