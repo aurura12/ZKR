@@ -196,9 +196,29 @@ onMounted(() => {
   }
 
   fetchMessages()
-  fetchUnreadCount()
-  messagePollTimer.value = window.setInterval(fetchUnreadCount, 15000)
+  messagePollTimer.value = window.setInterval(pollNewMessages, 5000)
 })
+
+let prevUnreadMsgIds = new Set()
+
+const pollNewMessages = async () => {
+  if (!userStore.isLoggedIn) { unreadMessageCount.value = 0; return }
+  try {
+    const list = await request.get('/api/messages')
+    const unreadMessages = list.filter(m => !m.read)
+    unreadMessageCount.value = unreadMessages.length
+
+    const currentIds = new Set(unreadMessages.map(m => m.id))
+    const newMessages = unreadMessages.filter(m => !prevUnreadMsgIds.has(m.id))
+    prevUnreadMsgIds = currentIds
+    for (const msg of newMessages) {
+      if (msg.messageType === 'EXPENSE_PENDING') {
+        ElMessage.info(`📋 您有新的费用待审批：${msg.title}`)
+      }
+    }
+    messages.value = list
+  } catch {}
+}
 
 onBeforeUnmount(() => {
   if (messagePollTimer.value) {

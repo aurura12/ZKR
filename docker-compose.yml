@@ -113,7 +113,7 @@ services:
 
   lab-erp-demo:
     container_name: zkr-lab-erp-demo
-    image: 127.0.0.1:5555/zhangqi_frontend:v1.124
+    image: 127.0.0.1:5555/zhangqi_frontend:v1.125
     restart: unless-stopped
     ports:
       - "${FRONTEND_PUBLIC_PORT}:80"
