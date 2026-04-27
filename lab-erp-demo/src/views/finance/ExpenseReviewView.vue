@@ -109,8 +109,8 @@ const canRevoke = exp => {
 const loadData = async () => {
   try {
     const res = await request.get('/api/projects/expenses/review-list')
-    pending.value = res.data?.pending || []
-    history.value = res.data?.history || []
+    pending.value = res?.pending || []
+    history.value = res?.history || []
   } catch (e) {
     ElMessage.error('加载审批列表失败')
   }
