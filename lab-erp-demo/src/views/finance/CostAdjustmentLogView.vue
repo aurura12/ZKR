@@ -51,10 +51,15 @@ const formatTime = v => {
   return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
+import { ElMessage } from 'element-plus'
+
 onMounted(async () => {
   try {
-    rows.value = await request.get('/api/projects/cost-adjustments')
-  } catch {}
+    rows.value = await request.get('/api/finance/cost-adjustments')
+  } catch (e) {
+    ElMessage.error('加载成本调整日志失败')
+    console.error(e)
+  }
 })
 </script>
 

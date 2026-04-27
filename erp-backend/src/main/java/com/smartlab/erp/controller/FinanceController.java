@@ -5,6 +5,8 @@ import com.smartlab.erp.finance.enums.FinanceCashFlowDirection;
 import com.smartlab.erp.finance.enums.FinanceWalletTransactionType;
 import com.smartlab.erp.finance.service.FinanceExpenseSubmissionService;
 import com.smartlab.erp.finance.service.FinanceReportingService;
+import com.smartlab.erp.entity.ProjectCostAdjustment;
+import com.smartlab.erp.service.ProjectService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
@@ -13,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -22,6 +25,7 @@ public class FinanceController {
 
     private final FinanceReportingService financeReportingService;
     private final FinanceExpenseSubmissionService financeExpenseSubmissionService;
+    private final ProjectService projectService;
 
     @GetMapping("/statements")
     @PreAuthorize("isAuthenticated()")
@@ -85,6 +89,12 @@ public class FinanceController {
     public ResponseEntity<FinanceApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
         String traceId = traceId();
         return ResponseEntity.badRequest().body(FinanceApiResponse.failure(ex.getMessage(), traceId));
+    }
+
+    @GetMapping("/cost-adjustments")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<ProjectCostAdjustment>> getCostAdjustmentLog() {
+        return ResponseEntity.ok(projectService.getCostAdjustmentLog());
     }
 
     private String traceId() {
