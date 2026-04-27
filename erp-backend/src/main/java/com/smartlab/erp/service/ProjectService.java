@@ -1,5 +1,6 @@
 package com.smartlab.erp.service;
 
+import com.smartlab.erp.dto.AdjustProjectCostRequest;
 import com.smartlab.erp.dto.CreateProjectRequest;
 import com.smartlab.erp.dto.FinanceDashboardResponse;
 import com.smartlab.erp.dto.ManagedProjectsSummaryResponse;
@@ -11,6 +12,7 @@ import com.smartlab.erp.dto.ProjectSubtaskRequest;
 import com.smartlab.erp.dto.ProjectSubtaskResponse;
 import com.smartlab.erp.dto.MemberDTO;
 import com.smartlab.erp.entity.*;
+import com.smartlab.erp.enums.ProjectCostAdjustmentType;
 import com.smartlab.erp.enums.AccountDomain;
 import com.smartlab.erp.enums.ProjectTierEnum;
 import com.smartlab.erp.exception.BusinessException;
@@ -106,6 +108,7 @@ public class ProjectService {
     private final InternalMessageService internalMessageService;
     private final WorkflowMemberRoleSyncService workflowMemberRoleSyncService;
     private final FinanceCostSummaryRepository costSummaryRepository;
+    private final ProjectCostAdjustmentRepository costAdjustmentRepository;
     private final JdbcTemplate jdbcTemplate;
 
     @Value("${file.upload-dir:./uploads}")
@@ -1828,6 +1831,79 @@ public class ProjectService {
         if (project.getManager() == null || !userId.equals(project.getManager().getUserId())) {
             throw new PermissionDeniedException("仅 Manager 可执行此操作");
         }
+    }
+
+    @Transactional
+    public void adjustProjectCost(String projectId, AdjustProjectCostRequest request, MultipartFile invoiceFile) {
+        UserPrincipal currentUser = AuthUtils.getCurrentUserPrincipal();
+        if (currentUser == null) {
+            throw new PermissionDeniedException("用户未登录或会话已过期");
+        }
+        if (!isAdmin(currentUser)) {
+            throw new PermissionDeniedException("仅管理员可调整项目成本");
+        }
+
+        SysProject project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new BusinessException("项目不存在: " + projectId));
+
+        ProjectCostAdjustmentType type;
+        try {
+            type = ProjectCostAdjustmentType.valueOf(request.getType().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("无效的成本类型: " + request.getType());
+        }
+
+        if (request.getItemName() == null || request.getItemName().isBlank()) {
+            throw new BusinessException("名称不能为空");
+        }
+        if (request.getAmount() == null || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("金额必须大于0");
+        }
+
+        BigDecimal previousCost = project.getCost() != null ? project.getCost() : BigDecimal.ZERO;
+        BigDecimal newCost = previousCost.add(request.getAmount());
+        project.setCost(newCost);
+        projectRepository.save(project);
+
+        ProjectCostAdjustment adjustment = ProjectCostAdjustment.builder()
+                .projectId(projectId)
+                .projectName(project.getName())
+                .adjustmentType(type)
+                .itemName(request.getItemName().trim())
+                .amount(request.getAmount())
+                .operatorUserId(currentUser.getId())
+                .operatorName(currentUser.getName())
+                .build();
+
+        if (invoiceFile != null && !invoiceFile.isEmpty()) {
+            try {
+                String originalFilename = invoiceFile.getOriginalFilename();
+                String ext = originalFilename != null && originalFilename.contains(".")
+                        ? originalFilename.substring(originalFilename.lastIndexOf("."))
+                        : "";
+                String storedName = UUID.randomUUID() + ext;
+                Path uploadPath = Paths.get(uploadDir, "cost-adjustments");
+                Files.createDirectories(uploadPath);
+                Path targetFile = uploadPath.resolve(storedName);
+                invoiceFile.transferTo(targetFile.toFile());
+
+                adjustment.setInvoiceFileName(originalFilename);
+                adjustment.setInvoiceFilePath(targetFile.toString());
+                adjustment.setInvoiceContentType(invoiceFile.getContentType());
+                adjustment.setInvoiceFileSize(invoiceFile.getSize());
+            } catch (IOException e) {
+                throw new BusinessException("发票文件上传失败: " + e.getMessage());
+            }
+        }
+
+        costAdjustmentRepository.save(adjustment);
+    }
+
+    private boolean isAdmin(UserPrincipal user) {
+        if (user.getRole() != null && "ADMIN".equalsIgnoreCase(user.getRole().trim())) {
+            return true;
+        }
+        return getAdminUsernames().contains(user.getUsername().trim());
     }
 
     private ProjectSubtaskResponse toSubtaskResponse(ProjectSubtask task) {

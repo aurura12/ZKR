@@ -516,7 +516,7 @@ public class FinanceCostBatchService {
     }
 
     private BigDecimal resolveDailyWage(User user) {
-        if (user == null || user.getDailyWage() == null || user.getDailyWage().compareTo(BigDecimal.ZERO) <= 0) {
+        if (user == null || user.getDailyWage() == null || user.getDailyWage().compareTo(BigDecimal.ZERO) < 0) {
             return DEFAULT_DAILY_WAGE;
         }
         if (isBusinessRole(user.getRole())) {

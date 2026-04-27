@@ -28,7 +28,7 @@
             <template #default="{ row }">
               <el-input-number
                 v-model="row.dailyWage"
-                :min="0"
+                :min="0.01"
                 :precision="2"
                 :step="10"
                 size="small"
@@ -37,20 +37,32 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100" fixed="right">
+          <el-table-column label="操作" width="160" fixed="right">
             <template #default="{ row }">
-              <el-popconfirm
-                v-if="row.active"
-                title="确认将该用户设为离职？"
-                confirm-button-text="确认"
-                cancel-button-text="取消"
-                @confirm="handleDeactivate(row)"
-              >
-                <template #reference>
-                  <el-button type="danger" size="small" :loading="savingIds.has(row.userId)">离职</el-button>
-                </template>
-              </el-popconfirm>
-              <span v-else style="color: var(--text-sub); font-size: 12px;">已离职</span>
+              <template v-if="row.active">
+                <el-popconfirm
+                  title="确认将该用户设为离职？"
+                  confirm-button-text="确认"
+                  cancel-button-text="取消"
+                  @confirm="handleDeactivate(row)"
+                >
+                  <template #reference>
+                    <el-button type="danger" size="small" :loading="savingIds.has(row.userId)">离职</el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+              <template v-else>
+                <el-popconfirm
+                  title="确认将该用户还原为在职？"
+                  confirm-button-text="确认"
+                  cancel-button-text="取消"
+                  @confirm="handleActivate(row)"
+                >
+                  <template #reference>
+                    <el-button type="success" size="small" :loading="savingIds.has(row.userId)">还原</el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
             </template>
           </el-table-column>
         </el-table>
@@ -111,8 +123,8 @@ const fetchUsers = async () => {
 }
 
 const handleWageChange = async (row) => {
-  if (row.dailyWage == null || row.dailyWage < 0) {
-    ElMessage.warning('日工资不能为负数')
+  if (row.dailyWage == null || row.dailyWage <= 0) {
+    ElMessage.warning('日工资必须大于0')
     return
   }
 
@@ -135,6 +147,19 @@ const handleDeactivate = async (row) => {
   try {
     await request.post(`/api/admin/users/${row.userId}/deactivate`)
     ElMessage.success(`${row.name} 已设为离职`)
+    fetchUsers()
+  } catch (error) {
+    ElMessage.error(error.message || '操作失败')
+  } finally {
+    savingIds.value.delete(row.userId)
+  }
+}
+
+const handleActivate = async (row) => {
+  savingIds.value.add(row.userId)
+  try {
+    await request.post(`/api/admin/users/${row.userId}/activate`)
+    ElMessage.success(`${row.name} 已还原为在职`)
     fetchUsers()
   } catch (error) {
     ElMessage.error(error.message || '操作失败')

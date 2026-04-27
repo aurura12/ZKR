@@ -1,9 +1,9 @@
 package com.smartlab.erp.service;
 
+import com.smartlab.erp.enums.AccountDomain;
 import com.smartlab.erp.entity.ProjectMemberParticipationHistory;
 import com.smartlab.erp.entity.SysProject;
 import com.smartlab.erp.entity.SysProjectMember;
-import com.smartlab.erp.enums.AccountDomain;
 import com.smartlab.erp.entity.User;
 import com.smartlab.erp.repository.ProjectMemberParticipationHistoryRepository;
 import com.smartlab.erp.repository.SysProjectMemberRepository;
@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 用户业务逻辑层
@@ -74,10 +75,16 @@ public class UserService {
                 .toList();
     }
 
+    public List<User> findAllUsersIncludingInactive() {
+        return userRepository.findAll().stream()
+                .peek(this::enrichUser)
+                .toList();
+    }
+
     @Transactional
     public void updateDailyWage(String userId, BigDecimal dailyWage) {
-        if (dailyWage == null || dailyWage.compareTo(BigDecimal.ZERO) < 0) {
-            throw new RuntimeException("日工资不能为负数");
+        if (dailyWage == null || dailyWage.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("日工资必须大于0");
         }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在: " + userId));
@@ -94,20 +101,41 @@ public class UserService {
         }
         user.setActive(false);
         userRepository.save(user);
+    }
 
-        List<SysProject> participatedProjects = projectRepository.findParticipatedProjects(userId);
-        Instant now = Instant.now();
-        for (SysProject project : participatedProjects) {
-            projectMemberRepository.findByProjectIdAndUserUserId(project.getProjectId(), userId)
-                    .ifPresent(member -> {
-                        historyRepository.findTopByProject_ProjectIdAndUser_UserIdAndLeftAtIsNullOrderByJoinedAtDesc(
-                                project.getProjectId(), userId)
-                                .ifPresent(history -> {
-                                    history.setLeftAt(now);
-                                    historyRepository.save(history);
-                                });
-                        projectMemberRepository.delete(member);
-                    });
+    @Transactional
+    public void activateUser(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在: " + userId));
+        if (Boolean.TRUE.equals(user.getActive())) {
+            throw new RuntimeException("该用户未离职");
+        }
+        user.setActive(true);
+        userRepository.save(user);
+
+        List<ProjectMemberParticipationHistory> histories = historyRepository.findByUser_UserId(userId);
+        for (ProjectMemberParticipationHistory h : histories) {
+            String projectId = h.getProject().getProjectId();
+            if (!projectMemberRepository.existsByProjectIdAndUserUserId(projectId, userId)) {
+                SysProject project = projectRepository.findById(projectId).orElse(null);
+                if (project != null) {
+                    SysProjectMember member = SysProjectMember.builder()
+                            .projectId(projectId)
+                            .user(user)
+                            .role("MEMBER")
+                            .joinedAt(h.getJoinedAt())
+                            .build();
+                    projectMemberRepository.save(member);
+                }
+            }
+            if (h.getLeftAt() != null) {
+                Optional<ProjectMemberParticipationHistory> latest = historyRepository
+                        .findTopByProject_ProjectIdAndUser_UserIdOrderByJoinedAtDesc(projectId, userId);
+                if (latest.isPresent() && latest.get().getLeftAt() == null) {
+                    h.setLeftAt(null);
+                    historyRepository.save(h);
+                }
+            }
         }
     }
 }

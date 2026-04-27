@@ -22,7 +22,7 @@ public class UserSchemaMigration {
             jdbcTemplate.execute("UPDATE sys_user SET role = 'ALGORITHM' WHERE role = 'ALGO'");
             jdbcTemplate.execute("UPDATE sys_user SET role = 'DATA' WHERE username = 'zhangqi'");
             jdbcTemplate.execute("ALTER TABLE sys_user ADD COLUMN IF NOT EXISTS daily_wage numeric(10,2) NOT NULL DEFAULT 300");
-            jdbcTemplate.execute("UPDATE sys_user SET daily_wage = 300 WHERE (daily_wage IS NULL OR daily_wage <= 0) AND COALESCE(account_domain, 'ERP') = 'ERP' AND COALESCE(is_active, true) = true");
+            jdbcTemplate.execute("UPDATE sys_user SET daily_wage = 300 WHERE daily_wage IS NULL AND COALESCE(account_domain, 'ERP') = 'ERP'");
             jdbcTemplate.execute("ALTER TABLE sys_user DROP COLUMN IF EXISTS department");
             jdbcTemplate.execute("ALTER TABLE sys_user ADD COLUMN IF NOT EXISTS hidden_avatar boolean DEFAULT false");
             jdbcTemplate.execute("ALTER TABLE sys_project_member ADD COLUMN IF NOT EXISTS joined_at timestamptz NOT NULL DEFAULT now()");

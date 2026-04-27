@@ -17,4 +17,6 @@ public interface ProjectMemberParticipationHistoryRepository extends JpaReposito
     Optional<ProjectMemberParticipationHistory> findTopByProject_ProjectIdAndUser_UserIdAndLeftAtIsNullOrderByJoinedAtDesc(String projectId, String userId);
 
     Optional<ProjectMemberParticipationHistory> findTopByProject_ProjectIdAndUser_UserIdOrderByJoinedAtDesc(String projectId, String userId);
+
+    List<ProjectMemberParticipationHistory> findByUser_UserId(String userId);
 }

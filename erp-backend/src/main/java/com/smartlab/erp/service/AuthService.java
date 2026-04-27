@@ -119,7 +119,7 @@ public class AuthService {
         validateUserUniqueness(request.getUsername());
 
         BigDecimal wage = request.getDailyWage();
-        if (wage == null || wage.compareTo(BigDecimal.ZERO) <= 0) {
+        if (wage == null || wage.compareTo(BigDecimal.ZERO) < 0) {
             wage = new BigDecimal("300.00");
         }
 

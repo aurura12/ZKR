@@ -170,6 +170,31 @@ PUT /api/batch/projects?projectId=<id>&enabled=<true|false>&priority=<1-999>&not
 
 ## Bug 修复记录
 
+### 用户离职后历史项目不可见 & 工资=0保存失败 (2026-04-27)
+
+**现象**：
+1. 用户点击"离职"后，该用户从所有历史项目的成员列表中消失
+2. 工资管理中，将日工资设置为 0 时保存失败（实际保存到 DB 但每次重启被重置为 300）
+
+**根因**：
+1. `UserService.deactivateUser()` 在设置 `active=false` 的同时，遍历用户参与的所有项目，从 `sys_project_member` 中删除了该用户。这与设计文档（`docs/superpowers/specs/2026-04-26-user-deactivation-design.md`）第 14 行"历史项目中该用户仍然可见"的要求冲突。
+2. 工资=0 有多层矛盾：`UserService.updateDailyWage()` 接受 0 并写入 DB，但 `UserSchemaMigration` 每次启动执行 `UPDATE sys_user SET daily_wage = 300 WHERE daily_wage <= 0`，导致实际效果总是被覆盖。
+
+**修复措施**：
+1. **`UserService.java`**：`deactivateUser()` 只设置 `active=false`，不再删除 `sys_project_member` 条目
+2. **`UserService.java`**：新增 `activateUser()` 方法，设置 `active=true` 并从 `project_member_participation_history` 重建 `sys_project_member`（可用于恢复之前误删的记录）
+3. **`AdminUserController.java`**：新增 `POST /api/admin/users/{userId}/activate` 还原端点
+4. **`WageManagementView.vue`**：离职用户行显示"还原"按钮，点击后调用 activate 接口
+5. **`UserService.java`**：`updateDailyWage()` 验证改为 `<= 0`，明确拒绝 0 和负数
+6. **`UserSchemaMigration.java`**：移除 `daily_wage <= 0` 重置为 300 的逻辑（仅保留 `NULL` 修复）
+7. **`FinanceCostBatchService.java`**：`resolveDailyWage()` 从 `<= 0` 改为 `< 0`
+8. **`AuthService.java`**：`provisionUser()` 同样改为 `< 0`
+9. **`WageManagementView.vue`**：前端 `el-input-number :min` 改为 `0.01`，验证提示改为"日工资必须大于0"
+10. **`UserService.java`**：新增 `findAllUsersIncludingInactive()`，`GET /api/admin/users` 现在返回所有用户（含离职），便于管理员查看和还原
+11. **`ProjectMemberParticipationHistoryRepository.java`**：新增 `findByUser_UserId()` 查询方法
+
+**涉及文件**：`UserService.java`, `AdminUserController.java`, `WageManagementView.vue`, `UserSchemaMigration.java`, `FinanceCostBatchService.java`, `AuthService.java`, `ProjectMemberParticipationHistoryRepository.java`
+
 ### Finance 侧边栏导航错误 (2026-04-26)
 
 **现象**：Finance 系统左侧侧边栏点击后进入其他栏目，而非目标栏目。例如点击"跑批控制"显示清算中心内容，点击"清算"显示分红中心内容。

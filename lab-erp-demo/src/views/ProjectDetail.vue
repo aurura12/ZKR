@@ -648,6 +648,16 @@
           </div>
         </div>
 
+        <div v-if="isAdminUser" class="panel cost-adjust-panel">
+          <div class="panel-header-row compact-header">
+            <div>
+              <h3 class="panel-title">📊 项目管理成本</h3>
+              <div class="execution-caption">当前项目累计成本：¥{{ formatMoney(project?.cost || 0) }}</div>
+            </div>
+            <el-button type="warning" size="small" @click="openCostAdjustDialog">调整项目成本</el-button>
+          </div>
+        </div>
+
         <div v-if="isProjectFlow" class="panel earnings-panel">
           <div class="panel-header-row compact-header earnings-header">
             <div>
@@ -1369,6 +1379,41 @@
       />
     </el-dialog>
 
+    <el-dialog v-model="showCostAdjustDialog" title="调整项目成本" width="520px" custom-class="tech-dialog">
+      <div class="execution-text">选择成本类型并填写必要信息，金额将直接累加到当前项目。</div>
+      <el-form label-position="top" style="margin-top: 16px;">
+        <el-form-item label="成本类型" required>
+          <el-select v-model="costAdjustForm.type" placeholder="请选择成本类型" style="width: 100%">
+            <el-option label="硬件采购" value="HARDWARE" />
+            <el-option label="服务器、外采和自有算力" value="SERVER_COMPUTE" />
+            <el-option label="外部技术服务" value="EXTERNAL_SERVICE" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="名称" required>
+          <el-input v-model="costAdjustForm.itemName" placeholder="例如：3090显卡采购、阿里云ECS服务器" maxlength="200" />
+        </el-form-item>
+        <el-form-item label="金额 (元)" required>
+          <el-input-number v-model="costAdjustForm.amount" :min="0.01" :precision="2" :step="100" style="width: 100%" placeholder="0.00" />
+        </el-form-item>
+        <el-form-item label="发票/凭证">
+          <el-upload
+            v-model:file-list="costAdjustForm.invoiceFileList"
+            :auto-upload="false"
+            :limit="1"
+            list-type="picture"
+            accept=".jpg,.jpeg,.png,.pdf"
+          >
+            <el-button size="small" type="primary" plain>选择文件</el-button>
+            <template #tip><div class="el-upload__tip">支持 JPG/PNG/PDF，可选</div></template>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showCostAdjustDialog = false">取消</el-button>
+        <el-button type="warning" :loading="costAdjustSubmitting" @click="submitCostAdjust">确认调整</el-button>
+      </template>
+    </el-dialog>
+
   </div>
 
   <div v-else class="error-state">未找到该项目信息，请重试。</div>
@@ -1452,6 +1497,9 @@ const researchMemberForm = ref({ addUserIds: [] })
 const researchMemberLoading = ref(false)
 const showArchiveMoveDialog = ref(false)
 const showTravelReimbursementDialog = ref(false)
+const showCostAdjustDialog = ref(false)
+const costAdjustForm = ref({ type: 'HARDWARE', itemName: '', amount: null, invoiceFileList: [] })
+const costAdjustSubmitting = ref(false)
 const productActionLoading = ref(false)
 const productMemberLoading = ref(false)
 const productTaskAssignmentLoading = ref(false)
@@ -2787,6 +2835,39 @@ const handleStatusChange = async (newStatus) => {
 const handleTravelReimbursementSubmitted = () => {
   showTravelReimbursementDialog.value = false
   window.dispatchEvent(new Event('finance-global-refresh'))
+}
+
+const openCostAdjustDialog = () => {
+  costAdjustForm.value = { type: 'HARDWARE', itemName: '', amount: null, invoiceFileList: [] }
+  showCostAdjustDialog.value = true
+}
+
+const submitCostAdjust = async () => {
+  const { type, itemName, amount, invoiceFileList } = costAdjustForm.value
+  if (!itemName || !itemName.trim()) return ElMessage.warning('请输入名称')
+  if (!amount || amount <= 0) return ElMessage.warning('请输入有效金额')
+
+  const targetId = props.projectId || route.params.id
+  costAdjustSubmitting.value = true
+  try {
+    const form = new FormData()
+    form.append('itemName', itemName.trim())
+    form.append('type', type)
+    form.append('amount', String(amount))
+    const file = invoiceFileList?.[0]?.raw
+    if (file) form.append('invoiceFile', file)
+
+    await request.post(`/api/projects/${targetId}/adjust-cost`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    ElMessage.success('项目成本已调整')
+    showCostAdjustDialog.value = false
+    await fetchProject()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.message || e.message || '成本调整失败')
+  } finally {
+    costAdjustSubmitting.value = false
+  }
 }
 
 // 6. 里程碑添加逻辑

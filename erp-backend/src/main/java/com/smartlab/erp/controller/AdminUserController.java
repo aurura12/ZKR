@@ -37,7 +37,7 @@ public class AdminUserController {
     @GetMapping
     public ResponseEntity<List<User>> getAllUsers() {
         requireProvisionAdmin();
-        return ResponseEntity.ok(userService.findAllUsers());
+        return ResponseEntity.ok(userService.findAllUsersIncludingInactive());
     }
 
     @PutMapping("/{userId}/daily-wage")
@@ -54,5 +54,12 @@ public class AdminUserController {
         requireProvisionAdmin();
         userService.deactivateUser(userId);
         return ResponseEntity.ok(Map.of("message", "用户已离职"));
+    }
+
+    @PostMapping("/{userId}/activate")
+    public ResponseEntity<Map<String, String>> activateUser(@PathVariable String userId) {
+        requireProvisionAdmin();
+        userService.activateUser(userId);
+        return ResponseEntity.ok(Map.of("message", "用户已还原为在职"));
     }
 }
