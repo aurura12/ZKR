@@ -72,7 +72,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, watch, shallowRef, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 
@@ -92,14 +92,25 @@ const compareValues = (a, b) => {
   return String(a).localeCompare(String(b), 'zh-CN')
 }
 
-const sortedUsers = computed(() => {
-  if (!sortProp.value || !sortOrder.value) return users.value
+const sortedUsers = shallowRef([])
+
+const resort = () => {
+  if (!sortProp.value || !sortOrder.value) {
+    sortedUsers.value = users.value
+    return
+  }
   const prop = sortProp.value
   const order = sortOrder.value
-  return [...users.value].sort((a, b) => {
+  sortedUsers.value = [...users.value].sort((a, b) => {
     const result = compareValues(a[prop], b[prop])
     return order === 'ascending' ? result : -result
   })
+}
+
+watch(users, resort, { deep: false, immediate: true })
+
+watch([sortProp, sortOrder], () => {
+  resort()
 })
 
 const handleSortChange = ({ prop, order }) => {

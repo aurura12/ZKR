@@ -1593,12 +1593,10 @@ public class ProjectService {
                 .map(SysProject::getProjectId)
                 .filter(id -> id != null && !id.isBlank())
                 .toList();
-        Map<String, BigDecimal> costByProject = projectIds.isEmpty()
-                ? Map.of()
-                : costSummaryRepository.findByProject_ProjectIdIn(projectIds).stream()
+        Map<String, BigDecimal> costByProject = all.stream()
                 .collect(Collectors.toMap(
-                        cs -> cs.getProject().getProjectId(),
-                        cs -> cs.getTotalLaborCost() != null ? cs.getTotalLaborCost() : BigDecimal.ZERO,
+                        SysProject::getProjectId,
+                        p -> p.getCost() != null ? p.getCost() : BigDecimal.ZERO,
                         BigDecimal::add));
         Map<String, List<SysProjectMember>> memberMap = projectIds.isEmpty()
                 ? Map.of()
