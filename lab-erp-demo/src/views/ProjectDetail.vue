@@ -1367,8 +1367,8 @@
         <el-form-item label="成本类型" required>
           <el-select v-model="costAdjustForm.type" placeholder="请选择成本类型" style="width: 100%">
             <el-option label="硬件采购" value="HARDWARE" />
-            <el-option label="服务器、外采和自有算力" value="SERVER_COMPUTE" />
             <el-option label="外部技术服务" value="EXTERNAL_SERVICE" />
+            <el-option label="报销" value="REIMBURSEMENT" />
           </el-select>
         </el-form-item>
         <el-form-item label="名称" required>
