@@ -234,9 +234,7 @@ public class ProjectFinancialMetricsService {
                                                   FinanceCostSummary latestSummary) {
         ProjectTierEnum projectTier = resolveProjectTier(project, executionPlan);
         BigDecimal estimatedRevenue = resolveEstimatedRevenue(project);
-        BigDecimal humanCost = latestSummary != null && latestSummary.getTotalLaborCost() != null
-                ? FinanceAmounts.scale(latestSummary.getTotalLaborCost())
-                : FinanceAmounts.scale(project == null ? null : project.getCost());
+        BigDecimal humanCost = FinanceAmounts.scale(project == null ? null : project.getCost());
         BigDecimal remainingProfit = FinanceAmounts.subtract(estimatedRevenue, humanCost);
         if (remainingProfit.compareTo(BigDecimal.ZERO) < 0) {
             remainingProfit = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
