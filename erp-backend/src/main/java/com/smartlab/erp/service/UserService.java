@@ -83,8 +83,8 @@ public class UserService {
 
     @Transactional
     public void updateDailyWage(String userId, BigDecimal dailyWage) {
-        if (dailyWage == null || dailyWage.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new RuntimeException("日工资必须大于0");
+        if (dailyWage == null || dailyWage.compareTo(BigDecimal.ZERO) < 0) {
+            throw new RuntimeException("日工资不能为负数");
         }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在: " + userId));

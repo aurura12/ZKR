@@ -11,7 +11,7 @@
       </div>
 
       <div class="table-wrapper">
-        <el-table :data="sortedUsers" stripe v-loading="loading" style="width: 100%" @sort-change="handleSortChange">
+        <el-table :data="sortedUsers" stripe v-loading="loading" style="width: 100%" @sort-change="handleSortChange" row-key="userId">
           <el-table-column prop="userId" label="ID" width="100" sortable="custom" />
           <el-table-column prop="name" label="姓名" width="120" sortable="custom" />
           <el-table-column prop="username" label="账号" width="140" sortable="custom" />
@@ -28,7 +28,7 @@
             <template #default="{ row }">
               <el-input-number
                 v-model="row.dailyWage"
-                :min="0.01"
+                :min="0"
                 :precision="2"
                 :step="10"
                 size="small"
@@ -123,11 +123,12 @@ const fetchUsers = async () => {
 }
 
 const handleWageChange = async (row) => {
-  if (row.dailyWage == null || row.dailyWage <= 0) {
-    ElMessage.warning('日工资必须大于0')
+  if (row.dailyWage == null || row.dailyWage < 0) {
+    ElMessage.warning('日工资不能为负数')
     return
   }
 
+  const prevWage = row.dailyWage
   savingIds.value.add(row.userId)
   try {
     await request.put(`/api/admin/users/${row.userId}/daily-wage`, {
@@ -136,7 +137,8 @@ const handleWageChange = async (row) => {
     ElMessage.success(`${row.name} 日工资已更新为 ${row.dailyWage}`)
   } catch (error) {
     ElMessage.error(error.message || '更新失败')
-    fetchUsers()
+    const user = users.value.find(u => u.userId === row.userId)
+    if (user) user.dailyWage = prevWage
   } finally {
     savingIds.value.delete(row.userId)
   }
