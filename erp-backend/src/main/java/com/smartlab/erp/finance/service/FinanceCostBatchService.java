@@ -92,10 +92,12 @@ public class FinanceCostBatchService {
             throw new IllegalArgumentException("cost batch is already running for ledger month " + ledgerMonth);
         }
 
-        if (!rerunExistingMonth) {
-            if (existingBatch != null) {
-                return buildRunResponse(existingBatch, true);
-            }
+        if (rerunExistingMonth) {
+            throw new IllegalArgumentException("历史跑批已禁用，禁止重复执行已有跑批记录");
+        }
+
+        if (existingBatch != null) {
+            return buildRunResponse(existingBatch, true);
         }
 
         FinanceCostBatch batch = costBatchRepository.save(FinanceCostBatch.builder()

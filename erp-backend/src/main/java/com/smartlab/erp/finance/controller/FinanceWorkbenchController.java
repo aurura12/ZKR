@@ -37,9 +37,7 @@ public class FinanceWorkbenchController {
     public ResponseEntity<FinanceApiResponse<?>> runCostBatch(@Valid @RequestBody FinanceLedgerMonthRequest request) {
         return respond(traceId -> FinanceApiResponse.success(
                 "cost batch completed",
-                request.shouldRerunExistingMonth()
-                        ? financeCostBatchService.runBatch(request.getLedgerMonth(), true)
-                        : financeCostBatchService.runBatch(request.getLedgerMonth()),
+                financeCostBatchService.runBatch(request.getLedgerMonth(), false),
                 null,
                 traceId), HttpStatus.OK);
     }

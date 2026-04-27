@@ -46,7 +46,7 @@
         </button>
       </div>
       <div v-if="userStore.isErpLoggedIn" class="detail-cta-row">
-        <el-button type="primary" plain @click="showTravelReimbursementDialog = true">✈️ 提交出差报销</el-button>
+        <el-button v-if="isAdminUser" type="warning" plain @click="openCostAdjustDialog">📊 调整项目成本</el-button>
         <el-button v-if="canDeleteCurrentProject" type="danger" plain @click="deleteCurrentProject">删除项目</el-button>
       </div>
     </div>
@@ -645,16 +645,6 @@
               <span class="role-badge">{{ formatMemberIdentityTag(m) }}</span>
             </div>
             <div v-if="canBuildTeam" class="add-member-btn" @click="inviteMember">+</div>
-          </div>
-        </div>
-
-        <div v-if="isAdminUser" class="panel cost-adjust-panel">
-          <div class="panel-header-row compact-header">
-            <div>
-              <h3 class="panel-title">📊 项目管理成本</h3>
-              <div class="execution-caption">当前项目累计成本：¥{{ formatMoney(project?.cost || 0) }}</div>
-            </div>
-            <el-button type="warning" size="small" @click="openCostAdjustDialog">调整项目成本</el-button>
           </div>
         </div>
 
@@ -1370,15 +1360,6 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showTravelReimbursementDialog" title="提交出差报销" width="760px" custom-class="tech-dialog">
-      <ExpenseSubmissionForm
-        compact
-        submission-type="PROJECT_TRAVEL_REIMBURSEMENT"
-        :project-context="{ projectId: project?.id, projectName: project?.name, flowType: project?.flowType }"
-        @submitted="handleTravelReimbursementSubmitted"
-      />
-    </el-dialog>
-
     <el-dialog v-model="showCostAdjustDialog" title="调整项目成本" width="520px" custom-class="tech-dialog">
       <div class="execution-text">选择成本类型并填写必要信息，金额将直接累加到当前项目。</div>
       <el-form label-position="top" style="margin-top: 16px;">
@@ -1496,7 +1477,6 @@ const showResearchMemberDialog = ref(false)
 const researchMemberForm = ref({ addUserIds: [] })
 const researchMemberLoading = ref(false)
 const showArchiveMoveDialog = ref(false)
-const showTravelReimbursementDialog = ref(false)
 const showCostAdjustDialog = ref(false)
 const costAdjustForm = ref({ type: 'HARDWARE', itemName: '', amount: null, invoiceFileList: [] })
 const costAdjustSubmitting = ref(false)
@@ -2830,11 +2810,6 @@ const handleStatusChange = async (newStatus) => {
     console.error(e)
     ElMessage.error(e.response?.data?.message || e.message || '状态切换失败')
   }
-}
-
-const handleTravelReimbursementSubmitted = () => {
-  showTravelReimbursementDialog.value = false
-  window.dispatchEvent(new Event('finance-global-refresh'))
 }
 
 const openCostAdjustDialog = () => {
