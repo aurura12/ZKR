@@ -2168,6 +2168,11 @@ public class ProjectService {
         return expenseRepository.findAllReviewed();
     }
 
+    @Transactional(readOnly = true)
+    public List<ProjectCostAdjustment> getCostAdjustmentLog() {
+        return costAdjustmentRepository.findAllByOrderByCreatedAtDesc();
+    }
+
     private ProjectSubtaskResponse toSubtaskResponse(ProjectSubtask task) {
         return ProjectSubtaskResponse.builder()
                 .id(task.getId())

@@ -12,6 +12,7 @@ import com.smartlab.erp.dto.ReviewExpenseRequest;
 import com.smartlab.erp.dto.SubmitProjectExpenseRequest;
 import com.smartlab.erp.dto.WorkflowMemberRoleDTO;
 import com.smartlab.erp.entity.SysProject;
+import com.smartlab.erp.entity.ProjectCostAdjustment;
 import com.smartlab.erp.entity.ProjectExpense;
 import com.smartlab.erp.entity.ProjectStatus;
 import com.smartlab.erp.entity.ProductStatus;
@@ -333,6 +334,12 @@ public class ProjectController {
                 "pending", projectService.getReviewableExpenses(),
                 "history", projectService.getReviewedHistory()
         ));
+    }
+
+    @GetMapping("/cost-adjustments")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<ProjectCostAdjustment>> getCostAdjustmentLog() {
+        return ResponseEntity.ok(projectService.getCostAdjustmentLog());
     }
 
     @DeleteMapping("/{id}")

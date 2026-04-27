@@ -116,6 +116,15 @@ export const financeNavigationItems = [
     title: '考勤工资',
     description: '钉钉考勤打卡数据总览与纠偏。',
     highlights: ['打卡明细', '月度汇总', '纠偏申请']
+  },
+  {
+    path: '/finance/cost-adjustment-log',
+    routeName: 'finance-cost-adjustment-log',
+    label: '成本调整日志',
+    eyebrow: '审计',
+    title: '成本调整日志',
+    description: '追溯全部项目的CEO成本调整记录。',
+    highlights: ['调整明细', '操作人', '金额', '发票']
   }
 ]
 
@@ -202,6 +211,10 @@ export const financeRoutes = [
       withFinanceMeta({
         ...financeNavigationItems[10],
         component: () => import('@/views/finance/FinanceAttendanceView.vue')
+      }),
+      withFinanceMeta({
+        ...financeNavigationItems[11],
+        component: () => import('@/views/finance/CostAdjustmentLogView.vue')
       })
     ]
   }

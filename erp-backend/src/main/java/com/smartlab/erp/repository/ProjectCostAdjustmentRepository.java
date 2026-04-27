@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface ProjectCostAdjustmentRepository extends JpaRepository<ProjectCostAdjustment, Long> {
     List<ProjectCostAdjustment> findByProjectIdOrderByCreatedAtDesc(String projectId);
+    List<ProjectCostAdjustment> findAllByOrderByCreatedAtDesc();
 }
