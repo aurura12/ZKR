@@ -195,6 +195,76 @@ PUT /api/batch/projects?projectId=<id>&enabled=<true|false>&priority=<1-999>&not
 
 **涉及文件**：`UserService.java`, `AdminUserController.java`, `WageManagementView.vue`, `UserSchemaMigration.java`, `FinanceCostBatchService.java`, `AuthService.java`, `ProjectMemberParticipationHistoryRepository.java`
 
+### 成本跑批覆盖手工数据 & 管理看板成本不显示 & 新增Admin调整成本功能 (2026-04-27)
+
+本次会话完成了三个问题的修复和一个新功能：
+
+---
+
+**问题一：成本跑批启动回填覆盖手工成本数据**
+
+**现象**：`FinanceLaborCostBackfillRunner` 在每次应用启动时执行 truncate + 全量回填，覆盖了 CEO 手工调平的 `sys_project.cost` 数据。
+
+**根因**：启动 Runner 在 `@Order(100)` 自动执行，调用 `truncateAllCostData()` 清空三张成本表后重新跑批填入计算值。
+
+**修复**：
+- 删除 `FinanceLaborCostBackfillRunner.java`，彻底移除启动回填逻辑
+- 成本跑批的定时调度仍然由 `DynamicBatchSchedulerConfig` 管理，通过 `batch_job_control.enabled` 控制
+
+**涉及文件**：`FinanceLaborCostBackfillRunner.java`（删除）
+
+---
+
+**问题二：ERP管理看板成本未使用手工数据**
+
+**现象**：ERP管理看板 (`ManagerDashboard.vue`) 和分红池均通过 `ProjectFinancialMetricsService.buildSnapshot()` 从 `FinanceCostSummary.totalLaborCost` 读取成本，而非 CEO 手动设置的真实数据。
+
+**根因**：`buildSnapshot()` 优先使用 `FinanceCostSummary`（自动跑批生成的计算值），仅在查不到时降级到 `sys_project.cost`。
+
+**修复**：
+- `ProjectFinancialMetricsService.buildSnapshot()` 改回直接读 `sys_project.cost`（手工数据）
+- 删除了 `BankStatementBackfillService`（未跟踪的危险服务，会覆写真实数据）
+- 撤回了 `AdminUserController` 中对 `BankStatementBackfillService` 的依赖注入
+
+**涉及文件**：`ProjectFinancialMetricsService.java`, `BankStatementBackfillService.java`（删除）, `AdminUserController.java`（撤回）
+
+---
+
+**问题三：成本跑批中 BUSINESS/BD 角色参与计算**
+
+**现象**：商务角色（BUSINESS/BD）用户有日工资，其工资额被均摊到所有参与项目，导致项目成本被稀释。
+
+**根因**：`FinanceCostBatchService.resolveDailyWage()` 未对商务角色做特殊处理。
+
+**修复**：
+- `resolveDailyWage()` 新增 `isBusinessRole()` 检查，BUSINESS/BD 直接返回 `null`
+- `buildDailyEntriesCrossProject()` 中当 `dailyWage == null` 时 `continue` 跳过该用户
+- `runBatch()` 开头新增 `cleanupBusinessRoleEntries()` 清理已有的商务角色成本记录
+
+**涉及文件**：`FinanceCostBatchService.java`, `FinanceCostEntryRepository.java`
+
+---
+
+**新功能：Admin 调整项目管理成本**
+
+**需求**：CEO/Admin 可以在项目详情页手动追加项目成本，支持三种成本类型（硬件采购 / 服务器算力 / 外部技术服务），仅填写必要信息（类型 + 名称 + 金额 + 可选发票），金额直接累加到 `sys_project.cost`，写入审计日志。
+
+**后端实现**：
+- 新建 `ProjectCostAdjustment` 实体，映射 `project_cost_adjustment` 表
+- 新建 `ProjectCostAdjustmentType` 枚举（HARDWARE / SERVER_COMPUTE / EXTERNAL_SERVICE）
+- 新建 `ProjectCostAdjustmentRepository`
+- `ProjectService.adjustProjectCost()` — 校验权限（仅Admin）、校验参数、累加成本、写入审计日志、保存发票
+- `ProjectController` 新增 `POST /api/projects/{projectId}/adjust-cost` 端点（multipart/form-data）
+
+**前端实现**：
+- `ProjectDetail.vue` 模板新增"调整项目成本"按钮（仅 `isAdminUser` 可见）
+- 弹窗包含：成本类型选择器（3类）、名称输入、金额输入、可选发票上传
+- `submitCostAdjust()` 通过 FormData 提交，成功后刷新项目详情
+
+**涉及文件**：
+- 后端：`ProjectCostAdjustment.java`（新建）, `ProjectCostAdjustmentType.java`（新建）, `ProjectCostAdjustmentRepository.java`（新建）, `AdjustProjectCostRequest.java`（新建）, `ProjectService.java`, `ProjectController.java`
+- 前端：`ProjectDetail.vue`
+
 ### Finance 侧边栏导航错误 (2026-04-26)
 
 **现象**：Finance 系统左侧侧边栏点击后进入其他栏目，而非目标栏目。例如点击"跑批控制"显示清算中心内容，点击"清算"显示分红中心内容。
