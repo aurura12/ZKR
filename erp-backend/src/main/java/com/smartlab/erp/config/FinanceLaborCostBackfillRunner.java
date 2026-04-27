@@ -2,6 +2,7 @@ package com.smartlab.erp.config;
 
 import com.smartlab.erp.entity.FlowType;
 import com.smartlab.erp.entity.SysProject;
+import com.smartlab.erp.finance.enums.FinanceBatchStatus;
 import com.smartlab.erp.finance.repository.FinanceCostBatchRepository;
 import com.smartlab.erp.finance.repository.FinanceCostEntryRepository;
 import com.smartlab.erp.finance.repository.FinanceCostSummaryRepository;
@@ -40,9 +41,7 @@ public class FinanceLaborCostBackfillRunner {
     @Order(100)
     ApplicationRunner backfillDailyLaborCosts() {
         return args -> {
-            log.info("Truncating all existing cost batch data for full re-backfill with new daily-wage-averaging algorithm...");
-            transactionTemplate.executeWithoutResult(status -> truncateAllCostData());
-            log.info("Truncation complete. Starting full backfill from project history.");
+            log.info("Starting cost backfill runner (skip-if-done mode)...");
 
             var projects = projectRepository.findAll().stream()
                     .filter(project -> project != null && project.getFlowType() == FlowType.PROJECT)
@@ -65,15 +64,23 @@ public class FinanceLaborCostBackfillRunner {
             while (!cursor.isAfter(current)) {
                 String month = cursor.toString();
                 try {
-                    transactionTemplate.executeWithoutResult(status ->
-                            financeCostBatchService.runBatch(month, true));
-                    log.info("Backfill completed for month: {}", month);
+                    boolean alreadyDone = Boolean.TRUE.equals(transactionTemplate.execute(status ->
+                            financeCostBatchRepository.findTopByLedgerMonthOrderByIdDesc(month)
+                                    .map(batch -> batch.getStatus() == FinanceBatchStatus.COMPLETED)
+                                    .orElse(false)));
+                    if (alreadyDone) {
+                        log.info("Month {} already has a COMPLETED batch. Skipping.", month);
+                    } else {
+                        transactionTemplate.executeWithoutResult(status ->
+                                financeCostBatchService.runBatch(month, true));
+                        log.info("Backfill completed for month: {}", month);
+                    }
                 } catch (Exception e) {
                     log.error("Backfill failed for month: {}. Continuing with next month.", month, e);
                 }
                 cursor = cursor.plusMonths(1);
             }
-            log.info("Full backfill complete.");
+            log.info("Cost backfill runner finished.");
         };
     }
 

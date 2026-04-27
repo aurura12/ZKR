@@ -11,20 +11,20 @@
       </div>
 
       <div class="table-wrapper">
-        <el-table :data="users" stripe v-loading="loading" style="width: 100%">
-          <el-table-column prop="userId" label="ID" width="100" />
-          <el-table-column prop="name" label="姓名" width="120" />
-          <el-table-column prop="username" label="账号" width="140" />
-          <el-table-column prop="role" label="角色" width="120" />
-          <el-table-column prop="accountDomain" label="域" width="100" />
-          <el-table-column label="状态" width="80">
+        <el-table :data="sortedUsers" stripe v-loading="loading" style="width: 100%" @sort-change="handleSortChange">
+          <el-table-column prop="userId" label="ID" width="100" sortable="custom" />
+          <el-table-column prop="name" label="姓名" width="120" sortable="custom" />
+          <el-table-column prop="username" label="账号" width="140" sortable="custom" />
+          <el-table-column prop="role" label="角色" width="120" sortable="custom" />
+          <el-table-column prop="accountDomain" label="域" width="100" sortable="custom" />
+          <el-table-column prop="active" label="状态" width="80" sortable="custom">
             <template #default="{ row }">
               <el-tag :type="row.active ? 'success' : 'danger'" size="small">
                 {{ row.active ? '在职' : '离职' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="日工资 (元/天)" min-width="180">
+          <el-table-column prop="dailyWage" label="日工资 (元/天)" min-width="180" sortable="custom">
             <template #default="{ row }">
               <el-input-number
                 v-model="row.dailyWage"
@@ -60,13 +60,40 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 
 const users = ref([])
 const loading = ref(false)
 const savingIds = ref(new Set())
+
+const sortProp = ref(null)
+const sortOrder = ref(null)
+
+const compareValues = (a, b) => {
+  if (a == null && b == null) return 0
+  if (a == null) return 1
+  if (b == null) return -1
+  if (typeof a === 'number' && typeof b === 'number') return a - b
+  if (typeof a === 'boolean' && typeof b === 'boolean') return (a ? 1 : 0) - (b ? 1 : 0)
+  return String(a).localeCompare(String(b), 'zh-CN')
+}
+
+const sortedUsers = computed(() => {
+  if (!sortProp.value || !sortOrder.value) return users.value
+  const prop = sortProp.value
+  const order = sortOrder.value
+  return [...users.value].sort((a, b) => {
+    const result = compareValues(a[prop], b[prop])
+    return order === 'ascending' ? result : -result
+  })
+})
+
+const handleSortChange = ({ prop, order }) => {
+  sortProp.value = prop
+  sortOrder.value = order
+}
 
 const fetchUsers = async () => {
   loading.value = true

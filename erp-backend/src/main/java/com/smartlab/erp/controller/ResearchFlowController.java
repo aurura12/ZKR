@@ -2,6 +2,7 @@ package com.smartlab.erp.controller;
 
 import com.smartlab.erp.dto.ResearchInitiateRequest;
 import com.smartlab.erp.dto.ResearchStatusTransitionRequest;
+import com.smartlab.erp.dto.ProductMemberUpdateRequest;
 import com.smartlab.erp.dto.WorkflowMemberRoleDTO;
 import com.smartlab.erp.entity.MiddlewareAsset;
 import com.smartlab.erp.entity.SysProject;
@@ -80,6 +81,13 @@ public class ResearchFlowController {
     @GetMapping("/{projectId}/workflow-member-roles")
     public ResponseEntity<java.util.List<WorkflowMemberRoleDTO>> getWorkflowMemberRoles(@PathVariable String projectId) {
         return ResponseEntity.ok(workflowMemberRoleService.getWorkflowMemberRoles("RESEARCH", projectId));
+    }
+
+    @PatchMapping("/{projectId}/team-members")
+    public ResponseEntity<Map<String, Object>> updateResearchTeamMembers(
+            @PathVariable String projectId,
+            @RequestBody ProductMemberUpdateRequest request) {
+        return ResponseEntity.ok(researchFlowService.updateResearchMembers(projectId, request));
     }
 
     @GetMapping("/role-candidates")

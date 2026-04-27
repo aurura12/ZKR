@@ -398,6 +398,7 @@
         <div class="panel team-panel">
           <div class="panel-header-row compact-header">
             <h3 class="panel-title">👥 科研成员</h3>
+            <el-button v-if="canManageResearchMembers" type="primary" size="small" plain @click="openResearchMemberDialog">成员管理</el-button>
           </div>
           <div class="avatar-group">
             <div v-for="(m, idx) in sortedSquadMembers" :key="m.userId" class="member-item" :class="{ prioritized: idx === 0 && isLeadMember(m) }">
@@ -1312,6 +1313,37 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="showResearchMemberDialog" title="科研成员管理" width="680px" custom-class="tech-dialog">
+      <div class="execution-text">任意阶段可增减成员；发起者不可删除。</div>
+      <div class="member-manage-section">
+        <div class="execution-label">新增成员</div>
+        <el-select v-model="researchMemberForm.addUserIds" multiple filterable placeholder="选择要新增的成员" style="width: 100%">
+          <el-option v-for="user in researchMemberAddCandidates" :key="`add-research-${user.id}`" :label="user.label" :value="user.id" />
+        </el-select>
+        <div class="action-row">
+          <el-button type="primary" :loading="researchMemberLoading" @click="submitAddResearchMembers">批量新增</el-button>
+        </div>
+      </div>
+      <div class="member-manage-section">
+        <div class="execution-label">当前成员</div>
+        <div class="member-manage-list">
+          <div v-for="member in project?.members || []" :key="`research-member-${member.userId}`" class="member-manage-item">
+            <div class="option-row">
+              <img :src="member.hiddenAvatar ? hiddenAvatar : (member.avatar || defaultAvatar)" class="avatar-small" alt="avatar">
+                <div>
+                  <div class="option-name">{{ member.name }}</div>
+                  <div class="option-role">{{ formatRole(member.role) }}<span v-if="String(member.userId) === researchIdeaOwnerId"> · 发起者</span></div>
+                </div>
+              </div>
+            <el-button v-if="canRemoveResearchMember(member)" size="small" type="danger" plain :loading="researchMemberLoading" @click="removeResearchMember(member)">移除</el-button>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="showResearchMemberDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="showArchiveMoveDialog" title="移动管理归档文件" width="480px" custom-class="tech-dialog">
       <div class="execution-text">选择文件夹 A 中的目标目录，留空表示移动到根目录。</div>
       <el-form label-position="top" style="margin-top: 14px;">
@@ -1415,6 +1447,9 @@ const showMeetingDecisionDialog = ref(false)
 const showTestingDecisionDialog = ref(false)
 const showProductMemberDialog = ref(false)
 const showProjectMemberDialog = ref(false)
+const showResearchMemberDialog = ref(false)
+const researchMemberForm = ref({ addUserIds: [] })
+const researchMemberLoading = ref(false)
 const showArchiveMoveDialog = ref(false)
 const showTravelReimbursementDialog = ref(false)
 const productActionLoading = ref(false)
@@ -1947,6 +1982,8 @@ const chiefEngineerName = computed(() => {
 const ideaOwnerId = computed(() => String(project.value?.ideaOwnerUserId || project.value?.managerId || ''))
 const canManageProductMembers = computed(() => isProductFlow.value && (isManager.value || ideaOwnerId.value === activeUserId.value))
 const canManageProductTaskAssignments = computed(() => canManageProductMembers.value)
+const canManageResearchMembers = computed(() => isResearchFlow.value && (isManager.value || String(project.value?.hostUserId || '') === activeUserId.value))
+const researchIdeaOwnerId = computed(() => String(project.value?.hostUserId || project.value?.ideaOwnerUserId || ''))
 const canManageProjectMembers = computed(() => !isProductFlow.value && !isResearchFlow.value && activeProjectStatus.value !== 'COMPLETED' && isManager.value)
 const canManageExecutionFiles = computed(() => Boolean(executionOverview.value?.canManage))
 const canUploadManagerExecutionFiles = computed(() => Boolean(executionOverview.value?.canUploadManagerFiles))
@@ -2014,15 +2051,14 @@ const managerArchiveBreadcrumbs = computed(() => {
 })
 const productMemberAddCandidates = computed(() => {
   const existingIds = new Set((project.value?.members || []).map(member => String(member.userId || '')))
-  const base = workflowMemberRoleRows.value.length > 0 ? workflowMemberRoleRows.value : allUsers.value
-  return base
+  return allUsers.value
     .filter(user => !existingIds.has(String(user.userId || user.id || '')))
     .map(user => ({
       ...user,
       label: `${user.name || user.username || user.id} / ${formatRole(user.role || 'MEMBER')}`
     }))
 })
-const projectMemberAddCandidates = computed(() => {
+const researchMemberAddCandidates = computed(() => {
   const existingIds = new Set((project.value?.members || []).map(member => String(member.userId || '')))
   return allUsers.value
     .filter(user => !existingIds.has(String(user.userId || user.id || '')))
@@ -4030,6 +4066,64 @@ const submitAddProductMembers = async () => {
     ElMessage.error(error.response?.data?.message || error.message || '新增成员失败')
   } finally {
     productMemberLoading.value = false
+  }
+}
+
+const openResearchMemberDialog = async () => {
+  await fetchAllUsers()
+  researchMemberForm.value = { addUserIds: [] }
+  showResearchMemberDialog.value = true
+}
+
+const canRemoveResearchMember = member => {
+  if (!canManageResearchMembers.value) return false
+  return String(member.userId || '') !== researchIdeaOwnerId.value
+}
+
+const submitAddResearchMembers = async () => {
+  const targetId = props.projectId || route.params.id
+  const addUserIds = [...new Set(researchMemberForm.value.addUserIds || [])]
+  if (!addUserIds.length) return ElMessage.warning('请选择至少一个成员')
+  researchMemberLoading.value = true
+  try {
+    await request.patch(`/api/research/${targetId}/team-members`, {
+      addUserIds,
+      removeUserIds: []
+    })
+    ElMessage.success('成员已新增')
+    researchMemberForm.value.addUserIds = []
+    await fetchProject()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || error.message || '新增成员失败')
+  } finally {
+    researchMemberLoading.value = false
+  }
+}
+
+const removeResearchMember = async member => {
+  const targetId = props.projectId || route.params.id
+  const userId = String(member?.userId || '')
+  if (!userId) return
+  try {
+    await ElMessageBox.confirm(`确认移除成员「${member.name}」吗？`, '确认移除', {
+      confirmButtonText: '确认移除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch { return }
+  researchMemberLoading.value = true
+  try {
+    await request.patch(`/api/research/${targetId}/team-members`, {
+      addUserIds: [],
+      removeUserIds: [userId]
+    })
+    ElMessage.success('成员已移除')
+    researchMemberForm.value.addUserIds = []
+    await fetchProject()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || error.message || '移除成员失败')
+  } finally {
+    researchMemberLoading.value = false
   }
 }
 

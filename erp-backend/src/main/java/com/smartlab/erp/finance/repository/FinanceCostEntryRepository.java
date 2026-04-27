@@ -3,6 +3,9 @@ package com.smartlab.erp.finance.repository;
 import com.smartlab.erp.entity.FlowType;
 import com.smartlab.erp.finance.entity.FinanceCostEntry;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -21,4 +24,16 @@ public interface FinanceCostEntryRepository extends JpaRepository<FinanceCostEnt
     long countByProject_FlowTypeAndAccrualDateIsNotNull(FlowType flowType);
 
     void deleteByProject_ProjectIdAndLedgerMonth(String projectId, String ledgerMonth);
+
+    @Modifying
+    @Query("DELETE FROM FinanceCostEntry e WHERE e.user.role IN ('BUSINESS', 'BD')")
+    int deleteByUserRoleBusinessOrBd();
+
+    @Modifying
+    @Query("DELETE FROM FinanceCostEntry e WHERE e.ledgerMonth = :ledgerMonth")
+    void deleteByLedgerMonth(@Param("ledgerMonth") String ledgerMonth);
+
+    @Modifying
+    @Query(value = "DELETE FROM finance_cost_entry WHERE ledger_month = :ledgerMonth", nativeQuery = true)
+    void deleteByLedgerMonthWithBatch(@Param("ledgerMonth") String ledgerMonth);
 }

@@ -17,6 +17,8 @@ import com.smartlab.erp.exception.BusinessException;
 import com.smartlab.erp.exception.PermissionDeniedException;
 import com.smartlab.erp.util.AuthUtils;
 import com.smartlab.erp.repository.*;
+import com.smartlab.erp.finance.repository.FinanceCostSummaryRepository;
+import com.smartlab.erp.finance.entity.FinanceCostSummary;
 import com.smartlab.erp.security.RbacService;
 import com.smartlab.erp.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -103,6 +105,7 @@ public class ProjectService {
     private final RbacService rbacService;
     private final InternalMessageService internalMessageService;
     private final WorkflowMemberRoleSyncService workflowMemberRoleSyncService;
+    private final FinanceCostSummaryRepository costSummaryRepository;
     private final JdbcTemplate jdbcTemplate;
 
     @Value("${file.upload-dir:./uploads}")
@@ -705,7 +708,9 @@ public class ProjectService {
                 .evaluationReportOwnerUserId(researchProfile != null ? researchProfile.getEvaluationReportOwnerUserId() : null)
                 .flowType(resolveFlowType(project, productIdeaDetail, researchProfile))
                 .budget(project.getBudget())
-                .cost(project.getCost())
+                .cost(costSummaryRepository.findByProject_ProjectIdIn(List.of(projectId)).stream()
+                        .map(cs -> cs.getTotalLaborCost() != null ? cs.getTotalLaborCost() : BigDecimal.ZERO)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add))
                 .criticalTask(project.getTechStack())
                 .createdAt(project.getCreatedAt())
                 .updatedAt(project.getUpdatedAt())
@@ -734,7 +739,7 @@ public class ProjectService {
     @Transactional
     public void updateCriticalTask(String projectId, String taskContent, String userId) {
         SysProject project = projectRepository.findById(projectId).orElseThrow();
-        if (!rbacService.isOwner(projectId, userId)) throw new RuntimeException("权限不足");
+        if (!rbacService.isOwner(projectId, userId)) throw new PermissionDeniedException("权限不足");
         project.setTechStack(taskContent);
         projectRepository.save(project);
     }
@@ -742,7 +747,7 @@ public class ProjectService {
     @Transactional
     public void addMilestone(String projectId, String title, String dateStr, String userId) {
         SysProject project = projectRepository.findById(projectId).orElseThrow();
-        if (!rbacService.isOwner(projectId, userId)) throw new RuntimeException("权限不足");
+        if (!rbacService.isOwner(projectId, userId)) throw new PermissionDeniedException("权限不足");
         ProjectMilestone milestone = ProjectMilestone.builder()
                 .project(project).title(title).status(MilestoneStatus.PENDING)
                 .dueDate(Instant.parse(dateStr)).createdAt(Instant.now()).build();
@@ -753,7 +758,7 @@ public class ProjectService {
     @Transactional
     public void transitionProjectStatus(String projectId, ProjectStatus newStatus, String userId) {
         SysProject project = projectRepository.findById(projectId).orElseThrow();
-        if (!rbacService.isOwner(projectId, userId)) throw new RuntimeException("权限不足");
+        if (!rbacService.isOwner(projectId, userId)) throw new PermissionDeniedException("权限不足");
         if (project.getFlowType() != FlowType.PROJECT) throw new RuntimeException("类型错误");
 
         ProjectStatus currentStatus = project.getProjectStatus();
@@ -812,7 +817,7 @@ public class ProjectService {
     @Transactional
     public void transitionProductStatus(String projectId, ProductStatus newStatus, String userId) {
         SysProject project = projectRepository.findById(projectId).orElseThrow();
-        if (!rbacService.isOwner(projectId, userId)) throw new RuntimeException("权限不足");
+        if (!rbacService.isOwner(projectId, userId)) throw new PermissionDeniedException("权限不足");
         if (project.getFlowType() != FlowType.PRODUCT) throw new RuntimeException("类型错误");
 
         ProductStatus currentStatus = project.getProductStatus() == null ? ProductStatus.IDEA : project.getProductStatus();
@@ -1125,7 +1130,7 @@ public class ProjectService {
     private void checkProjectAccess(SysProject project, UserPrincipal currentUser) {
         if (isAdminRole(currentUser.getRole(), currentUser.getUsername())) return;
         if (!project.getManager().getUserId().equals(currentUser.getId())) {
-            throw new RuntimeException("权限不足");
+            throw new PermissionDeniedException("仅限当前项目管理员可操作");
         }
     }
 
@@ -1260,7 +1265,7 @@ public class ProjectService {
                 || projectMemberRepository.findByProjectIdAndUserUserId(projectId, userId).isPresent();
 
         if (!hasAccess) {
-            throw new RuntimeException("权限不足");
+            throw new PermissionDeniedException("仅限当前项目管理员可以查看可行性报告");
         }
 
         return assetRepository.findByIdAndProjectProjectId(assetId, projectId)
@@ -1580,6 +1585,13 @@ public class ProjectService {
                 .map(SysProject::getProjectId)
                 .filter(id -> id != null && !id.isBlank())
                 .toList();
+        Map<String, BigDecimal> costByProject = projectIds.isEmpty()
+                ? Map.of()
+                : costSummaryRepository.findByProject_ProjectIdIn(projectIds).stream()
+                .collect(Collectors.toMap(
+                        cs -> cs.getProject().getProjectId(),
+                        cs -> cs.getTotalLaborCost() != null ? cs.getTotalLaborCost() : BigDecimal.ZERO,
+                        BigDecimal::add));
         Map<String, List<SysProjectMember>> memberMap = projectIds.isEmpty()
                 ? Map.of()
                 : projectMemberRepository.findByProjectIdInWithUser(projectIds).stream()
@@ -1625,7 +1637,8 @@ public class ProjectService {
                         memberMap.getOrDefault(p.getProjectId(), List.of()),
                         productIdeaMap.get(p.getProjectId()),
                         researchProfileMap.get(p.getProjectId()),
-                        ownerUserMap
+                        ownerUserMap,
+                        costByProject
                 ))
                 .toList();
 
@@ -1637,7 +1650,8 @@ public class ProjectService {
                         memberMap.getOrDefault(p.getProjectId(), List.of()),
                         productIdeaMap.get(p.getProjectId()),
                         researchProfileMap.get(p.getProjectId()),
-                        ownerUserMap
+                        ownerUserMap,
+                        costByProject
                 ))
                 .toList();
 
@@ -1649,7 +1663,8 @@ public class ProjectService {
                         memberMap.getOrDefault(p.getProjectId(), List.of()),
                         productIdeaMap.get(p.getProjectId()),
                         researchProfileMap.get(p.getProjectId()),
-                        ownerUserMap
+                        ownerUserMap,
+                        costByProject
                 ))
                 .toList();
 
@@ -1664,7 +1679,8 @@ public class ProjectService {
                                                                 List<SysProjectMember> memberList,
                                                                 ProductIdeaDetail productIdeaDetail,
                                                                 ResearchProjectProfile researchProfile,
-                                                                Map<String, User> ownerUserMap) {
+                                                                Map<String, User> ownerUserMap,
+                                                                Map<String, BigDecimal> costByProject) {
         List<FinanceDashboardResponse.MemberInfo> members = memberList.stream()
                 .map(m -> FinanceDashboardResponse.MemberInfo.builder()
                         .userId(m.getUser().getUserId())
@@ -1673,6 +1689,7 @@ public class ProjectService {
                         .build())
                 .toList();
         OwnerRef owner = resolveFinanceOwner(p, members, productIdeaDetail, researchProfile, ownerUserMap);
+        BigDecimal projectCost = costByProject.getOrDefault(p.getProjectId(), BigDecimal.ZERO);
         return FinanceDashboardResponse.FlowProjects.builder()
                 .projectId(p.getProjectId())
                 .name(p.getName())
@@ -1684,7 +1701,7 @@ public class ProjectService {
                 .primaryOwnerName(owner.name())
                 .primaryOwnerId(owner.userId())
                 .budget(p.getBudget())
-                .cost(p.getCost())
+                .cost(projectCost)
                 .description(p.getDescription())
                 .members(members)
                 .build();

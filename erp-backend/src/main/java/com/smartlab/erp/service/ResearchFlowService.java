@@ -2,6 +2,7 @@ package com.smartlab.erp.service;
 
 import com.smartlab.erp.dto.ResearchInitiateRequest;
 import com.smartlab.erp.dto.ResearchStatusTransitionRequest;
+import com.smartlab.erp.dto.ProductMemberUpdateRequest;
 import com.smartlab.erp.entity.*;
 import com.smartlab.erp.exception.BusinessException;
 import com.smartlab.erp.exception.PermissionDeniedException;
@@ -671,5 +672,71 @@ public class ResearchFlowService {
 
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    @Transactional
+    public Map<String, Object> updateResearchMembers(String projectId, ProductMemberUpdateRequest request) {
+        UserPrincipal currentUser = AuthUtils.getCurrentUserPrincipal();
+        if (currentUser == null) {
+            throw new PermissionDeniedException("用户未登录或会话已过期");
+        }
+
+        SysProject project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new BusinessException("项目不存在: " + projectId));
+
+        if (project.getFlowType() != FlowType.RESEARCH) {
+            throw new BusinessException("仅科研流项目支持成员调整");
+        }
+
+        ResearchProjectProfile profile = researchProjectProfileRepository.findByProjectId(projectId).orElse(null);
+        String initiatorUserId = profile != null ? profile.getIdeaOwnerUserId() : null;
+        String hostUserId = profile != null ? profile.getHostUserId() : null;
+
+        String currentUserId = currentUser.getId();
+        String projectManagerId = project.getManager() != null ? project.getManager().getUserId() : "";
+        boolean canManage = projectManagerId.equals(currentUserId)
+                || (hostUserId != null && hostUserId.equals(currentUserId))
+                || (initiatorUserId != null && initiatorUserId.equals(currentUserId));
+        if (!canManage) {
+            throw new PermissionDeniedException("仅 Manager 或科研发起者可调整成员");
+        }
+
+        Set<String> addUserIds = sanitizeIds(request != null ? request.getAddUserIds() : null);
+        Set<String> removeUserIds = sanitizeIds(request != null ? request.getRemoveUserIds() : null);
+
+        String protectedId = hostUserId != null ? hostUserId : initiatorUserId;
+        if (protectedId != null && removeUserIds.contains(protectedId)) {
+            throw new BusinessException("发起者不能被删除");
+        }
+
+        int added = 0;
+        int removed = 0;
+
+        for (String userId : addUserIds) {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new BusinessException("用户不存在: " + userId));
+            if (!projectMemberRepository.existsByProjectIdAndUserUserId(projectId, userId)) {
+                SysProjectMember member = SysProjectMember.builder()
+                        .projectId(projectId)
+                        .user(user)
+                        .role("RESEARCH")
+                        .weight(0)
+                        .build();
+                projectMemberRepository.save(member);
+                workflowMemberRoleSyncService.sync(FlowType.RESEARCH.name(), projectId, userId, "RESEARCH");
+                added++;
+            }
+        }
+
+        for (String userId : removeUserIds) {
+            removed += projectMemberRepository.deleteByProjectIdAndUserUserId(projectId, userId);
+        }
+
+        return Map.of("success", true, "added", added, "removed", removed);
+    }
+
+    private Set<String> sanitizeIds(List<String> ids) {
+        if (ids == null) return Set.of();
+        return ids.stream().map(String::trim).filter(id -> !id.isEmpty()).collect(Collectors.toSet());
     }
 }

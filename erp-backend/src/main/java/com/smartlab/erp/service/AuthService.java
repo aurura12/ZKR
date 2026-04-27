@@ -255,7 +255,7 @@ public class AuthService {
 
         if (authentication == null || !authentication.isAuthenticated()
                 || "anonymousUser".equals(authentication.getPrincipal())) {
-            throw new RuntimeException("权限异常：当前未登录");
+            throw new PermissionDeniedException("权限异常：当前未登录");
         }
 
         Object principal = authentication.getPrincipal();

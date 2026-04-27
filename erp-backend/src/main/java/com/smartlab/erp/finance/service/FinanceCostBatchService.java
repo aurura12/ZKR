@@ -27,6 +27,7 @@ import com.smartlab.erp.repository.SysProjectMemberRepository;
 import com.smartlab.erp.repository.SysProjectRepository;
 import com.smartlab.erp.service.ProjectMemberParticipationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +49,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FinanceCostBatchService {
 
     private static final Pattern LEDGER_MONTH_PATTERN = Pattern.compile("\\d{4}-\\d{2}");
@@ -68,7 +70,16 @@ public class FinanceCostBatchService {
 
     @Transactional
     public FinanceCostBatchRunResponse runBatch(String ledgerMonth) {
+        cleanupBusinessRoleEntries();
         return runBatch(ledgerMonth, false);
+    }
+
+    @Transactional
+    public void cleanupBusinessRoleEntries() {
+        int deleted = costEntryRepository.deleteByUserRoleBusinessOrBd();
+        if (deleted > 0) {
+            log.info("刪除 BUSINESS/BD 角色用户在成本跑批中的所有记录，共 {} 条", deleted);
+        }
     }
 
     @Transactional
@@ -400,6 +411,9 @@ public class FinanceCostBatchService {
             }
 
             BigDecimal dailyWage = resolveDailyWage(user);
+            if (dailyWage == null) {
+                continue;
+            }
             BigDecimal dailyShare = FinanceAmounts.scale(dailyWage.divide(BigDecimal.valueOf(activeProjectCount), 2, RoundingMode.HALF_UP));
 
             for (Map.Entry<String, Long> overlapEntry : overlaps.projectOverlaps.entrySet()) {
@@ -505,7 +519,16 @@ public class FinanceCostBatchService {
         if (user == null || user.getDailyWage() == null || user.getDailyWage().compareTo(BigDecimal.ZERO) <= 0) {
             return DEFAULT_DAILY_WAGE;
         }
+        if (isBusinessRole(user.getRole())) {
+            return null;
+        }
         return FinanceAmounts.scale(user.getDailyWage());
+    }
+
+    private static boolean isBusinessRole(String role) {
+        if (role == null) return false;
+        String r = role.trim().toUpperCase();
+        return r.equals("BUSINESS") || r.equals("BD");
     }
 
     private static final class UserProjectOverlaps {

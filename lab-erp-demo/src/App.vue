@@ -56,6 +56,7 @@
               <el-dropdown-item v-if="userStore.isErpLoggedIn" command="personal-procurement">🛒 个人采购申请</el-dropdown-item>
               <el-dropdown-item command="profile">👤 个人中心</el-dropdown-item>
               <el-dropdown-item v-if="showProvisionUserAction" command="provision-user">🪪 创建账号</el-dropdown-item>
+              <el-dropdown-item v-if="showProvisionUserAction" command="wage-management">💰 工资管理</el-dropdown-item>
               <el-dropdown-item v-if="showProvisionUserAction" command="award-badge">🏅 发放勋章</el-dropdown-item>
               <el-dropdown-item v-if="showFullscreenCockpitEntry" command="fullscreen-cockpit">🖥️ 进入全屏驾驶舱</el-dropdown-item>
               <el-dropdown-item command="theme">{{ theme === 'dark' ? '☀ 切换浅色模式' : '☾ 切换深色模式' }}</el-dropdown-item>
@@ -320,6 +321,7 @@ const handleCommand = (cmd) => {
   if (cmd === 'personal-procurement') router.push('/erp/personal-procurement')
   else if (cmd === 'profile') router.push('/profile')
   else if (cmd === 'provision-user') router.push('/admin/users/create')
+  else if (cmd === 'wage-management') router.push('/admin/wage-management')
   else if (cmd === 'award-badge') openBadgeDialog()
   else if (cmd === 'fullscreen-cockpit') {
     requestBrowserFullscreen()

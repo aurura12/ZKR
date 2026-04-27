@@ -179,9 +179,15 @@ public class FinanceReportingService {
                 ? Map.of()
                 : userRepository.findAllById(userIds).stream().collect(Collectors.toMap(User::getUserId, user -> user, (left, right) -> right));
 
+        Map<String, BigDecimal> costByProject = costSummaryRepository.findByProject_ProjectIdIn(projectIds).stream()
+                .collect(Collectors.toMap(
+                        cs -> cs.getProject().getProjectId(),
+                        cs -> cs.getTotalLaborCost() != null ? cs.getTotalLaborCost() : BigDecimal.ZERO,
+                        BigDecimal::add));
+
         return projects.stream().map(project -> {
             BigDecimal estimatedAsset = scaleOrZero(project.getBudget());
-            BigDecimal estimatedLiability = scaleOrZero(project.getCost());
+            BigDecimal estimatedLiability = scaleOrZero(costByProject.getOrDefault(project.getProjectId(), BigDecimal.ZERO));
             List<FinanceStatementsResponse.MemberInfo> members = membersByProject.getOrDefault(project.getProjectId(), List.of()).stream()
                     .map(member -> FinanceStatementsResponse.MemberInfo.builder()
                             .userId(member.getUser().getUserId())
