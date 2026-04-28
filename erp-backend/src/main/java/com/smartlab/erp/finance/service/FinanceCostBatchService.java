@@ -89,12 +89,12 @@ public class FinanceCostBatchService {
     public FinanceCostBatchRunResponse runBatch(String ledgerMonth, boolean rerunExistingMonth) {
         validateLedgerMonth(ledgerMonth);
 
-        String expectedMonth = YearMonth.now(SHANGHAI_ZONE).minusMonths(1).toString();
+        LocalDate yesterday = LocalDate.now(SHANGHAI_ZONE).minusDays(1);
+        String expectedMonth = YearMonth.from(yesterday).toString();
         if (!ledgerMonth.equals(expectedMonth)) {
             throw new IllegalArgumentException("跑批仅支持上月账期: " + expectedMonth + "，传入: " + ledgerMonth);
         }
 
-        LocalDate yesterday = LocalDate.now(SHANGHAI_ZONE).minusDays(1);
         String batchKey = ledgerMonth + "-" + yesterday.toString();
 
         FinanceCostBatch existingBatch = costBatchRepository.findTopByLedgerMonthOrderByIdDesc(ledgerMonth)
