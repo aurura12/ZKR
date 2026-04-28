@@ -2134,6 +2134,15 @@ const researchMemberAddCandidates = computed(() => {
       label: `${user.name || user.username || user.id} / ${formatRole(user.role || 'MEMBER')}`
     }))
 })
+const projectMemberAddCandidates = computed(() => {
+  const existingIds = new Set((project.value?.members || []).map(member => String(member.userId || '')))
+  return allUsers.value
+    .filter(user => !existingIds.has(String(user.userId || user.id || '')))
+    .map(user => ({
+      ...user,
+      label: `${user.name || user.username || user.id} / ${formatRole(user.role || 'MEMBER')}`
+    }))
+})
 const resolveProjectResponsibilityRole = member => {
   const projectRole = normalizeRoleAlias(member?.role)
   if (isTeamBuildSelectableRole(projectRole)) {
