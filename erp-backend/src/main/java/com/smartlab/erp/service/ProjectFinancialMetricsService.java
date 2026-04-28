@@ -290,7 +290,6 @@ public class ProjectFinancialMetricsService {
 
     private boolean isExecutionPoolMember(SysProjectMember member) {
         return member != null && member.getUser() != null
-                && !isBusinessRole(normalizeRole(member.getUser().getRole()))
                 && combinedResponsibility(member) > 0;
     }
 
