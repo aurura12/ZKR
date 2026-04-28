@@ -117,35 +117,42 @@ public class ProjectFinancialMetricsService {
         boolean businessMember = isBusinessRole(normalizedRole);
         int responsibilityRatio = currentMember == null ? 0 : combinedResponsibility(currentMember);
 
-        if (businessMember && responsibilityRatio == 0) {
-            int participantCount = (int) members.stream()
+        BigDecimal businessPoolAmount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal businessShareRatio = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal businessPredictedAmount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        int businessParticipantCount = 0;
+        if (businessMember) {
+            businessParticipantCount = (int) members.stream()
                     .filter(m -> m.getUser() != null)
                     .map(m -> normalizeRole(m.getUser().getRole()))
                     .filter(this::isBusinessRole)
                     .count();
-            BigDecimal poolAmount = calculatePoolAmount(snapshot.remainingProfit(), split.businessRatio());
-            BigDecimal shareRatio = participantCount > 0
-                    ? HUNDRED.divide(BigDecimal.valueOf(participantCount), 2, RoundingMode.HALF_UP)
+            businessPoolAmount = calculatePoolAmount(snapshot.remainingProfit(), split.businessRatio());
+            businessShareRatio = businessParticipantCount > 0
+                    ? HUNDRED.divide(BigDecimal.valueOf(businessParticipantCount), 2, RoundingMode.HALF_UP)
                     : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-            BigDecimal predictedAmount = participantCount > 0
-                    ? FinanceAmounts.scale(poolAmount.divide(BigDecimal.valueOf(participantCount), 2, RoundingMode.HALF_UP))
+            businessPredictedAmount = businessParticipantCount > 0
+                    ? FinanceAmounts.scale(businessPoolAmount.divide(BigDecimal.valueOf(businessParticipantCount), 2, RoundingMode.HALF_UP))
                     : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-            return baseResponse(project, snapshot)
-                    .eligible(Boolean.TRUE)
-                    .poolType("BUSINESS")
-                    .poolLabel("商务池")
-                    .poolRatio(split.businessRatio())
-                    .poolAmount(poolAmount)
-                    .shareRatio(shareRatio)
-                    .responsibilityRatio(0)
-                    .totalPoolResponsibility(0)
-                    .participantCount(participantCount)
-                    .projectMemberCount(projectMemberCount)
-                    .predictedAmount(predictedAmount)
-                    .explanation(participantCount > 0
-                            ? String.format("当前项目按 %s 规则划分商务池 %s%%，由 %d 名商务成员均分。", tierLabel(snapshot.projectTier()), formatPercent(split.businessRatio()), participantCount)
-                            : String.format("当前项目按 %s 规则预留商务池 %s%%，但尚未识别到商务成员，预计分红暂按 0 计算。", tierLabel(snapshot.projectTier()), formatPercent(split.businessRatio())))
-                    .build();
+
+            if (responsibilityRatio == 0) {
+                return baseResponse(project, snapshot)
+                        .eligible(Boolean.TRUE)
+                        .poolType("BUSINESS")
+                        .poolLabel("商务池")
+                        .poolRatio(split.businessRatio())
+                        .poolAmount(businessPoolAmount)
+                        .shareRatio(businessShareRatio)
+                        .responsibilityRatio(0)
+                        .totalPoolResponsibility(0)
+                        .participantCount(businessParticipantCount)
+                        .projectMemberCount(projectMemberCount)
+                        .predictedAmount(businessPredictedAmount)
+                        .explanation(businessParticipantCount > 0
+                                ? String.format("当前项目按 %s 规则划分商务池 %s%%，由 %d 名商务成员均分。", tierLabel(snapshot.projectTier()), formatPercent(split.businessRatio()), businessParticipantCount)
+                                : String.format("当前项目按 %s 规则预留商务池 %s%%，但尚未识别到商务成员，预计分红暂按 0 计算。", tierLabel(snapshot.projectTier()), formatPercent(split.businessRatio())))
+                        .build();
+            }
         }
 
         boolean executionMember = currentMember != null && (responsibilityRatio > 0 || isExecutionRole(normalizedRole) || (businessMember && responsibilityRatio > 0));
@@ -160,16 +167,43 @@ public class ProjectFinancialMetricsService {
                 .count();
 
         if (executionMember) {
-            BigDecimal poolAmount = calculatePoolAmount(snapshot.remainingProfit(), split.executionRatio());
-            BigDecimal shareRatio = (responsibilityRatio > 0 && totalPoolResponsibility > 0)
+            BigDecimal execPoolAmount = calculatePoolAmount(snapshot.remainingProfit(), split.executionRatio());
+            BigDecimal execShareRatio = (responsibilityRatio > 0 && totalPoolResponsibility > 0)
                     ? FinanceAmounts.scale(BigDecimal.valueOf(responsibilityRatio)
                     .multiply(HUNDRED)
                     .divide(BigDecimal.valueOf(totalPoolResponsibility), 2, RoundingMode.HALF_UP))
                     : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-            BigDecimal predictedAmount = (responsibilityRatio > 0 && totalPoolResponsibility > 0)
-                    ? FinanceAmounts.scale(poolAmount.multiply(BigDecimal.valueOf(responsibilityRatio))
+            BigDecimal execPredictedAmount = (responsibilityRatio > 0 && totalPoolResponsibility > 0)
+                    ? FinanceAmounts.scale(execPoolAmount.multiply(BigDecimal.valueOf(responsibilityRatio))
                     .divide(BigDecimal.valueOf(totalPoolResponsibility), 2, RoundingMode.HALF_UP))
                     : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+
+            if (businessMember && responsibilityRatio > 0) {
+                BigDecimal totalPredicted = businessPredictedAmount.add(execPredictedAmount);
+                BigDecimal totalPoolAmount = businessPoolAmount.add(execPoolAmount);
+                return baseResponse(project, snapshot)
+                        .eligible(Boolean.TRUE)
+                        .poolType("COMBINED")
+                        .poolLabel("商务池 + 管理池")
+                        .poolRatio(split.businessRatio().add(split.executionRatio()))
+                        .poolAmount(totalPoolAmount)
+                        .shareRatio(execShareRatio)
+                        .responsibilityRatio(responsibilityRatio)
+                        .totalPoolResponsibility(totalPoolResponsibility)
+                        .participantCount(participantCount + businessParticipantCount)
+                        .projectMemberCount(projectMemberCount)
+                        .predictedAmount(totalPredicted)
+                        .explanation(String.format("当前项目按 %s 规则：商务池 %s%% 均分可得 ¥%s + 管理池 %s%% 按权责比 %d/%d 可得 ¥%s，合计 ¥%s。",
+                                tierLabel(snapshot.projectTier()),
+                                formatPercent(split.businessRatio()),
+                                formatAmount(businessPredictedAmount),
+                                formatPercent(split.executionRatio()),
+                                responsibilityRatio, totalPoolResponsibility,
+                                formatAmount(execPredictedAmount),
+                                formatAmount(totalPredicted)))
+                        .build();
+            }
+
             String explanation;
             if (split.executionRatio().compareTo(BigDecimal.ZERO) <= 0) {
                 explanation = String.format("当前项目按 %s 规则不设置实施/技术分红池，预计分红按 0 计算。", tierLabel(snapshot.projectTier()));
@@ -183,13 +217,13 @@ public class ProjectFinancialMetricsService {
                     .poolType("EXECUTION")
                     .poolLabel("实施/技术池")
                     .poolRatio(split.executionRatio())
-                    .poolAmount(poolAmount)
-                    .shareRatio(shareRatio)
+                    .poolAmount(execPoolAmount)
+                    .shareRatio(execShareRatio)
                     .responsibilityRatio(responsibilityRatio)
                     .totalPoolResponsibility(totalPoolResponsibility)
                     .participantCount(participantCount)
                     .projectMemberCount(projectMemberCount)
-                    .predictedAmount(predictedAmount)
+                    .predictedAmount(execPredictedAmount)
                     .explanation(explanation)
                     .build();
         }
@@ -349,6 +383,10 @@ public class ProjectFinancialMetricsService {
 
     private String formatPercent(BigDecimal ratio) {
         return FinanceAmounts.scale(ratio).stripTrailingZeros().toPlainString();
+    }
+
+    private String formatAmount(BigDecimal amount) {
+        return FinanceAmounts.scale(amount).toPlainString();
     }
 
     private PoolSplit resolvePoolSplit(ProjectTierEnum tier) {

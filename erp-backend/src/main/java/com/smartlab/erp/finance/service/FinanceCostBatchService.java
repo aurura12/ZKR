@@ -55,7 +55,8 @@ public class FinanceCostBatchService {
     private static final Pattern LEDGER_MONTH_PATTERN = Pattern.compile("\\d{4}-\\d{2}");
     private static final ZoneId SHANGHAI_ZONE = ZoneId.of("Asia/Shanghai");
     private static final BigDecimal HOURS_PER_DAY = new BigDecimal("8.00");
-    private static final BigDecimal WEIGHT_MULTIPLIER = new BigDecimal("1.5");
+    private static final BigDecimal WEIGHTED_MULTIPLIER = new BigDecimal("1.75");
+    private static final BigDecimal UNWEIGHTED_MULTIPLIER = new BigDecimal("1.25");
     private static final BigDecimal DEFAULT_DAILY_WAGE = new BigDecimal("300.00");
 
     private final FinanceCostBatchRepository costBatchRepository;
@@ -434,7 +435,7 @@ public class FinanceCostBatchService {
 
                 String userProjectKey = pid + ":" + userId;
                 Integer weight = projectWeightsByUserProject.get(userProjectKey);
-                BigDecimal weightMultiplier = (weight != null && weight > 0) ? WEIGHT_MULTIPLIER : BigDecimal.ONE;
+                BigDecimal weightMultiplier = (weight != null && weight > 0) ? WEIGHTED_MULTIPLIER : UNWEIGHTED_MULTIPLIER;
 
                 BigDecimal laborCost = FinanceAmounts.scale(dailyShare.multiply(weightMultiplier));
                 BigDecimal finalSettlementCost = laborCost;
