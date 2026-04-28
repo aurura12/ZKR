@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ProjectFinancialMetricsService {
 
-    private static final Set<String> BUSINESS_ROLES = Set.of("BD", "BUSINESS");
+    private static final Set<String> BUSINESS_ROLES = Set.of("BUSINESS");
     private static final Set<String> EXECUTION_ROLES = Set.of("DEV", "ALGORITHM", "RESEARCH", "MEMBER", "DEMO_ENG", "DATA", "DATA_ENGINEER", "MANAGER", "ADMIN");
     private static final BigDecimal HUNDRED = new BigDecimal("100");
 
@@ -113,14 +113,14 @@ public class ProjectFinancialMetricsService {
                 .orElse(null);
 
         PoolSplit split = resolvePoolSplit(snapshot.projectTier());
-        String normalizedRole = normalizeRole(currentMember == null ? null : currentMember.getRole());
+        String normalizedRole = normalizeRole(currentMember == null || currentMember.getUser() == null ? null : currentMember.getUser().getRole());
         boolean businessMember = isBusinessRole(normalizedRole);
         int responsibilityRatio = currentMember == null ? 0 : combinedResponsibility(currentMember);
 
-        if (businessMember) {
+        if (businessMember && responsibilityRatio == 0) {
             int participantCount = (int) members.stream()
-                    .map(SysProjectMember::getRole)
-                    .map(this::normalizeRole)
+                    .filter(m -> m.getUser() != null)
+                    .map(m -> normalizeRole(m.getUser().getRole()))
                     .filter(this::isBusinessRole)
                     .count();
             BigDecimal poolAmount = calculatePoolAmount(snapshot.remainingProfit(), split.businessRatio());
@@ -148,7 +148,7 @@ public class ProjectFinancialMetricsService {
                     .build();
         }
 
-        boolean executionMember = currentMember != null && (responsibilityRatio > 0 || isExecutionRole(normalizedRole));
+        boolean executionMember = currentMember != null && (responsibilityRatio > 0 || isExecutionRole(normalizedRole) || (businessMember && responsibilityRatio > 0));
         int totalPoolResponsibility = members.stream()
                 .filter(this::isExecutionPoolMember)
                 .mapToInt(this::combinedResponsibility)
@@ -289,7 +289,9 @@ public class ProjectFinancialMetricsService {
     }
 
     private boolean isExecutionPoolMember(SysProjectMember member) {
-        return member != null && !isBusinessRole(normalizeRole(member.getRole())) && combinedResponsibility(member) > 0;
+        return member != null && member.getUser() != null
+                && !isBusinessRole(normalizeRole(member.getUser().getRole()))
+                && combinedResponsibility(member) > 0;
     }
 
     private boolean isBusinessRole(String normalizedRole) {
