@@ -32,7 +32,7 @@ public class FinanceCostBatchScheduler {
         }
         String ledgerMonth = ZonedDateTime.now(SHANGHAI_ZONE).minusDays(1).format(LEDGER_MONTH_FORMATTER);
         try {
-            var result = financeCostBatchService.runBatch(ledgerMonth, true);
+            var result = financeCostBatchService.runBatch(ledgerMonth);
             recordRun("COMPLETED", "batchId=" + result.getBatchId() + ", records=" + result.getGeneratedRecordCount());
             log.info("Nightly project labor cost batch completed for {} with batchId={} and generatedRecordCount={}",
                     ledgerMonth, result.getBatchId(), result.getGeneratedRecordCount());

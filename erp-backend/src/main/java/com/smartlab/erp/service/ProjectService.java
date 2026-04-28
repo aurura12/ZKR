@@ -24,7 +24,9 @@ import com.smartlab.erp.exception.PermissionDeniedException;
 import com.smartlab.erp.util.AuthUtils;
 import com.smartlab.erp.repository.*;
 import com.smartlab.erp.finance.repository.FinanceCostSummaryRepository;
+import com.smartlab.erp.finance.repository.FinanceCostBatchRepository;
 import com.smartlab.erp.finance.entity.FinanceCostSummary;
+import com.smartlab.erp.finance.entity.FinanceCostBatch;
 import com.smartlab.erp.security.RbacService;
 import com.smartlab.erp.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -112,6 +114,7 @@ public class ProjectService {
     private final InternalMessageService internalMessageService;
     private final WorkflowMemberRoleSyncService workflowMemberRoleSyncService;
     private final FinanceCostSummaryRepository costSummaryRepository;
+    private final FinanceCostBatchRepository costBatchRepository;
     private final ProjectCostAdjustmentRepository costAdjustmentRepository;
     private final ProjectExpenseRepository expenseRepository;
     private final JdbcTemplate jdbcTemplate;
@@ -2171,6 +2174,11 @@ public class ProjectService {
     @Transactional(readOnly = true)
     public List<ProjectCostAdjustment> getCostAdjustmentLog() {
         return costAdjustmentRepository.findAllByOrderByCreatedAtDesc();
+    }
+
+    @Transactional(readOnly = true)
+    public List<FinanceCostBatch> getBatchLog() {
+        return costBatchRepository.findAll();
     }
 
     private ProjectSubtaskResponse toSubtaskResponse(ProjectSubtask task) {

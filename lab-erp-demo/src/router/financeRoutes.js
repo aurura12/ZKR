@@ -125,6 +125,15 @@ export const financeNavigationItems = [
     title: '成本调整日志',
     description: '追溯全部项目的CEO成本调整记录。',
     highlights: ['调整明细', '操作人', '金额', '发票']
+  },
+  {
+    path: '/finance/batch-log',
+    routeName: 'finance-batch-log',
+    label: '跑批日志',
+    eyebrow: '运维',
+    title: '成本跑批日志',
+    description: '每日成本跑批执行记录，每天仅执行一次。',
+    highlights: ['执行状态', '产出记录', '失败原因']
   }
 ]
 
@@ -215,6 +224,10 @@ export const financeRoutes = [
       withFinanceMeta({
         ...financeNavigationItems[11],
         component: () => import('@/views/finance/CostAdjustmentLogView.vue')
+      }),
+      withFinanceMeta({
+        ...financeNavigationItems[12],
+        component: () => import('@/views/finance/BatchLogView.vue')
       })
     ]
   }

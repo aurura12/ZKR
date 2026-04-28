@@ -113,10 +113,10 @@ public class DynamicBatchSchedulerConfig implements SchedulingConfigurer, Applic
     }
 
     private void runCostBatchJob(String jobKey) {
+        String ledgerMonth = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+                .minusDays(1).toString().substring(0, 7);
         try {
-            String ledgerMonth = LocalDate.now(ZoneId.of("Asia/Shanghai"))
-                    .minusDays(1).toString().substring(0, 7);
-            var result = transactionTemplate.execute(status -> financeCostBatchService.runBatch(ledgerMonth, true));
+            var result = transactionTemplate.execute(status -> financeCostBatchService.runBatch(ledgerMonth));
             if (result != null) {
                 recordRun(jobKey, "COMPLETED",
                         "batchId=" + result.getBatchId() + ", records=" + result.getGeneratedRecordCount());
@@ -125,7 +125,7 @@ public class DynamicBatchSchedulerConfig implements SchedulingConfigurer, Applic
             }
         } catch (Exception ex) {
             recordRun(jobKey, "FAILED", ex.getMessage());
-            log.error("[Scheduler] Cost batch failed", ex);
+            log.error("[Scheduler] Cost batch failed for {}", ledgerMonth, ex);
         }
     }
 

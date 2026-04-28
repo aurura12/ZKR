@@ -63,7 +63,7 @@ public class BatchWorkbenchController {
             if ("FINANCE_COST_BATCH".equals(jobKey)) {
                 String ledgerMonth = LocalDate.now(ZoneId.of("Asia/Shanghai"))
                         .minusDays(1).toString().substring(0, 7);
-                var result = financeCostBatchService.runBatch(ledgerMonth, false);
+                var result = financeCostBatchService.runBatch(ledgerMonth);
                 status = "COMPLETED";
                 message = "batchId=" + result.getBatchId() + ", records=" + result.getGeneratedRecordCount();
             } else if ("ATTENDANCE_PULL".equals(jobKey)) {

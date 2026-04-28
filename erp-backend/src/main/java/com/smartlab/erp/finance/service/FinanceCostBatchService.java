@@ -78,48 +78,50 @@ public class FinanceCostBatchService {
     public void cleanupBusinessRoleEntries() {
         int deleted = costEntryRepository.deleteByUserRoleBusinessOrBd();
         if (deleted > 0) {
-            log.info("刪除 BUSINESS/BD 角色用户在成本跑批中的所有记录，共 {} 条", deleted);
+            log.info("删除 BUSINESS/BD 角色用户在成本跑批中的所有记录，共 {} 条", deleted);
         }
     }
+
+    private static final LocalDate SHANGHAI_TODAY = LocalDate.now(SHANGHAI_ZONE);
 
     @Transactional
     public FinanceCostBatchRunResponse runBatch(String ledgerMonth, boolean rerunExistingMonth) {
         validateLedgerMonth(ledgerMonth);
+
+        String expectedMonth = YearMonth.now(SHANGHAI_ZONE).minusMonths(1).toString();
+        if (!ledgerMonth.equals(expectedMonth)) {
+            throw new IllegalArgumentException("跑批仅支持上月账期: " + expectedMonth + "，传入: " + ledgerMonth);
+        }
+
+        LocalDate yesterday = LocalDate.now(SHANGHAI_ZONE).minusDays(1);
+        String batchKey = ledgerMonth + "-" + yesterday.toString();
 
         FinanceCostBatch existingBatch = costBatchRepository.findTopByLedgerMonthOrderByIdDesc(ledgerMonth)
                 .orElse(null);
         if (existingBatch != null && existingBatch.getStatus() == FinanceBatchStatus.RUNNING) {
             throw new IllegalArgumentException("cost batch is already running for ledger month " + ledgerMonth);
         }
-
-        if (!rerunExistingMonth) {
-            if (existingBatch != null) {
-                return buildRunResponse(existingBatch, true);
-            }
+        if (existingBatch != null && FinanceBatchStatus.COMPLETED == existingBatch.getStatus()
+                && yesterday.toString().equals(existingBatch.getRemark())) {
+            return buildRunResponse(existingBatch, true);
         }
 
         FinanceCostBatch batch = costBatchRepository.save(FinanceCostBatch.builder()
                 .ledgerMonth(ledgerMonth)
                 .status(FinanceBatchStatus.RUNNING)
-                .batchDate(LocalDate.now(SHANGHAI_ZONE))
+                .batchDate(yesterday)
                 .startedAt(Instant.now())
+                .remark(yesterday.toString())
                 .build());
 
         List<SysProject> projects = loadAccrualProjects();
-        YearMonth targetMonth = YearMonth.parse(ledgerMonth);
-        LocalDate monthStart = targetMonth.atDay(1);
-        LocalDate monthEnd = targetMonth.atEndOfMonth();
-        LocalDate lastCompletedDay = LocalDate.now(SHANGHAI_ZONE).minusDays(1);
-        LocalDate effectiveEnd = monthEnd.isAfter(lastCompletedDay) ? lastCompletedDay : monthEnd;
+        LocalDate accrualDate = yesterday;
 
         Set<String> projectIds = projects.stream().map(SysProject::getProjectId).collect(Collectors.toSet());
         Map<String, Integer> projectWeightsByUserProject = loadProjectMemberWeights(projectIds);
         Map<String, Boolean> costControlEnabled = loadCostControlEnabled(projectIds);
 
         try {
-            int generatedRecordCount = 0;
-            BigDecimal totalSettlementCost = BigDecimal.ZERO;
-
             for (SysProject project : projects) {
                 participationService.ensureCurrentMemberHistories(project.getProjectId());
             }
@@ -137,26 +139,20 @@ public class FinanceCostBatchService {
                 endInstantByProject.put(project.getProjectId(), resolveProjectEndInstant(project));
             }
 
-            List<FinanceCostEntry> allEntries = new ArrayList<>();
+            List<FinanceCostEntry> dayEntries = buildDailyEntriesCrossProject(
+                    projects, historiesByProject, costControlEnabled, projectWeightsByUserProject,
+                    batch, ledgerMonth, accrualDate, sourceIdByProject, endInstantByProject);
 
-            if (!effectiveEnd.isBefore(monthStart)) {
-                for (LocalDate accrualDate = monthStart; !accrualDate.isAfter(effectiveEnd); accrualDate = accrualDate.plusDays(1)) {
-                    List<FinanceCostEntry> dayEntries = buildDailyEntriesCrossProject(
-                            projects, historiesByProject, costControlEnabled, projectWeightsByUserProject,
-                            batch, ledgerMonth, accrualDate, sourceIdByProject, endInstantByProject);
-                    allEntries.addAll(dayEntries);
-                    generatedRecordCount += dayEntries.size();
-                    totalSettlementCost = dayEntries.stream()
-                            .map(FinanceCostEntry::getFinalSettlementCost)
-                            .reduce(totalSettlementCost, FinanceAmounts::add);
-                }
+            int generatedRecordCount = dayEntries.size();
+            BigDecimal totalSettlementCost = dayEntries.stream()
+                    .map(FinanceCostEntry::getFinalSettlementCost)
+                    .reduce(BigDecimal.ZERO, FinanceAmounts::add);
+
+            if (!dayEntries.isEmpty()) {
+                costEntryRepository.saveAll(dayEntries);
             }
 
-            if (!allEntries.isEmpty()) {
-                costEntryRepository.saveAll(allEntries);
-            }
-
-            Map<String, List<FinanceCostEntry>> entriesByProject = allEntries.stream()
+            Map<String, List<FinanceCostEntry>> entriesByProject = dayEntries.stream()
                     .collect(Collectors.groupingBy(e -> e.getProject().getProjectId()));
 
             for (SysProject project : projects) {
@@ -200,9 +196,8 @@ public class FinanceCostBatchService {
                     .reusedExistingBatch(false)
                     .build();
         } catch (RuntimeException ex) {
-            batch.setCompletedAt(Instant.now());
             batch.setStatus(FinanceBatchStatus.FAILED);
-            batch.setRemark(ex.getMessage());
+            batch.setRemark("FAILED:" + yesterday + ":" + ex.getMessage());
             costBatchRepository.save(batch);
             throw ex;
         }

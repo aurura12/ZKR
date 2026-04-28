@@ -6,6 +6,7 @@ import com.smartlab.erp.finance.enums.FinanceWalletTransactionType;
 import com.smartlab.erp.finance.service.FinanceExpenseSubmissionService;
 import com.smartlab.erp.finance.service.FinanceReportingService;
 import com.smartlab.erp.entity.ProjectCostAdjustment;
+import com.smartlab.erp.finance.entity.FinanceCostBatch;
 import com.smartlab.erp.service.ProjectService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
@@ -95,6 +96,12 @@ public class FinanceController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<ProjectCostAdjustment>> getCostAdjustmentLog() {
         return ResponseEntity.ok(projectService.getCostAdjustmentLog());
+    }
+
+    @GetMapping("/batch-log")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<FinanceCostBatch>> getBatchLog() {
+        return ResponseEntity.ok(projectService.getBatchLog());
     }
 
     private String traceId() {
