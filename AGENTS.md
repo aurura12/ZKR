@@ -26,3 +26,13 @@ docker inspect zkr-lab-erp-demo --format '{{.Config.Image}}'
 6. `docker compose up -d erp-backend lab-erp-demo`
 7. 验证容器状态
 8. git commit 版本号变更
+
+---
+
+## 已知 Bug 记录
+
+### 2026-05-09：项目流发起时 dataEngineerId 传递了 "userId-ROLE" 导致后端查不到用户
+
+**问题：** `CreateDeliveryProjectView.vue` 中数据工程师下拉框的 option value 用了 `"${u.userId}-${u.role}"` 格式（如 `"000010-DATA_ENGINEER"`），提交给后端 `/api/projects/initiate` 时后端直接用这个值查数据库 `userRepository.findById()`，查不到，报 "指定的数据工程师不存在"。
+
+**修复：** 将 option `id` 改为纯 `String(u.userId || '')`，与后端数据库 userId 一致。

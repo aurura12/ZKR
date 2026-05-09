@@ -109,7 +109,7 @@ onMounted(async () => {
     dataEngineers.value = list
       .filter(u => isDataRole(u.role))
       .map(u => ({
-        id: `${u.userId}-${u.role}`,
+        id: String(u.userId || ''),
         userId: u.userId,
         role: u.role,
         name: u.name && u.username ? `${u.name}（${u.username}）` : (u.name || u.username)
