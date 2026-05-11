@@ -1020,7 +1020,7 @@
         </el-form-item>
         <div v-if="selectedMemberDetails.length" class="ratio-editor-list">
           <div v-for="member in selectedMemberDetails" :key="member.id" class="ratio-editor-item">
-            <span>{{ member.name }} · {{ formatRole(member.role) }}<span v-if="String(member.id) === String(teamForm.managerUserId || '') && selectedManagerIsDataEngineer">（兼任 Manager）</span></span>
+            <span>{{ member.name }} · {{ formatRole(member.role) }}<span v-if="String(member.id).startsWith(String(teamForm.managerUserId || '') + '-') && selectedManagerIsDataEngineer">（兼任 Manager）</span></span>
             <el-input-number v-model="teamMemberWeights[member.id]" :min="0" :max="100" />
           </div>
         </div>
@@ -2396,7 +2396,8 @@ const selectedManagerIsDataEngineer = computed(() => Boolean(selectedManager.val
 const selectedMemberDetails = computed(() => memberCandidates.value.filter(user => teamForm.value.teamMembers.includes(user.id)))
 const selectedManagerExecutionWeight = computed(() => {
   if (!selectedManagerIsDataEngineer.value) return 0
-  return Number(teamMemberWeights.value[String(teamForm.value.managerUserId || '')] || 0)
+  const mgrId = String(teamForm.value.managerUserId || '')
+  return Number(teamMemberWeights.value[mgrId] || Object.entries(teamMemberWeights.value).find(([k]) => k.startsWith(mgrId + '-'))?.[1] || 0)
 })
 const teamResponsibilityTotal = computed(() => {
   const managerRatio = Number(teamForm.value.managerWeight || 0)
