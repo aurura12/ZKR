@@ -2401,7 +2401,7 @@ const selectedManagerExecutionWeight = computed(() => {
 })
 const teamResponsibilityTotal = computed(() => {
   const managerRatio = Number(teamForm.value.managerWeight || 0)
-  const membersRatio = selectedMemberDetails.value.reduce((sum, member) => sum + Number(teamMemberWeights.value[member.id] || 0), 0)
+  const membersRatio = Object.values(teamMemberWeights.value).reduce((sum, w) => sum + Number(w || 0), 0)
   return managerRatio + membersRatio
 })
 const memberTaskCards = computed(() => {
@@ -3358,7 +3358,7 @@ const submitBuildTeam = async () => {
 
   // 将 teamMembers 的 userId 转换为 DTO 格式
   const memberDTOs = teamForm.value.teamMembers
-    .filter(userId => !(selectedManagerIsDataEngineer.value && String(userId) === String(teamForm.value.managerUserId || '')))
+    .filter(userId => !(selectedManagerIsDataEngineer.value && String(userId).startsWith(String(teamForm.value.managerUserId || '') + '-')))
     .map(userId => {
       const user = memberCandidates.value.find(candidate => String(candidate.id) === String(userId))
       const payloadRole = normalizeBuildTeamPayloadRole(user?.role)
