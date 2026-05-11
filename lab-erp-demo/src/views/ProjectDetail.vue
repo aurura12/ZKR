@@ -4587,8 +4587,16 @@ watch(() => selectedResearchStatus.value, async () => {
 watch(
   () => [teamForm.value.teamMembers.slice(), selectedDataEngineerMemberId.value],
   () => {
+    const dataEngCandidateKey = (() => {
+      const id = String(selectedDataEngineerMemberId.value || '').trim()
+      if (!id) return ''
+      const member = (project.value?.members || []).find(m => String(m.userId || '').trim() === id)
+      const role = normalizeRoleAlias(member?.role)
+      const dedupRole = (role === 'DATA_ENGINEER' || isDataRole(role)) ? 'DATA' : role
+      return dedupRole ? `${id}-${dedupRole}` : id
+    })()
     const normalizedMembers = normalizeTeamMemberIds([
-      selectedDataEngineerMemberId.value,
+      dataEngCandidateKey,
       ...(teamForm.value.teamMembers || [])
     ])
     const currentMembers = normalizeTeamMemberIds(teamForm.value.teamMembers || [])
