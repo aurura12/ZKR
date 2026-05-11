@@ -290,6 +290,48 @@ PUT /api/batch/projects?projectId=<id>&enabled=<true|false>&priority=<1-999>&not
 
 **改后结果**：所有 11 个侧边栏栏目点击后正确进入对应功能页面。
 
+### 项目流发起 dataEngineerId 传递 "userId-ROLE" 导致查不到用户 (2026-05-09)
+
+**问题：** `CreateDeliveryProjectView.vue` 中数据工程师下拉框的 option value 用了 `"${u.userId}-${u.role}"` 格式（如 `"000010-DATA_ENGINEER"`），提交 `/api/projects/initiate` 时后端用这个值查 `userRepository.findById()` 报"指定的数据工程师不存在"。
+
+**修复：** 将 option `id` 改为纯 `String(u.userId || '')`，与后端数据库 userId 一致。
+
+### 项目流数据工程师候选列表不完整 & 同一用户重复出现 (2026-05-09)
+
+**问题 1：** `CreateDeliveryProjectView.vue` 从 `workflow_member_role` 查 PROJECT 类型候选人，只返回已加入过项目的用户，未参与过 PROJECT 的 DATA 用户不可见。
+
+**修复 1：** 直接调用 `/api/users` 全量拉取，过滤 data 角色，并按 userId 归一化去重。
+
+**问题 2：** `ProjectDetail.vue` 的 `memberCandidates` 去重 key 为 `${userId}-${role}`，同一用户在 `workflow_member_role` 中同时有 DATA 和 DATA_ENGINEER 时显示两行。
+
+**修复 2：** `appendCandidate` 中 dedup 时将 `DATA_ENGINEER` 归一化为 `DATA`。
+
+## 版本号规则
+
+每次构建镜像前必须先读取当前运行中的容器镜像版本号，新版本 = 当前版本号 + 1：
+
+```bash
+docker inspect zkr-erp-backend --format '{{.Config.Image}}'
+docker inspect zkr-lab-erp-demo --format '{{.Config.Image}}'
+```
+
+| 规则 | 说明 |
+|------|------|
+| 版本号递增 | 后端 `v1.XX` → `v1.XX+1`，前端 `v1.XX` → `v1.XX+1` |
+| 禁止时间戳 | 禁止使用 `date +%Y%m%d%H%M` 作为版本号 |
+| 构建前确认 | 构建前必须确认当前运行中的实际版本号 |
+
+## 部署流程
+
+1. 读取当前版本号
+2. 新版本 = 当前版本 + 1
+3. 构建前后端镜像
+4. `docker push` 两个版本
+5. 更新 `docker-compose.yml` 中的 image tag
+6. `docker compose up -d erp-backend lab-erp-demo`
+7. 验证容器状态
+8. git commit 版本号变更
+
 ### 查询下一版本号
 
 ```bash
