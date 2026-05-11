@@ -66,7 +66,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
-import { getProjectWorkflowRoleCandidates } from '@/api/workflowMemberRoles'
 
 const router = useRouter()
 const submitting = ref(false)
@@ -103,10 +102,10 @@ const canSubmit = computed(() => Boolean(
 
 onMounted(async () => {
   try {
-    const candidatesRes = await getProjectWorkflowRoleCandidates()
-    const candidateList = candidatesRes.data || candidatesRes || []
-    const list = candidateList.length > 0 ? candidateList : ((await request.get('/api/users')).data || [])
-    dataEngineers.value = list
+    const res = await request.get('/api/users')
+    const allUsers = (res.data || res) || []
+    const seen = new Set()
+    dataEngineers.value = allUsers
       .filter(u => isDataRole(u.role))
       .map(u => ({
         id: String(u.userId || ''),
@@ -114,6 +113,12 @@ onMounted(async () => {
         role: u.role,
         name: u.name && u.username ? `${u.name}（${u.username}）` : (u.name || u.username)
       }))
+      .filter(u => {
+        const dedupKey = `${u.userId}-DATA`
+        if (seen.has(dedupKey)) return false
+        seen.add(dedupKey)
+        return true
+      })
   } catch {
     dataEngineers.value = []
   }

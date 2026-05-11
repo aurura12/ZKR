@@ -2349,7 +2349,8 @@ const memberCandidates = computed(() => {
     const id = String(item?.userId || item?.id || '').trim()
     const role = normalizeRoleAlias(item?.role)
     if (!id || !isTeamBuildSelectableRole(role)) return
-    const optionKey = `${id}-${role}`
+    const dedupRole = role === 'DATA_ENGINEER' ? 'DATA' : role
+    const optionKey = `${id}-${dedupRole}`
     if (candidateMap.has(optionKey)) return
     candidateMap.set(optionKey, {
       ...item,

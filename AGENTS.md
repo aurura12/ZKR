@@ -36,3 +36,13 @@ docker inspect zkr-lab-erp-demo --format '{{.Config.Image}}'
 **问题：** `CreateDeliveryProjectView.vue` 中数据工程师下拉框的 option value 用了 `"${u.userId}-${u.role}"` 格式（如 `"000010-DATA_ENGINEER"`），提交给后端 `/api/projects/initiate` 时后端直接用这个值查数据库 `userRepository.findById()`，查不到，报 "指定的数据工程师不存在"。
 
 **修复：** 将 option `id` 改为纯 `String(u.userId || '')`，与后端数据库 userId 一致。
+
+### 2026-05-09：项目流发起时数据工程师候选列表不完整，且组队时同一用户以 DATA/DATA_ENGINEER 两个角色重复出现
+
+**问题 1：** `CreateDeliveryProjectView.vue` 从 `workflow_member_role` 表查 PROJECT 类型候选人，只返回已加入过项目的用户，系统中未参与过 PROJECT 的 DATA 用户不可见。
+
+**修复 1：** 直接调用 `/api/users` 全量拉取，过滤 data 角色，并按 userId 归一化去重（DATA_ENGINEER 和 DATA 视为同一用户，只保留一条）。
+
+**问题 2：** `ProjectDetail.vue` 的 `memberCandidates` 去重 key 为 `${userId}-${role}`，同一用户在 `workflow_member_role` 表中同时有 DATA 和 DATA_ENGINEER 记录时显示两行。
+
+**修复 2：** `appendCandidate` 中 dedup 时将 `DATA_ENGINEER` 归一化为 `DATA`，使同一用户只出现一次。
