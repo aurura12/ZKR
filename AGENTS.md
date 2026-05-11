@@ -46,3 +46,12 @@ docker inspect zkr-lab-erp-demo --format '{{.Config.Image}}'
 **问题 2：** `ProjectDetail.vue` 的 `memberCandidates` 去重 key 为 `${userId}-${role}`，同一用户在 `workflow_member_role` 表中同时有 DATA 和 DATA_ENGINEER 记录时显示两行。
 
 **修复 2：** `appendCandidate` 中 dedup 时将 `DATA_ENGINEER` 归一化为 `DATA`，使同一用户只出现一次。
+
+### 2026-05-11：组队阶段数据工程师兼任 Manager 时权责比中不显示本人，且有幽灵成员
+
+**问题：** `buildInitialTeamState()` 初始化 `teamMembers` 用纯 `userId`（如 `"000037"`），而 `memberCandidates` 中 entry.id 是 `${userId}-DATA` 格式。导致：
+1. 数据工程师 Manager 本人在权责比列表中不可见
+2. `submitBuildTeam` 中 `includes` 匹配失败，报错"请在团队成员列表中保留该数据工程师"
+3. `selectedMemberDetails` 过滤时匹配不上，显示空 name 的幽灵成员
+
+**修复：** `buildInitialTeamState()` 中将 `initialTeamMembers` 统一为 `${userId}-DATA` 格式与 `memberCandidates` 对齐；`submitBuildTeam` 中的 `includes` 改为 `startsWith(userId + '-')` 匹配。

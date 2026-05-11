@@ -3345,7 +3345,7 @@ const submitBuildTeam = async () => {
   if (Number(teamForm.value.managerWeight || 0) <= 0) {
     return ElMessage.warning('请填写 Manager 权责比')
   }
-  if (selectedManagerIsDataEngineer.value && !teamForm.value.teamMembers.includes(String(teamForm.value.managerUserId || ''))) {
+  if (selectedManagerIsDataEngineer.value && !teamForm.value.teamMembers.some(id => String(id).startsWith(String(teamForm.value.managerUserId || '') + '-'))) {
     return ElMessage.warning('数据工程师兼任 Manager 时，请在团队成员列表中保留该数据工程师并填写其执行权责比')
   }
   if (selectedManagerIsDataEngineer.value && selectedManagerExecutionWeight.value <= 0) {
@@ -4068,14 +4068,23 @@ const buildInitialTeamState = () => {
   const defaultManagerId = managerCandidates.value.some(user => String(user.id) === String(project.value?.managerId || ''))
     ? String(project.value?.managerId || '')
     : String(selectedDataEngineerMemberId.value || '')
+  const toCandidateKey = userId => {
+    const id = String(userId || '').trim()
+    if (!id) return ''
+    const member = currentMembers.find(m => String(m.userId || '').trim() === id)
+    const role = normalizeRoleAlias(member?.role)
+    const dedupRole = (role === 'DATA_ENGINEER' || isDataRole(role)) ? 'DATA' : role
+    return `${id}-${dedupRole}`
+  }
   const executionMembers = currentMembers.filter(member => isTeamBuildSelectableRole(member.role))
   const initialTeamMembers = normalizeTeamMemberIds([
-    selectedDataEngineerMemberId.value,
-    ...executionMembers.map(member => String(member.userId || member.id || ''))
+    toCandidateKey(selectedDataEngineerMemberId.value),
+    ...executionMembers.map(member => toCandidateKey(member.userId || member.id || ''))
   ])
   const nextWeights = {}
   initialTeamMembers.forEach(memberId => {
-    const currentMember = currentMembers.find(member => String(member.userId || member.id || '') === String(memberId))
+    const userId = String(memberId || '').split('-')[0]
+    const currentMember = currentMembers.find(member => String(member.userId || member.id || '') === userId)
     nextWeights[memberId] = Number(currentMember?.executionResponsibilityRatio || 0)
   })
   const managerMember = currentMembers.find(member => String(member.userId || member.id || '') === defaultManagerId)
