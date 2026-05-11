@@ -55,3 +55,9 @@ docker inspect zkr-lab-erp-demo --format '{{.Config.Image}}'
 3. `selectedMemberDetails` 过滤时匹配不上，显示空 name 的幽灵成员
 
 **修复：** `buildInitialTeamState()` 中将 `initialTeamMembers` 统一为 `${userId}-DATA` 格式与 `memberCandidates` 对齐；`submitBuildTeam` 中的 `includes` 改为 `startsWith(userId + '-')` 匹配。
+
+### 2026-05-11：替换 Manager 后旧 Manager 的 managerWeight 未被清零
+
+**问题：** `applyProjectResponsibilityAllocation()` 只更新新 Manager 的权重，不遍历所有成员清零旧 Manager 的 `manager_weight`。导致替换 Manager（如焦淼→李昊天）后，旧 Manager 的管理权责比仍然保留，权责比总和超过 100（如 125）。
+
+**修复：** 在设置新 Manager 权重前，先将项目所有成员的 `manager_weight` 清零。

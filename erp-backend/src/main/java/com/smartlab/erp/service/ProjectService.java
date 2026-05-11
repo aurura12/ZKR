@@ -415,6 +415,15 @@ public class ProjectService {
             throw new BusinessException("项目经理必须从当前项目的商务或数据工程师中选择");
         }
 
+        // 先将所有成员的 manager_weight 清零，防止替换 Manager 时旧值残留
+        List<SysProjectMember> allMembers = projectMemberRepository.findByProjectId(project.getProjectId());
+        for (SysProjectMember member : allMembers) {
+            if (member.getManagerWeight() != null && member.getManagerWeight() != 0) {
+                member.setManagerWeight(0);
+                projectMemberRepository.save(member);
+            }
+        }
+
         List<ProjectMemberRatioInput> normalizedInputs = memberInputs == null
                 ? List.of()
                 : memberInputs.stream()
