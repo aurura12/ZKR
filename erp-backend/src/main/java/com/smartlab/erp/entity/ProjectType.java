@@ -11,5 +11,6 @@ public enum ProjectType {
     AI_FOR_SCIENCE, // AI 科研
     MEDICAL,        // 医药 (新增)
     INDUSTRIAL,     // 工业
-    SWARM_INTEL     // 群体智能 (新增)
+    SWARM_INTEL,    // 群体智能 (新增)
+    SELF_USE        // 自用
 }

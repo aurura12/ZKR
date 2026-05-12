@@ -282,7 +282,7 @@ const formatIndustry = (type) => {
   const map = {
     BUSINESS: '业务',
     MILITARY: '军工', AI_FOR_SCIENCE: 'AI for Science', MEDICAL: '医药',
-    INDUSTRIAL: '工业', SWARM_INTEL: '群体智能', OTHER: '其他'
+    INDUSTRIAL: '工业', SWARM_INTEL: '群体智能', SELF_USE: '自用', OTHER: '其他'
   }
   return map[type] || type || '未分类'
 }

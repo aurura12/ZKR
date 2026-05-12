@@ -117,7 +117,8 @@ const getIndustryColor = (type) => {
     'AI_FOR_SCIENCE': '#007AFF',
     'MEDICAL': '#30B0C7',
     'INDUSTRIAL': '#34C759',
-    'SWARM_INTEL': '#AF52DE'
+    'SWARM_INTEL': '#AF52DE',
+    'SELF_USE': '#FF9500'
   }
   return colors[type] || '#CBD5E1'
 }

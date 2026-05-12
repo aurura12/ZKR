@@ -257,6 +257,7 @@ const formatProjectType = (type) => {
     'MEDICAL': '医药',
     'INDUSTRIAL': '工业',
     'SWARM_INTEL': '群体智能',
+    'SELF_USE': '自用',
     'BUSINESS': '业务'
   }
   return map[type] || type
@@ -268,7 +269,8 @@ const getProjectTypeColor = (type) => {
     'AI_FOR_SCIENCE': 'primary',
     'MEDICAL': 'success',
     'INDUSTRIAL': 'warning',
-    'SWARM_INTEL': ''
+    'SWARM_INTEL': '',
+    'SELF_USE': 'info'
   }
   return colorMap[type] || 'info'
 }

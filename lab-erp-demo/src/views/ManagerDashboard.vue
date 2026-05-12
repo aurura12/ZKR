@@ -247,6 +247,7 @@ const industryMap = {
   'MEDICAL': '医药',
   'INDUSTRIAL': '工业',
   'SWARM_INTEL': '群体智能',
+  'SELF_USE': '自用',
   'OTHER': '未分类'
 }
 
@@ -258,6 +259,7 @@ const industryColors = {
   'MEDICAL': '#30B0C7',
   'INDUSTRIAL': '#34C759',
   'SWARM_INTEL': '#AF52DE',
+  'SELF_USE': '#FF9500',
   'OTHER': '#8E8E93'
 }
 
@@ -335,7 +337,7 @@ const openProjectModal = (project) => {
 const getProjectCode = (p) => {
   const map = {
     'MILITARY': 'MIL', 'AI_FOR_SCIENCE': 'AI4S',
-    'MEDICAL': 'MED', 'INDUSTRIAL': 'IND', 'SWARM_INTEL': 'SWM'
+    'MEDICAL': 'MED', 'INDUSTRIAL': 'IND', 'SWARM_INTEL': 'SWM', 'SELF_USE': 'SLF'
   }
   const prefix = map[p.projectType] || 'GEN'
   return `${prefix}-${p.projectId ? p.projectId.substring(0,4).toUpperCase() : '000'}`
@@ -568,6 +570,7 @@ watch(projects, () => {
 .mission-card.MEDICAL .card-left-border { background: #30B0C7; }        /* 医药: 青 */
 .mission-card.INDUSTRIAL .card-left-border { background: #34C759; }     /* 工业: 绿 */
 .mission-card.SWARM_INTEL .card-left-border { background: #AF52DE; }    /* 群智: 紫 */
+.mission-card.SELF_USE .card-left-border { background: #FF9500; }       /* 自用: 橙 */
 
 .mission-content { padding: 20px; flex: 1; }
 .mission-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 6px; }

@@ -780,6 +780,7 @@ public class CommandService {
         if (containsAny(text, "工业")) return ProjectType.INDUSTRIAL;
         if (containsAny(text, "群体智能", "swarm")) return ProjectType.SWARM_INTEL;
         if (containsAny(text, "ai for science", "ai科学", "aiforscience")) return ProjectType.AI_FOR_SCIENCE;
+        if (containsAny(text, "自用", "self")) return ProjectType.SELF_USE;
         return null;
     }
 

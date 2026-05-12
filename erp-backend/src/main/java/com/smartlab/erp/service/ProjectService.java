@@ -171,16 +171,17 @@ public class ProjectService {
         }
 
         if (request.getProjectType() == null) {
-            throw new BusinessException("项目行业不能为空，仅支持：工业/军工/医药/AI for Science/群体智能");
+            throw new BusinessException("项目行业不能为空，仅支持：工业/军工/医药/AI for Science/群体智能/自用");
         }
         if (!Set.of(
                 ProjectType.INDUSTRIAL,
                 ProjectType.MILITARY,
                 ProjectType.MEDICAL,
                 ProjectType.AI_FOR_SCIENCE,
-                ProjectType.SWARM_INTEL
+                ProjectType.SWARM_INTEL,
+                ProjectType.SELF_USE
         ).contains(request.getProjectType())) {
-            throw new BusinessException("项目行业无效，仅支持：工业/军工/医药/AI for Science/群体智能");
+            throw new BusinessException("项目行业无效，仅支持：工业/军工/医药/AI for Science/群体智能/自用");
         }
 
         // 3. 严格遵守无侵入原则 (Sidecar模式兼容)

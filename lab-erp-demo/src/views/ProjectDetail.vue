@@ -1582,7 +1582,8 @@ const productIndustryOptions = [
   { label: 'AI FOR SCIENCE', value: 'AI_FOR_SCIENCE' },
   { label: '医药', value: 'MEDICAL' },
   { label: '工业', value: 'INDUSTRIAL' },
-  { label: '群体智能', value: 'SWARM_INTEL' }
+  { label: '群体智能', value: 'SWARM_INTEL' },
+  { label: '自用', value: 'SELF_USE' }
 ]
 const demoUploadForm = ref({
   ENGINEERING: null,
