@@ -61,3 +61,9 @@ docker inspect zkr-lab-erp-demo --format '{{.Config.Image}}'
 **问题：** `applyProjectResponsibilityAllocation()` 只更新新 Manager 的权重，不遍历所有成员清零旧 Manager 的 `manager_weight`。导致替换 Manager（如焦淼→李昊天）后，旧 Manager 的管理权责比仍然保留，权责比总和超过 100（如 125）。
 
 **修复：** 在设置新 Manager 权重前，先将项目所有成员的 `manager_weight` 清零。
+
+### 2026-05-16：项目流可行性报告上传按钮不可见
+
+**问题：** `ProjectDetail.vue` 中 `canUploadProjectAsset` 计算属性（判断当前用户是否为被选中的数据工程师 + INITIATED 阶段）已正确实现，`triggerFileInput()` 函数和隐藏 `<input type="file">` 也已就绪，但模板中从未使用 `canUploadProjectAsset`，也从未调用 `triggerFileInput()`。导致数据工程师在 INITIATED 阶段看不到任何上传入口，无法通过 UI 上传可行性报告。
+
+**修复：** 在 PROJECT 流的智能信息面板（`product-flow-grid`）中，可行性报告状态行新增「上传可行性报告」按钮，绑定 `v-if="canUploadProjectAsset"` 和 `@click="triggerFileInput"`，并添加 `.execution-row` 样式使按钮与状态文本同行显示。

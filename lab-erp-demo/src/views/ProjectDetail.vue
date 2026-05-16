@@ -418,7 +418,13 @@
             <span class="execution-tag">{{ currentProjectStepLabel }}</span>
           </div>
           <div class="smart-block-list">
-            <div class="smart-block"><div class="execution-label">可行性报告状态</div><div class="execution-text">{{ feasibilityReportStatusText }}</div></div>
+            <div class="smart-block">
+              <div class="execution-label">可行性报告状态</div>
+              <div class="execution-row">
+                <span class="execution-text">{{ feasibilityReportStatusText }}</span>
+                <el-button v-if="canUploadProjectAsset" size="small" type="primary" plain @click="triggerFileInput">上传可行性报告</el-button>
+              </div>
+            </div>
             <div class="smart-block">
               <div class="execution-label">项目评级</div>
               <template v-if="canEditProjectDynamicInfo">
@@ -5251,6 +5257,13 @@ watch(
 .schedule-role {
   color: var(--text-sub);
   font-size: 13px;
+}
+
+.execution-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .execution-text {
