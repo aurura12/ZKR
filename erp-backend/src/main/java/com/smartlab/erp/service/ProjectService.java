@@ -567,7 +567,7 @@ public class ProjectService {
                 : currentUserId;
 
         User manager = userRepository.findById(finalManagerId)
-                .orElseThrow(() -> new RuntimeException("指定的负责人不存在"));
+                .orElseThrow(() -> new BusinessException("指定的负责人不存在"));
 
         String newProjectId = UUID.randomUUID().toString();
         FlowType flowType = request.getFlowType() != null ? request.getFlowType() : FlowType.PROJECT;
@@ -609,7 +609,7 @@ public class ProjectService {
                 }
             }
         } catch (Exception e) {
-            throw new RuntimeException("项目成员保存失败: " + e.getMessage());
+            throw new BusinessException("项目成员保存失败: " + e.getMessage());
         }
         return savedProject;
     }
@@ -759,7 +759,7 @@ public class ProjectService {
 
     @Transactional
     public void updateCriticalTask(String projectId, String taskContent, String userId) {
-        SysProject project = projectRepository.findById(projectId).orElseThrow();
+        SysProject project = projectRepository.findById(projectId).orElseThrow(() -> new BusinessException("项目不存在"));
         if (!rbacService.isOwner(projectId, userId)) throw new PermissionDeniedException("权限不足");
         project.setTechStack(taskContent);
         projectRepository.save(project);
@@ -767,7 +767,7 @@ public class ProjectService {
 
     @Transactional
     public void addMilestone(String projectId, String title, String dateStr, String userId) {
-        SysProject project = projectRepository.findById(projectId).orElseThrow();
+        SysProject project = projectRepository.findById(projectId).orElseThrow(() -> new BusinessException("项目不存在"));
         if (!rbacService.isOwner(projectId, userId)) throw new PermissionDeniedException("权限不足");
         ProjectMilestone milestone = ProjectMilestone.builder()
                 .project(project).title(title).status(MilestoneStatus.PENDING)
@@ -778,53 +778,53 @@ public class ProjectService {
 
     @Transactional
     public void transitionProjectStatus(String projectId, ProjectStatus newStatus, String userId) {
-        SysProject project = projectRepository.findById(projectId).orElseThrow();
+        SysProject project = projectRepository.findById(projectId).orElseThrow(() -> new BusinessException("项目不存在"));
         if (!rbacService.isOwner(projectId, userId)) throw new PermissionDeniedException("权限不足");
-        if (project.getFlowType() != FlowType.PROJECT) throw new RuntimeException("类型错误");
+        if (project.getFlowType() != FlowType.PROJECT) throw new BusinessException("类型错误");
 
         ProjectStatus currentStatus = project.getProjectStatus();
         if (currentStatus == null) {
-            throw new RuntimeException("项目当前状态异常");
+            throw new BusinessException("项目当前状态异常");
         }
         if (currentStatus == newStatus) {
             return;
         }
 
         if (currentStatus == ProjectStatus.INITIATED && newStatus != ProjectStatus.IMPLEMENTING) {
-            throw new RuntimeException("发起阶段仅允许进入实施阶段");
+            throw new BusinessException("发起阶段仅允许进入实施阶段");
         }
         if (currentStatus == ProjectStatus.INITIATED) {
             String managerUserId = project.getManager() == null ? null : project.getManager().getUserId();
             if (project.getFeasibilityReportUrl() == null || project.getFeasibilityReportUrl().isBlank()) {
-                throw new RuntimeException("请先由数据工程师上传可行性报告");
+                throw new BusinessException("请先由数据工程师上传可行性报告");
             }
             if (!hasSelectedManager(projectId, managerUserId)) {
-                throw new RuntimeException("还需指定项目经理才可进入实施阶段");
+                throw new BusinessException("还需指定项目经理才可进入实施阶段");
             }
             if (!hasResponsibilityRatiosAllocated(projectId)) {
-                throw new RuntimeException("还需完成权责比分配后才可进入实施阶段");
+                throw new BusinessException("还需完成权责比分配后才可进入实施阶段");
             }
             if (!hasImplementationStatusUpdated(project)) {
-                throw new RuntimeException("还需由数据工程师更新实施状态后才可进入实施阶段");
+                throw new BusinessException("还需由数据工程师更新实施状态后才可进入实施阶段");
             }
             if (!hasRequiredExecutionMembers(projectId, managerUserId)) {
-                throw new RuntimeException("项目成员不足，至少需要1名可执行成员后才能进入实施阶段");
+                throw new BusinessException("项目成员不足，至少需要1名可执行成员后才能进入实施阶段");
             }
         }
         if (currentStatus == ProjectStatus.IMPLEMENTING && newStatus != ProjectStatus.SETTLEMENT) {
-            throw new RuntimeException("实施阶段仅允许进入结算阶段");
+            throw new BusinessException("实施阶段仅允许进入结算阶段");
         }
         if (currentStatus == ProjectStatus.IMPLEMENTING && newStatus == ProjectStatus.SETTLEMENT && !hasRequiredExecutionMembers(projectId, project.getManager() == null ? null : project.getManager().getUserId())) {
-            throw new RuntimeException("项目成员不足，至少需要1名可执行成员后才能进入结算阶段");
+            throw new BusinessException("项目成员不足，至少需要1名可执行成员后才能进入结算阶段");
         }
         if (newStatus == ProjectStatus.SETTLEMENT && projectSubtaskRepository.countByProjectIdAndCompletedFalse(projectId) > 0) {
-            throw new RuntimeException("仍有未完成的子任务，需由 Manager 确认全部完成后才能进入结算");
+            throw new BusinessException("仍有未完成的子任务，需由 Manager 确认全部完成后才能进入结算");
         }
         if (currentStatus == ProjectStatus.SETTLEMENT && newStatus != ProjectStatus.COMPLETED) {
-            throw new RuntimeException("结算阶段仅允许进入归档阶段");
+            throw new BusinessException("结算阶段仅允许进入归档阶段");
         }
         if (currentStatus == ProjectStatus.COMPLETED) {
-            throw new RuntimeException("归档阶段不允许继续推进");
+            throw new BusinessException("归档阶段不允许继续推进");
         }
 
         project.setProjectStatus(newStatus);
@@ -837,24 +837,24 @@ public class ProjectService {
 
     @Transactional
     public void transitionProductStatus(String projectId, ProductStatus newStatus, String userId) {
-        SysProject project = projectRepository.findById(projectId).orElseThrow();
+        SysProject project = projectRepository.findById(projectId).orElseThrow(() -> new BusinessException("项目不存在"));
         if (!rbacService.isOwner(projectId, userId)) throw new PermissionDeniedException("权限不足");
-        if (project.getFlowType() != FlowType.PRODUCT) throw new RuntimeException("类型错误");
+        if (project.getFlowType() != FlowType.PRODUCT) throw new BusinessException("类型错误");
 
         ProductStatus currentStatus = project.getProductStatus() == null ? ProductStatus.IDEA : project.getProductStatus();
         if (currentStatus == ProductStatus.LAUNCHED || currentStatus == ProductStatus.SHELVED) {
-            throw new RuntimeException("终态项目不允许继续手动推进");
+            throw new BusinessException("终态项目不允许继续手动推进");
         }
 
         if (!isValidProductStatusTransition(currentStatus, newStatus)) {
-            throw new RuntimeException("产品状态仅允许按阶段顺序推进");
+            throw new BusinessException("产品状态仅允许按阶段顺序推进");
         }
 
         if (newStatus == ProductStatus.DEMO_EXECUTION && project.getProjectTier() == null) {
-            throw new RuntimeException("进入 Demo 阶段前必须完成项目评级");
+            throw new BusinessException("进入 Demo 阶段前必须完成项目评级");
         }
         if (newStatus == ProductStatus.DEMO_EXECUTION && project.getProjectType() == null) {
-            throw new RuntimeException("进入 Demo 阶段前必须完成行业分类");
+            throw new BusinessException("进入 Demo 阶段前必须完成行业分类");
         }
 
         long memberCount = projectMemberRepository.findByProjectId(projectId).stream()
@@ -863,7 +863,7 @@ public class ProjectService {
                 .distinct()
                 .count();
         if (memberCount < 2) {
-            throw new RuntimeException("项目成员不足，至少需要2名成员后才能推进产品流状态");
+            throw new BusinessException("项目成员不足，至少需要2名成员后才能推进产品流状态");
         }
 
         project.setProductStatus(newStatus);
@@ -1280,7 +1280,7 @@ public class ProjectService {
     @Transactional(readOnly = true)
     public ProjectAsset getProjectAsset(String projectId, Long assetId, String userId) {
         SysProject project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new RuntimeException("项目不存在"));
+                .orElseThrow(() -> new BusinessException("项目不存在"));
 
         boolean hasAccess = rbacService.isOwner(projectId, userId)
                 || projectMemberRepository.findByProjectIdAndUserUserId(projectId, userId).isPresent();
@@ -1290,7 +1290,7 @@ public class ProjectService {
         }
 
         return assetRepository.findByIdAndProjectProjectId(assetId, projectId)
-                .orElseThrow(() -> new RuntimeException("文件不存在"));
+                .orElseThrow(() -> new BusinessException("文件不存在"));
     }
 
     private String buildProjectAssetDownloadUrl(String projectId, Long assetId) {
