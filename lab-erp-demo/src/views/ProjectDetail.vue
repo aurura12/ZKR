@@ -634,6 +634,7 @@
         <div class="panel team-panel">
           <div class="panel-header-row compact-header">
             <h3 class="panel-title">👥 {{ squadTitle }}</h3>
+            <el-button v-if="canSwapProjectManager" type="warning" size="small" plain @click="swapProjectManager">🔄 摇摆 Manager</el-button>
             <el-button v-if="canManageProductMembers" type="primary" size="small" plain @click="openProductMemberDialog">成员管理</el-button>
             <el-button v-else-if="canManageProjectMembers" type="primary" size="small" plain @click="openProjectMemberDialog">成员管理</el-button>
           </div>
@@ -2666,6 +2667,12 @@ const canUploadProjectAsset = computed(() => {
   return activeUserId.value === selectedDataEngineerMemberId.value
 })
 
+const canSwapProjectManager = computed(() => {
+  if (!isProjectFlow.value || !project.value) return false
+  if (String(project.value.projectStatus || '').toUpperCase() === 'COMPLETED') return false
+  return activeUserId.value === '000027'
+})
+
 const ADMIN_USERNAMES = new Set(['Zhangqi', 'guojianwen', 'jiaomiao'])
 const activeUsername = computed(() => userStore.activeUserInfo?.username || '')
 const isAdminUser = computed(() => ADMIN_USERNAMES.has(activeUsername.value) || activeUserRole.value === 'ADMIN')
@@ -4101,6 +4108,27 @@ const buildInitialTeamState = () => {
     managerWeight: Number(managerMember?.managerResponsibilityRatio || 0),
     teamMembers: initialTeamMembers,
     teamMemberWeights: nextWeights
+  }
+}
+
+const swapProjectManager = async () => {
+  const targetId = props.projectId || route.params.id
+  if (!targetId) return
+  try {
+    await ElMessageBox.confirm(
+      '确认将 Manager 摇摆变更为另一创始成员？管理权责比将自动跟随转移。',
+      'Manager 摇摆变更',
+      { confirmButtonText: '确认变更', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  try {
+    await request.post(`/api/projects/${targetId}/swap-manager`)
+    ElMessage.success('Manager 已摇摆变更')
+    await fetchProject()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || error.message || 'Manager 摇摆变更失败')
   }
 }
 

@@ -301,6 +301,67 @@ public class ProjectService {
         return saved;
     }
 
+    @Transactional
+    public void swapProjectManager(String projectId) {
+        UserPrincipal currentUser = AuthUtils.getCurrentUserPrincipal();
+        if (currentUser == null || !"000027".equals(currentUser.getId())) {
+            throw new PermissionDeniedException("仅限指定管理员执行 Manager 摇摆变更");
+        }
+
+        SysProject project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new BusinessException("项目不存在"));
+
+        if (project.getFlowType() != FlowType.PROJECT) {
+            throw new BusinessException("仅项目交付流支持 Manager 摇摆变更");
+        }
+
+        if (project.getProjectStatus() == ProjectStatus.COMPLETED) {
+            throw new BusinessException("项目已归档，无法变更 Manager");
+        }
+
+        User currentManager = project.getManager();
+        if (currentManager == null) {
+            throw new BusinessException("项目尚未指定 Manager，无法摇摆");
+        }
+
+        List<SysProjectMember> foundingMembers = projectMemberRepository.findByProjectId(projectId).stream()
+                .filter(m -> {
+                    String role = m.getRole() == null ? "" : m.getRole().trim().toUpperCase();
+                    return Set.of("BUSINESS", "BD", "DATA", "DATA_ENGINEER").contains(role);
+                })
+                .collect(Collectors.toList());
+
+        if (foundingMembers.size() < 2) {
+            throw new BusinessException("需要项目中有商务和数据工程师双方才能进行 Manager 摇摆变更");
+        }
+
+        SysProjectMember newManagerMember = foundingMembers.stream()
+                .filter(m -> {
+                    String uid = m.getUser() == null ? null : m.getUser().getUserId();
+                    return uid != null && !uid.equals(currentManager.getUserId());
+                })
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("未找到可替换的 Manager 人选"));
+
+        SysProjectMember oldManagerMember = projectMemberRepository
+                .findByProjectIdAndUserUserId(projectId, currentManager.getUserId())
+                .orElse(null);
+
+        Integer managerWeight = (oldManagerMember != null && oldManagerMember.getManagerWeight() != null)
+                ? oldManagerMember.getManagerWeight() : 0;
+
+        if (oldManagerMember != null) {
+            oldManagerMember.setManagerWeight(0);
+            projectMemberRepository.save(oldManagerMember);
+        }
+
+        newManagerMember.setManagerWeight(managerWeight);
+        projectMemberRepository.save(newManagerMember);
+
+        project.setManager(newManagerMember.getUser());
+        projectRepository.save(project);
+    }
+
     private void ensureExecutionScheduleSlots(String projectId) {
         List<SysProjectMember> members = projectMemberRepository.findByProjectId(projectId);
         for (SysProjectMember member : members) {
