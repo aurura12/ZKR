@@ -416,6 +416,7 @@
           <div class="panel-header-row">
             <h3 class="panel-title">🧠 动态信息面板</h3>
             <span class="execution-tag">{{ currentProjectStepLabel }}</span>
+            <span v-if="dynamicInfoDraftSaved && canEditProjectDynamicInfo" class="draft-indicator">📝 暂存中</span>
           </div>
           <div class="smart-block-list">
             <div class="smart-block">
@@ -1550,6 +1551,9 @@ const dynamicInfoForm = ref({
   implementationStatus: '',
   estimatedRevenue: ''
 })
+const dynamicInfoDraftSaved = ref(false)
+const isSyncingDynamicInfoForm = ref(false)
+let dynamicInfoDraftTimer = null
 const projectMemberLoading = ref(false)
 const gitRepoLoading = ref(false)
 const gitRepoSubmitting = ref(false)
@@ -2611,6 +2615,7 @@ const saveProjectDynamicInfo = async () => {
       estimatedRevenue: dynamicInfoForm.value.estimatedRevenue ? Number(dynamicInfoForm.value.estimatedRevenue) : null
     })
     ElMessage.success('动态信息已更新')
+    clearDynamicInfoDraft()
     await fetchProject()
   } catch (error) {
     ElMessage.error(error.response?.data?.message || error.message || '动态信息更新失败')
@@ -2834,6 +2839,7 @@ const fetchWorkflowMemberRoles = async (targetId) => {
 }
 
 const syncProjectDynamicInfoForm = () => {
+  isSyncingDynamicInfoForm.value = true
   dynamicInfoForm.value = {
     goalDescription: executionOverview.value?.plan?.goalDescription || '',
     projectTier: String(executionOverview.value?.plan?.projectTier || project.value?.projectTier || ''),
@@ -2841,6 +2847,50 @@ const syncProjectDynamicInfoForm = () => {
     implementationStatus: readTaggedDescriptionValue(project.value?.description, '实施状态') || '',
     estimatedRevenue: project.value?.estimatedRevenue || ''
   }
+  isSyncingDynamicInfoForm.value = false
+
+  const draft = loadDynamicInfoDraft()
+  if (draft) {
+    dynamicInfoForm.value = { ...dynamicInfoForm.value, ...draft }
+    dynamicInfoDraftSaved.value = true
+  }
+}
+
+const getDynamicInfoDraftKey = () => {
+  const targetId = props.projectId || route.params.id
+  return `project-draft-${targetId}`
+}
+
+const getDynamicInfoSnapshot = () => JSON.stringify({
+  goalDescription: String(dynamicInfoForm.value.goalDescription || ''),
+  projectTier: String(dynamicInfoForm.value.projectTier || ''),
+  techStackDescription: String(dynamicInfoForm.value.techStackDescription || ''),
+  implementationStatus: String(dynamicInfoForm.value.implementationStatus || ''),
+  estimatedRevenue: String(dynamicInfoForm.value.estimatedRevenue || '')
+})
+
+const saveDynamicInfoDraft = () => {
+  const key = getDynamicInfoDraftKey()
+  localStorage.setItem(key, getDynamicInfoSnapshot())
+  dynamicInfoDraftSaved.value = true
+}
+
+const loadDynamicInfoDraft = () => {
+  const key = getDynamicInfoDraftKey()
+  const raw = localStorage.getItem(key)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch {
+    localStorage.removeItem(key)
+    return null
+  }
+}
+
+const clearDynamicInfoDraft = () => {
+  const key = getDynamicInfoDraftKey()
+  localStorage.removeItem(key)
+  dynamicInfoDraftSaved.value = false
 }
 
 // 5. 状态切换逻辑 (支持三流并行)
@@ -3261,7 +3311,17 @@ const handleDownload = async (file) => {
     window.open(blobUrl, '_blank', 'noopener')
     window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60000)
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || error.message || '打开文件失败')
+    let message = error.message
+    if (error.response?.data instanceof Blob && error.response.data.type !== 'application/octet-stream') {
+      try {
+        const errorText = await error.response.data.text()
+        const parsed = JSON.parse(errorText)
+        message = parsed.message || errorText
+      } catch { /* ignore parse failures, use fallback */ }
+    } else if (error.response?.data?.message) {
+      message = error.response.data.message
+    }
+    ElMessage.error(message || '打开文件失败')
   }
 }
 
@@ -3666,7 +3726,17 @@ const downloadExecutionFile = async (file) => {
     anchor.remove()
     window.URL.revokeObjectURL(blobUrl)
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || error.message || '下载文件失败')
+    let message = error.message
+    if (error.response?.data instanceof Blob && error.response.data.type !== 'application/octet-stream') {
+      try {
+        const errorText = await error.response.data.text()
+        const parsed = JSON.parse(errorText)
+        message = parsed.message || errorText
+      } catch { /* ignore parse failures, use fallback */ }
+    } else if (error.response?.data?.message) {
+      message = error.response.data.message
+    }
+    ElMessage.error(message || '下载文件失败')
   }
 }
 
@@ -4578,8 +4648,10 @@ const submitTestingDecision = async isPassed => {
 onMounted(fetchProject)
 onMounted(startChatPolling)
 onMounted(startGitRepoPolling)
+onMounted(() => window.addEventListener('beforeunload', handleBeforeUnload))
 onBeforeUnmount(stopChatPolling)
 onBeforeUnmount(stopGitRepoPolling)
+onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnload))
 
 watch(() => route.params.id, (newId) => {
   if (newId) fetchProject()
@@ -4675,6 +4747,26 @@ watch(
   },
   { deep: true }
 )
+
+watch(
+  () => dynamicInfoForm.value,
+  () => {
+    if (isSyncingDynamicInfoForm.value) return
+    if (!canEditProjectDynamicInfo.value) return
+    clearTimeout(dynamicInfoDraftTimer)
+    dynamicInfoDraftTimer = setTimeout(() => {
+      saveDynamicInfoDraft()
+    }, 800)
+  },
+  { deep: true }
+)
+
+const handleBeforeUnload = (e) => {
+  if (dynamicInfoDraftSaved.value && canEditProjectDynamicInfo.value) {
+    e.preventDefault()
+    e.returnValue = ''
+  }
+}
 
 </script>
 
@@ -5277,6 +5369,21 @@ watch(
   color: #075985;
   font-size: 12px;
   font-weight: 700;
+}
+
+.draft-indicator {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 600;
+  animation: draftPulse 2s ease-in-out infinite;
+}
+
+@keyframes draftPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .execution-label,
