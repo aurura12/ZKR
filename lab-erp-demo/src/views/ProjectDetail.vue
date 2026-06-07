@@ -46,7 +46,9 @@
         </button>
       </div>
       <div v-if="userStore.isErpLoggedIn" class="detail-cta-row">
-        <el-button type="primary" plain @click="openExpenseDialog">💰 费用</el-button>
+        <el-button type="primary" plain @click="openExpenseDialog('contract')">📄 合同</el-button>
+        <el-button type="warning" plain @click="openExpenseDialog('procurement')">🛒 采购</el-button>
+        <el-button type="danger" plain @click="openExpenseDialog('reimbursement')">🧾 报销</el-button>
         <el-button v-if="isAdminUser" type="warning" plain @click="openCostAdjustDialog">📊 调整项目成本</el-button>
         <el-button v-if="canDeleteCurrentProject" type="danger" plain @click="deleteCurrentProject">删除项目</el-button>
       </div>
@@ -680,7 +682,7 @@
                 <div class="execution-text">¥{{ formatMoney(projectEarnings.estimatedRevenue) }}</div>
               </div>
               <div class="smart-block">
-                <div class="execution-label">最新人力成本</div>
+                <div class="execution-label">最新总成本</div>
                 <div class="execution-text">¥{{ formatMoney(projectEarnings.humanCost) }}</div>
               </div>
               <div class="smart-block">
@@ -702,6 +704,32 @@
               <div class="smart-block">
                 <div class="execution-label">项目成员数</div>
                 <div class="execution-text">{{ `${projectEarnings.projectMemberCount || 0} 人` }}</div>
+              </div>
+            </div>
+
+            <div v-if="projectEarnings.costBreakdown" class="cost-breakdown-section">
+              <div class="execution-label" style="margin-bottom:8px">成本分解</div>
+              <div class="cost-breakdown-rows">
+                <div class="cost-breakdown-row">
+                  <span class="cost-label">人力成本</span>
+                  <span class="cost-value">¥{{ formatMoney(projectEarnings.costBreakdown.humanCost) }}</span>
+                </div>
+                <div class="cost-breakdown-row">
+                  <span class="cost-label">采购成本</span>
+                  <span class="cost-value">¥{{ formatMoney(projectEarnings.costBreakdown.procurementCost) }}</span>
+                </div>
+                <div class="cost-breakdown-row">
+                  <span class="cost-label">外部服务</span>
+                  <span class="cost-value">¥{{ formatMoney(projectEarnings.costBreakdown.externalServiceCost) }}</span>
+                </div>
+                <div class="cost-breakdown-row">
+                  <span class="cost-label">商务差旅</span>
+                  <span class="cost-value">¥{{ formatMoney(projectEarnings.costBreakdown.businessTravelCost) }}</span>
+                </div>
+                <div class="cost-breakdown-row">
+                  <span class="cost-label">其他调整</span>
+                  <span class="cost-value">¥{{ formatMoney(projectEarnings.costBreakdown.adjustmentCost) }}</span>
+                </div>
               </div>
             </div>
 
@@ -1385,16 +1413,16 @@
         <el-form-item label="金额 (元)" required>
           <el-input-number v-model="costAdjustForm.amount" :min="0.01" :precision="2" :step="100" style="width: 100%" placeholder="0.00" />
         </el-form-item>
-        <el-form-item label="发票/凭证">
+          <el-form-item label="发票/凭证">
           <el-upload
             v-model:file-list="costAdjustForm.invoiceFileList"
             :auto-upload="false"
             :limit="1"
             list-type="picture"
-            accept=".jpg,.jpeg,.png,.pdf"
+            accept=".jpg,.jpeg,.png,.gif,.bmp,.pdf,.ofd,.doc,.docx,.xls,.xlsx,.csv,.txt,.rar,.zip,.7z"
           >
             <el-button size="small" type="primary" plain>选择文件</el-button>
-            <template #tip><div class="el-upload__tip">支持 JPG/PNG/PDF，可选</div></template>
+            <template #tip><div class="el-upload__tip">支持常见图片/文档/压缩包格式，可选</div></template>
           </el-upload>
         </el-form-item>
       </el-form>
@@ -1404,14 +1432,14 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showExpenseDialog" title="提交费用" width="520px" custom-class="tech-dialog">
-      <div class="execution-text">选择费用类型并填写必要信息，提交后将进入审批流程。</div>
+    <el-dialog v-model="showExpenseDialog" :title="expenseDialogTitle" width="520px" custom-class="tech-dialog">
+      <div class="execution-text">{{ expenseDialogDesc }}</div>
       <el-form label-position="top" style="margin-top: 16px;">
-        <el-form-item label="费用类型" required>
-          <el-select v-model="expenseForm.type" placeholder="请选择费用类型" style="width: 100%">
-            <el-option label="硬件采购" value="HARDWARE" />
-            <el-option label="外部技术服务" value="EXTERNAL_SERVICE" />
-            <el-option label="报销" value="REIMBURSEMENT" />
+        <el-form-item v-if="expenseDialogMode === 'reimbursement'" label="报销类型" required>
+          <el-select v-model="expenseForm.type" placeholder="请选择报销类型" style="width: 100%">
+            <el-option label="商务餐费" value="BUSINESS_MEAL" />
+            <el-option label="正常差旅" value="NORMAL_TRAVEL" />
+            <el-option label="补差价" value="PRICE_DIFF" />
           </el-select>
         </el-form-item>
         <el-form-item label="名称" required>
@@ -1424,12 +1452,11 @@
           <el-upload
             v-model:file-list="expenseForm.invoiceFileList"
             :auto-upload="false"
-            :limit="1"
             list-type="picture"
-            accept=".jpg,.jpeg,.png,.pdf"
+            accept=".jpg,.jpeg,.png,.gif,.bmp,.pdf,.ofd,.doc,.docx,.xls,.xlsx,.csv,.txt,.rar,.zip,.7z"
           >
             <el-button size="small" type="primary" plain>选择文件</el-button>
-            <template #tip><div class="el-upload__tip">支持 JPG/PNG/PDF，可选</div></template>
+            <template #tip><div class="el-upload__tip">支持常见图片/文档/压缩包格式，可选</div></template>
           </el-upload>
         </el-form-item>
       </el-form>
@@ -2959,8 +2986,14 @@ const submitCostAdjust = async () => {
   }
 }
 
-const openExpenseDialog = () => {
-  expenseForm.value = { type: 'HARDWARE', itemName: '', amount: null, invoiceFileList: [] }
+const expenseDialogMode = ref('contract')
+const expenseDialogTitle = computed(() => ({ contract: '提交合同', procurement: '提交采购', reimbursement: '提交报销' }[expenseDialogMode.value] || '提交费用'))
+const expenseDialogDesc = computed(() => ({ contract: '提交合同信息，将进入审批流程。', procurement: '提交采购信息，将进入审批流程。', reimbursement: '选择报销类型并填写必要信息，提交后将进入审批流程。' }[expenseDialogMode.value] || ''))
+
+const openExpenseDialog = (mode) => {
+  expenseDialogMode.value = mode
+  const defaultType = mode === 'contract' ? 'EXTERNAL_SERVICE' : mode === 'procurement' ? 'HARDWARE' : 'BUSINESS_MEAL'
+  expenseForm.value = { type: defaultType, itemName: '', amount: null, invoiceFileList: [] }
   showExpenseDialog.value = true
 }
 
@@ -2976,8 +3009,9 @@ const submitExpense = async () => {
     form.append('expenseType', type)
     form.append('itemName', itemName.trim())
     form.append('amount', String(amount))
-    const file = invoiceFileList?.[0]?.raw
-    if (file) form.append('invoiceFile', file)
+    invoiceFileList?.forEach(entry => {
+      if (entry.raw) form.append('invoiceFiles', entry.raw)
+    })
 
     await request.post(`/api/projects/${targetId}/expenses`, form, {
       headers: { 'Content-Type': 'multipart/form-data' }
@@ -5161,6 +5195,35 @@ const handleBeforeUnload = (e) => {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.cost-breakdown-section {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.cost-breakdown-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cost-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.cost-label {
+  color: #64748b;
+}
+
+.cost-value {
+  color: #1e293b;
+  font-weight: 600;
 }
 
 .assignment-summary-block {

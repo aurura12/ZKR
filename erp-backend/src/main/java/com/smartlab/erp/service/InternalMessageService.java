@@ -58,4 +58,9 @@ public class InternalMessageService {
                     internalMessageRepository.save(message);
                 });
     }
+
+    @Transactional
+    public int markAllAsRead(String userId) {
+        return internalMessageRepository.markAllReadByUserId(userId);
+    }
 }

@@ -48,7 +48,6 @@ public class SecurityConfig {
 
     private static final String[] FINANCE_API_PATTERNS = {
             "/api/finance/**",
-            "/api/messages/**",
             "/api/adjustment/**",
             "/api/batch/**",
             "/api/clearing/**",
@@ -119,6 +118,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/users").permitAll() // 注册接口
                         .requestMatchers("/api/attendance/**").access(this::requireAttendanceDomain)
+                        .requestMatchers("/api/messages/**").access(this::requireAttendanceDomain)
                         .requestMatchers(FINANCE_API_PATTERNS).access(this::requireFinanceDomain)
                         .requestMatchers("/api/**").access(this::requireErpDomain)
 

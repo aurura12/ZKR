@@ -5,7 +5,10 @@ import com.smartlab.erp.entity.AttendanceRecord;
 import com.smartlab.erp.service.AttendanceService;
 import com.smartlab.erp.service.DingTalkAttendanceService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -57,9 +60,30 @@ public class AttendanceController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         List<String> users = dingTalkService.fetchAllDingTalkUsers();
-        for (int i = 0; i < users.size(); i += 50) {
-            dingTalkService.pullAttendance(users.subList(i, Math.min(i + 50, users.size())), from, to);
+        LocalDate chunkStart = from;
+        while (!chunkStart.isAfter(to)) {
+            LocalDate chunkEnd = chunkStart.plusDays(6);
+            if (chunkEnd.isAfter(to)) {
+                chunkEnd = to;
+            }
+            for (int i = 0; i < users.size(); i += 50) {
+                dingTalkService.pullAttendance(users.subList(i, Math.min(i + 50, users.size())), chunkStart, chunkEnd);
+            }
+            chunkStart = chunkEnd.plusDays(1);
         }
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/export")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ByteArrayResource> exportAttendance(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        AttendanceService.AttendanceExportResult result = attendanceService.generateAttendanceExport(from, to);
+        return ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", java.nio.charset.StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + result.fileName() + "\"")
+                .contentLength(result.csvBytes().length)
+                .body(new ByteArrayResource(result.csvBytes()));
     }
 }

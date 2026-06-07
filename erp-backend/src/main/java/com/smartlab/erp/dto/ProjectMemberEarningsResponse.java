@@ -1,5 +1,6 @@
 package com.smartlab.erp.dto;
 
+import com.smartlab.erp.service.ProjectFinancialMetricsService;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -32,4 +33,5 @@ public class ProjectMemberEarningsResponse {
     private BigDecimal predictedAmount;
     private Instant lastCostBatchAt;
     private String explanation;
+    private ProjectFinancialMetricsService.CostBreakdown costBreakdown;
 }

@@ -1,5 +1,6 @@
 package com.smartlab.erp.finance.service;
 
+import com.smartlab.erp.entity.AttendanceRecord;
 import com.smartlab.erp.entity.FlowType;
 import com.smartlab.erp.entity.ProjectStatus;
 import com.smartlab.erp.entity.ProjectMemberParticipationHistory;
@@ -22,6 +23,7 @@ import com.smartlab.erp.finance.repository.FinanceCostEntryRepository;
 import com.smartlab.erp.finance.repository.FinanceCostSummaryRepository;
 import com.smartlab.erp.finance.repository.FinanceVentureProfileRepository;
 import com.smartlab.erp.finance.support.FinanceAmounts;
+import com.smartlab.erp.repository.AttendanceRecordRepository;
 import com.smartlab.erp.repository.ProjectMemberParticipationHistoryRepository;
 import com.smartlab.erp.repository.SysProjectMemberRepository;
 import com.smartlab.erp.repository.SysProjectRepository;
@@ -57,6 +59,9 @@ public class FinanceCostBatchService {
     private static final BigDecimal HOURS_PER_DAY = new BigDecimal("8.00");
     private static final BigDecimal WEIGHTED_MULTIPLIER = new BigDecimal("1.75");
     private static final BigDecimal UNWEIGHTED_MULTIPLIER = new BigDecimal("1.25");
+    private static final BigDecimal OVERTIME_MULTIPLIER = new BigDecimal("1.333");
+    private static final BigDecimal OVERTIME_HOURS = new BigDecimal("11");
+    private static final BigDecimal MIN_WORK_HOURS = new BigDecimal("8");
     private static final BigDecimal DEFAULT_DAILY_WAGE = new BigDecimal("300.00");
 
     private final FinanceCostBatchRepository costBatchRepository;
@@ -68,6 +73,7 @@ public class FinanceCostBatchService {
     private final SysProjectMemberRepository projectMemberRepository;
     private final BatchProjectCostControlRepository batchProjectCostControlRepository;
     private final SysProjectRepository projectRepository;
+    private final AttendanceRecordRepository attendanceRecordRepository;
 
     @Transactional
     public FinanceCostBatchRunResponse runBatch(String ledgerMonth) {
@@ -84,6 +90,117 @@ public class FinanceCostBatchService {
     }
 
     private static final LocalDate SHANGHAI_TODAY = LocalDate.now(SHANGHAI_ZONE);
+
+    @Transactional
+    public FinanceCostBatchRunResponse rebuildMonth(String ledgerMonth) {
+        cleanupBusinessRoleEntries();
+        if (ledgerMonth == null || !LEDGER_MONTH_PATTERN.matcher(ledgerMonth).matches()) {
+            throw new IllegalArgumentException("ledgerMonth must match YYYY-MM");
+        }
+
+        costEntryRepository.deleteByLedgerMonth(ledgerMonth);
+        costSummaryRepository.deleteByLedgerMonth(ledgerMonth);
+
+        YearMonth ym = YearMonth.parse(ledgerMonth);
+        List<LocalDate> days = new ArrayList<>();
+        LocalDate first = ym.atDay(1);
+        LocalDate last = ym.atEndOfMonth();
+        for (LocalDate d = first; !d.isAfter(last); d = d.plusDays(1)) {
+            days.add(d);
+        }
+
+        List<SysProject> projects = loadAccrualProjects();
+        Set<String> projectIds = projects.stream().map(SysProject::getProjectId).collect(Collectors.toSet());
+        Map<String, Integer> projectWeightsByUserProject = loadProjectMemberWeights(projectIds);
+        Map<String, Boolean> costControlEnabled = loadCostControlEnabled(projectIds);
+
+        FinanceCostBatch batch = costBatchRepository.save(FinanceCostBatch.builder()
+                .ledgerMonth(ledgerMonth)
+                .status(FinanceBatchStatus.RUNNING)
+                .batchDate(last)
+                .startedAt(Instant.now())
+                .remark("rebuild-" + ledgerMonth)
+                .build());
+
+        try {
+            for (SysProject project : projects) {
+                participationService.ensureCurrentMemberHistories(project.getProjectId());
+            }
+
+            Map<String, List<ProjectMemberParticipationHistory>> historiesByProject = new LinkedHashMap<>();
+            for (SysProject project : projects) {
+                historiesByProject.put(project.getProjectId(),
+                        participationHistoryRepository.findByProject_ProjectId(project.getProjectId()));
+            }
+
+            Map<String, Long> sourceIdByProject = new HashMap<>();
+            Map<String, Instant> endInstantByProject = new HashMap<>();
+            for (SysProject project : projects) {
+                sourceIdByProject.put(project.getProjectId(), resolveSourceId(project));
+                endInstantByProject.put(project.getProjectId(), resolveProjectEndInstant(project));
+            }
+
+            int totalRecords = 0;
+            BigDecimal totalSettlement = BigDecimal.ZERO;
+
+            for (LocalDate accrualDate : days) {
+                List<FinanceCostEntry> dayEntries = buildDailyEntriesCrossProject(
+                        projects, historiesByProject, costControlEnabled, projectWeightsByUserProject,
+                        batch, ledgerMonth, accrualDate, sourceIdByProject, endInstantByProject);
+
+                if (!dayEntries.isEmpty()) {
+                    costEntryRepository.saveAll(dayEntries);
+                    totalRecords += dayEntries.size();
+                    totalSettlement = dayEntries.stream()
+                            .map(FinanceCostEntry::getFinalSettlementCost)
+                            .reduce(totalSettlement, FinanceAmounts::add);
+                }
+            }
+
+            for (SysProject project : projects) {
+                String pid = project.getProjectId();
+                List<FinanceCostEntry> monthlyEntries = selectEffectiveMonthlyEntries(pid, ledgerMonth);
+                BigDecimal totalLaborCost = monthlyEntries.stream()
+                        .map(FinanceCostEntry::getLaborCost)
+                        .reduce(BigDecimal.ZERO, FinanceAmounts::add);
+                BigDecimal totalSettlementCost = monthlyEntries.stream()
+                        .map(FinanceCostEntry::getFinalSettlementCost)
+                        .reduce(BigDecimal.ZERO, FinanceAmounts::add);
+
+                FinanceCostSummary summary = costSummaryRepository.findByProject_ProjectIdAndLedgerMonth(pid, ledgerMonth)
+                        .orElseGet(FinanceCostSummary::new);
+                summary.setBatch(batch);
+                summary.setProject(project);
+                summary.setLedgerMonth(ledgerMonth);
+                summary.setTotalLaborCost(FinanceAmounts.scale(totalLaborCost));
+                summary.setTotalMiddlewareFee(BigDecimal.ZERO.setScale(2));
+                summary.setTotalSettlementCost(FinanceAmounts.scale(totalSettlementCost));
+                summary.setEntryCount(monthlyEntries.size());
+                costSummaryRepository.save(summary);
+            }
+
+            batch.setGeneratedRecordCount(totalRecords);
+            batch.setCompletedAt(Instant.now());
+            batch.setStatus(FinanceBatchStatus.COMPLETED);
+            costBatchRepository.save(batch);
+
+            log.info("Rebuilt month {}: {} records generated across {} projects", ledgerMonth, totalRecords, projects.size());
+            return FinanceCostBatchRunResponse.builder()
+                    .batchId(batch.getId())
+                    .ledgerMonth(batch.getLedgerMonth())
+                    .status(batch.getStatus())
+                    .ventureCount(projects.size())
+                    .generatedRecordCount(totalRecords)
+                    .totalSettlementCost(FinanceAmounts.scale(totalSettlement))
+                    .reusedExistingBatch(false)
+                    .build();
+        } catch (RuntimeException ex) {
+            batch.setStatus(FinanceBatchStatus.FAILED);
+            batch.setRemark("rebuild-" + ledgerMonth + ":" + ex.getMessage());
+            costBatchRepository.save(batch);
+            throw ex;
+        }
+    }
 
     @Transactional
     public FinanceCostBatchRunResponse runBatch(String ledgerMonth, boolean rerunExistingMonth) {
@@ -354,91 +471,103 @@ public class FinanceCostBatchService {
             Map<String, Long> sourceIdByProject,
             Map<String, Instant> endInstantByProject) {
 
-        Instant dayStart = accrualDate.atStartOfDay(SHANGHAI_ZONE).toInstant();
-        Instant dayEnd = accrualDate.plusDays(1).atStartOfDay(SHANGHAI_ZONE).toInstant();
+        List<AttendanceRecord> todayRecords = attendanceRecordRepository.findByWorkDateOrderByUserIdAsc(accrualDate);
 
-        Map<String, UserProjectOverlaps> userOverlapsByUser = new LinkedHashMap<>();
-
-        for (SysProject project : projects) {
-            String projectId = project.getProjectId();
-            List<ProjectMemberParticipationHistory> histories = historiesByProject.getOrDefault(projectId, List.of());
-            Instant projectEndInstant = endInstantByProject.get(projectId);
-            Instant effectiveDayEnd = projectEndInstant != null && projectEndInstant.isBefore(dayEnd) ? projectEndInstant : dayEnd;
-
-            if (!effectiveDayEnd.isAfter(dayStart)) {
-                continue;
-            }
-
-            for (ProjectMemberParticipationHistory history : histories) {
-                if (history == null || history.getUser() == null || history.getUser().getUserId() == null || history.getJoinedAt() == null) {
-                    continue;
-                }
-                Instant joinedAt = history.getJoinedAt();
-                Instant leftAt = history.getLeftAt();
-                Instant overlapStart = joinedAt.isAfter(dayStart) ? joinedAt : dayStart;
-                Instant overlapEnd = leftAt == null || leftAt.isAfter(effectiveDayEnd) ? effectiveDayEnd : leftAt;
-                if (!overlapEnd.isAfter(overlapStart)) {
-                    continue;
-                }
-
-                long seconds = java.time.Duration.between(overlapStart, overlapEnd).getSeconds();
-                String userId = history.getUser().getUserId();
-
-                UserProjectOverlaps overlaps = userOverlapsByUser.computeIfAbsent(userId,
-                        id -> new UserProjectOverlaps(history.getUser()));
-                overlaps.addOverlap(projectId, seconds);
-            }
+        Map<String, List<AttendanceRecord>> recordsByUser = new LinkedHashMap<>();
+        for (AttendanceRecord r : todayRecords) {
+            recordsByUser.computeIfAbsent(r.getUserId(), k -> new ArrayList<>()).add(r);
         }
+
+        Map<String, Double> workHoursByUser = new LinkedHashMap<>();
+        for (Map.Entry<String, List<AttendanceRecord>> entry : recordsByUser.entrySet()) {
+            String uid = entry.getKey();
+            List<AttendanceRecord> recs = entry.getValue();
+            AttendanceRecord onDuty = recs.stream().filter(r -> "OnDuty".equals(r.getCheckType())
+                    && r.getUserCheckTime() != null && !"NotSigned".equals(r.getTimeResult())).findFirst().orElse(null);
+            AttendanceRecord offDuty = recs.stream().filter(r -> "OffDuty".equals(r.getCheckType())
+                    && r.getUserCheckTime() != null && !"NotSigned".equals(r.getTimeResult())).findFirst().orElse(null);
+            if (onDuty == null || offDuty == null) continue;
+            double hours = java.time.Duration.between(onDuty.getUserCheckTime(), offDuty.getUserCheckTime()).toMinutes() / 60.0;
+            if (hours < MIN_WORK_HOURS.doubleValue()) continue;
+            workHoursByUser.put(uid, hours);
+        }
+
+        Map<String, Boolean> activeUserCache = new HashMap<>();
+        Map<String, BigDecimal> dailyWageCache = new HashMap<>();
+        Map<String, User> userCache = new HashMap<>();
+
+        Map<String, List<String>> userInProjectCache = new HashMap<>();
 
         List<FinanceCostEntry> entries = new ArrayList<>();
 
-        for (UserProjectOverlaps overlaps : userOverlapsByUser.values()) {
-            User user = overlaps.user;
+        for (Map.Entry<String, Double> whEntry : workHoursByUser.entrySet()) {
+            String userId = whEntry.getKey();
+            double workHours = whEntry.getValue();
+
+            boolean userActive = activeUserCache.computeIfAbsent(userId, uid -> {
+                for (List<ProjectMemberParticipationHistory> list : historiesByProject.values()) {
+                    for (ProjectMemberParticipationHistory h : list) {
+                        if (h != null && h.getUser() != null && uid.equals(h.getUser().getUserId())) {
+                            return Boolean.TRUE.equals(h.getUser().getActive());
+                        }
+                    }
+                }
+                return false;
+            });
+            if (!userActive) continue;
+
+            List<String> userProjects = userInProjectCache.computeIfAbsent(userId, uid -> {
+                List<String> pids = new ArrayList<>();
+                Map<String, User> foundUser = new HashMap<>();
+                for (Map.Entry<String, List<ProjectMemberParticipationHistory>> hpEntry : historiesByProject.entrySet()) {
+                    String pid = hpEntry.getKey();
+                    for (ProjectMemberParticipationHistory h : hpEntry.getValue()) {
+                        if (h != null && h.getUser() != null && uid.equals(h.getUser().getUserId())) {
+                            Instant leftAt = h.getLeftAt();
+                            if (leftAt == null || !leftAt.isBefore(accrualDate.atStartOfDay(SHANGHAI_ZONE).toInstant())) {
+                                pids.add(pid);
+                                foundUser.putIfAbsent("u", h.getUser());
+                            }
+                            break;
+                        }
+                    }
+                }
+                if (foundUser.containsKey("u")) {
+                    userCache.put(uid, foundUser.get("u"));
+                }
+                return pids;
+            });
+
+            if (userProjects.isEmpty()) continue;
+
+            User user = userCache.get(userId);
+            BigDecimal dailyWage = dailyWageCache.computeIfAbsent(userId, uid -> resolveDailyWage(user));
+            if (dailyWage == null) continue;
 
             int activeProjectCount = 0;
-            for (String pid : overlaps.projectOverlaps.keySet()) {
+            for (String pid : userProjects) {
                 if (isActiveAndCostControlled(pid, projects, costControlEnabled)) {
                     activeProjectCount++;
                 }
             }
+            if (activeProjectCount == 0) continue;
 
-            if (activeProjectCount == 0) {
-                continue;
-            }
-
-            BigDecimal dailyWage = resolveDailyWage(user);
-            if (dailyWage == null) {
-                continue;
-            }
             BigDecimal dailyShare = FinanceAmounts.scale(dailyWage.divide(BigDecimal.valueOf(activeProjectCount), 2, RoundingMode.HALF_UP));
 
-            for (Map.Entry<String, Long> overlapEntry : overlaps.projectOverlaps.entrySet()) {
-                String pid = overlapEntry.getKey();
-                long seconds = overlapEntry.getValue();
+            BigDecimal overtimeCoef = workHours >= OVERTIME_HOURS.doubleValue() ? OVERTIME_MULTIPLIER : BigDecimal.ONE;
 
-                if (!isActiveAndCostControlled(pid, projects, costControlEnabled)) {
-                    continue;
-                }
-
-                String userId = user.getUserId();
-                if (costEntryRepository.existsByProject_ProjectIdAndUser_UserIdAndAccrualDate(pid, userId, accrualDate)) {
-                    continue;
-                }
+            for (String pid : userProjects) {
+                if (!isActiveAndCostControlled(pid, projects, costControlEnabled)) continue;
+                if (costEntryRepository.existsByProject_ProjectIdAndUser_UserIdAndAccrualDate(pid, userId, accrualDate)) continue;
 
                 SysProject project = findProjectById(projects, pid);
-                if (project == null) {
-                    continue;
-                }
-
-                BigDecimal workHours = FinanceAmounts.scale(
-                        BigDecimal.valueOf(seconds).divide(BigDecimal.valueOf(3600), 4, RoundingMode.HALF_UP));
+                if (project == null) continue;
 
                 String userProjectKey = pid + ":" + userId;
                 Integer weight = projectWeightsByUserProject.get(userProjectKey);
-                BigDecimal weightMultiplier = (weight != null && weight > 0) ? WEIGHTED_MULTIPLIER : UNWEIGHTED_MULTIPLIER;
+                BigDecimal weightCoef = (weight != null && weight > 0) ? WEIGHTED_MULTIPLIER : UNWEIGHTED_MULTIPLIER;
 
-                BigDecimal laborCost = FinanceAmounts.scale(dailyShare.multiply(weightMultiplier));
-                BigDecimal finalSettlementCost = laborCost;
+                BigDecimal laborCost = FinanceAmounts.scale(dailyShare.multiply(overtimeCoef).multiply(weightCoef));
 
                 Long sourceId = sourceIdByProject.get(pid);
 
@@ -448,17 +577,16 @@ public class FinanceCostBatchService {
                         .user(user)
                         .ledgerMonth(ledgerMonth)
                         .accrualDate(accrualDate)
-                        .workHours(workHours)
+                        .workHours(FinanceAmounts.scale(BigDecimal.valueOf(workHours)))
                         .dailyWageSnapshot(dailyWage)
                         .laborCost(laborCost)
                         .middlewareRoyaltyFee(BigDecimal.ZERO)
-                        .finalSettlementCost(finalSettlementCost)
+                        .finalSettlementCost(laborCost)
                         .sourceTable("sys_project")
                         .sourceId(sourceId)
                         .build());
             }
         }
-
         return entries;
     }
 

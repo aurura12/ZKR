@@ -7,8 +7,8 @@
 
     <section class="review-section">
       <h3 class="section-title">⏳ 待审批</h3>
-      <div v-if="!pending.length" class="empty-state">暂无待审批费用</div>
-      <div v-for="exp in pending" :key="exp.id" class="expense-card">
+       <div v-if="!pending.length" class="empty-state">暂无待审批费用</div>
+       <div v-for="exp in pending" :key="exp.id" class="expense-card">
         <div class="expense-top">
           <span class="expense-type" :class="typeClass(exp.expenseType)">{{ typeLabel(exp.expenseType) }}</span>
           <span class="expense-status" :class="statusClass(exp.status)">{{ statusLabel(exp.status) }}</span>
@@ -21,6 +21,18 @@
             <span>{{ formatTime(exp.createdAt) }}</span>
           </div>
           <div class="expense-amount">¥{{ formatMoney(exp.amount) }}</div>
+          <div v-if="exp.files && exp.files.length" class="expense-attachment">
+            <div v-for="f in exp.files" :key="f.id" class="attachment-file-row">
+              <el-link type="primary" :underline="false" @click="previewFile(f)">
+                📎 {{ f.fileName }}
+              </el-link>
+            </div>
+          </div>
+          <div v-else-if="exp.invoiceFileName" class="expense-attachment">
+            <el-link type="primary" :underline="false" @click="previewLegacyInvoice(exp)">
+              📎 附件：{{ exp.invoiceFileName }}
+            </el-link>
+          </div>
         </div>
         <div class="expense-actions">
           <el-button size="small" type="success" @click="review(exp.id, 'APPROVE')">通过</el-button>
@@ -45,6 +57,18 @@
             <span>{{ formatTime(exp.createdAt) }}</span>
           </div>
           <div class="expense-amount">¥{{ formatMoney(exp.amount) }}</div>
+          <div v-if="exp.files && exp.files.length" class="expense-attachment">
+            <div v-for="f in exp.files" :key="f.id" class="attachment-file-row">
+              <el-link type="primary" :underline="false" @click="previewFile(f)">
+                📎 {{ f.fileName }}
+              </el-link>
+            </div>
+          </div>
+          <div v-else-if="exp.invoiceFileName" class="expense-attachment">
+            <el-link type="primary" :underline="false" @click="previewLegacyInvoice(exp)">
+              📎 附件：{{ exp.invoiceFileName }}
+            </el-link>
+          </div>
         </div>
         <div class="expense-review-log">
           <span v-if="exp.jiaomiaoAction">焦淼: {{ exp.jiaomiaoAction === 'APPROVE' ? '✅ 通过' : '❌ 拒绝' }} {{ formatTime(exp.jiaomiaoAt) }}</span>
@@ -64,6 +88,20 @@
         <el-button type="danger" @click="confirmReject">确认拒绝</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="showInvoiceDialog" :title="'附件预览：' + previewingFileName" width="70%" custom-class="invoice-preview-dialog" @closed="closeInvoicePreview">
+      <div v-if="previewingType === 'image'" class="invoice-preview-image">
+        <img :src="invoicePreviewUrl" :alt="previewingFileName" style="max-width: 100%; max-height: 70vh;" />
+      </div>
+      <div v-else-if="previewingType === 'pdf'" class="invoice-preview-pdf">
+        <iframe :src="invoicePreviewUrl" style="width: 100%; height: 70vh; border: none;" />
+      </div>
+      <div v-else class="invoice-preview-other">
+        <p>此文件类型无法直接预览，请点击下方按钮在浏览器中打开：</p>
+        <p class="preview-file-name">{{ previewingFileName }}</p>
+        <el-button type="primary" @click="downloadInvoice">在浏览器中打开</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -80,7 +118,13 @@ const showRejectDialog = ref(false)
 const rejectReason = ref('')
 const rejectTargetId = ref(null)
 
-const typeLabel = t => ({ HARDWARE: '硬件采购', EXTERNAL_SERVICE: '外部技术服务', REIMBURSEMENT: '报销' }[t] || t)
+const showInvoiceDialog = ref(false)
+const previewingFileName = ref('')
+const previewingType = ref('')
+const invoicePreviewUrl = ref('')
+const previewingExpenseId = ref(null)
+
+const typeLabel = t => ({ HARDWARE: '硬件采购', EXTERNAL_SERVICE: '外部技术服务', REIMBURSEMENT: '报销', BUSINESS_MEAL: '商务餐费', NORMAL_TRAVEL: '正常差旅', PRICE_DIFF: '补差价' }[t] || t)
 const typeClass = t => `type-${t?.toLowerCase()}`
 const statusLabel = s => ({ PENDING_JIAOMIAO: '待焦淼审批', PENDING_CHENLEI: '待陈磊审批', APPROVED: '已通过', REJECTED: '已拒绝' }[s] || s)
 const statusClass = s => `status-${s?.toLowerCase()}`
@@ -147,6 +191,64 @@ const confirmReject = async () => {
   }
 }
 
+const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']
+const PDF_EXTS = ['pdf']
+
+const getFileType = fileName => {
+  if (!fileName) return 'other'
+  const ext = fileName.split('.').pop()?.toLowerCase()
+  if (IMAGE_EXTS.includes(ext)) return 'image'
+  if (PDF_EXTS.includes(ext)) return 'pdf'
+  return 'other'
+}
+
+const previewFile = async file => {
+  if (!file || !file.fileName) return
+  previewingFileName.value = file.fileName
+  previewingType.value = getFileType(file.fileName)
+  previewingExpenseId.value = file.id
+  try {
+    const blob = await request.get(`/api/projects/expenses/files/${file.id}/download`, { responseType: 'blob' })
+    invoicePreviewUrl.value = window.URL.createObjectURL(blob)
+  } catch (e) {
+    ElMessage.error('加载附件失败: ' + (e.response?.data?.message || e.message || e))
+    return
+  }
+  showInvoiceDialog.value = true
+}
+
+const previewLegacyInvoice = async exp => {
+  if (!exp.invoiceFileName) return
+  previewingFileName.value = exp.invoiceFileName
+  previewingType.value = getFileType(exp.invoiceFileName)
+  previewingExpenseId.value = exp.id
+  try {
+    const blob = await request.get(`/api/projects/expenses/${exp.id}/invoice`, { responseType: 'blob' })
+    invoicePreviewUrl.value = window.URL.createObjectURL(blob)
+  } catch (e) {
+    ElMessage.error('加载附件失败: ' + (e.response?.data?.message || e.message || e))
+    return
+  }
+  showInvoiceDialog.value = true
+}
+
+const closeInvoicePreview = () => {
+  if (invoicePreviewUrl.value) {
+    window.URL.revokeObjectURL(invoicePreviewUrl.value)
+  }
+  invoicePreviewUrl.value = ''
+  previewingExpenseId.value = null
+}
+
+const downloadInvoice = () => {
+  if (invoicePreviewUrl.value) {
+    const link = document.createElement('a')
+    link.href = invoicePreviewUrl.value
+    link.download = previewingFileName.value
+    link.click()
+  }
+}
+
 onMounted(() => {
   if (isJiaomiao.value || isChenlei.value) {
     loadData()
@@ -167,6 +269,10 @@ onMounted(() => {
 .expense-type { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
 .type-hardware { background: #e3f2fd; color: #1565c0; }
 .type-external_service { background: #f3e5f5; color: #7b1fa2; }
+.type-reimbursement { background: #fce4ec; color: #c62828; }
+.type-business_meal { background: #fff8e1; color: #e65100; }
+.type-normal_travel { background: #e8f5e9; color: #2e7d32; }
+.type-price_diff { background: #fce4ec; color: #c62828; }
 .type-reimbursement { background: #e8f5e9; color: #2e7d32; }
 .expense-status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
 .status-pending_jiaomiao, .status-pending_chenlei { background: #fff3e0; color: #e65100; }
@@ -179,4 +285,8 @@ onMounted(() => {
 .expense-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .expense-review-log { font-size: 12px; color: #64748b; display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
 .reject-reason { color: #c62828; }
+.expense-attachment { margin-top: 6px; font-size: 13px; }
+.invoice-preview-image { text-align: center; }
+.invoice-preview-other { text-align: center; padding: 20px; }
+.preview-file-name { color: #1e293b; font-weight: 600; margin: 8px 0 16px; }
 </style>

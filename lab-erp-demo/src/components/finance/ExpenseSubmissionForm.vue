@@ -92,7 +92,7 @@
         <span>支持图片、PDF、Office 文档等常见格式</span>
       </div>
       <div class="invoice-actions">
-        <input ref="invoiceInputRef" class="hidden-input" type="file" @change="handleInvoiceChange" />
+        <input ref="invoiceInputRef" class="hidden-input" type="file" accept=".jpg,.jpeg,.png,.gif,.bmp,.pdf,.ofd,.doc,.docx,.xls,.xlsx,.csv,.txt,.rar,.zip,.7z" @change="handleInvoiceChange" />
         <el-button @click="triggerInvoicePicker">选择发票</el-button>
         <el-button v-if="selectedInvoiceName" text type="danger" @click="clearInvoice">移除</el-button>
       </div>

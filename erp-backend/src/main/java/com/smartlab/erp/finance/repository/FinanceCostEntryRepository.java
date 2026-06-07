@@ -27,4 +27,8 @@ public interface FinanceCostEntryRepository extends JpaRepository<FinanceCostEnt
     @Modifying
     @Query("DELETE FROM FinanceCostEntry e WHERE e.user.role IN ('BUSINESS', 'BD')")
     int deleteByUserRoleBusinessOrBd();
+
+    @Modifying
+    @Query("DELETE FROM FinanceCostEntry e WHERE e.ledgerMonth = :ledgerMonth")
+    int deleteByLedgerMonth(@org.springframework.data.repository.query.Param("ledgerMonth") String ledgerMonth);
 }

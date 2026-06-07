@@ -50,6 +50,18 @@
       <el-button @click="triggerManualPull" :loading="pulling">手动拉取</el-button>
     </div>
 
+    <div class="filter-bar">
+      <el-date-picker
+        v-model="exportDateRange"
+        type="daterange"
+        range-separator="至"
+        start-placeholder="开始日期"
+        end-placeholder="结束日期"
+        value-format="YYYY-MM-DD"
+      />
+      <el-button type="success" @click="exportCSV" :loading="exporting" icon="Download">导出考勤</el-button>
+    </div>
+
     <!-- 数据表格 -->
     <div class="panel-card">
       <header class="section-header">
@@ -148,8 +160,10 @@ import request from '@/utils/request'
 const loading = ref(false)
 const pulling = ref(false)
 const adjusting = ref(false)
+const exporting = ref(false)
 const records = ref([])
 const dateRange = ref([])
+const exportDateRange = ref([])
 const filterUserId = ref('')
 const filterResult = ref('')
 const showAdjustDialog = ref(false)
@@ -217,6 +231,40 @@ const triggerManualPull = async () => {
   }
 }
 
+const exportCSV = async () => {
+  exporting.value = true
+  try {
+    const [from, to] = exportDateRange.value && exportDateRange.value.length === 2
+      ? exportDateRange.value
+      : [getMonthStart(), getMonthEnd()]
+    const blob = await request.get('/api/attendance/export', {
+      params: { from, to },
+      responseType: 'blob'
+    })
+    const url = window.URL.createObjectURL(new Blob([blob], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `考勤记录_${from}_${to}.csv`
+    link.click()
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (e) {
+    ElMessage.error('导出失败: ' + (e.response?.data?.message || e.message || e))
+  } finally {
+    exporting.value = false
+  }
+}
+
+const getMonthStart = () => {
+  const d = new Date()
+  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
+}
+
+const getMonthEnd = () => {
+  const d = new Date()
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10)
+}
+
 const getCheckIn = record => {
   if (!record || record.checkType !== 'OnDuty') return null
   return {
@@ -267,6 +315,7 @@ const submitAdjustment = async () => {
 
 onMounted(() => {
   initDateRange()
+  exportDateRange.value = [getMonthStart(), getMonthEnd()]
   fetchRecords()
 })
 </script>

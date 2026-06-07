@@ -27,6 +27,7 @@ import com.smartlab.erp.finance.repository.FinanceCostSummaryRepository;
 import com.smartlab.erp.finance.repository.FinanceCostBatchRepository;
 import com.smartlab.erp.finance.entity.FinanceCostSummary;
 import com.smartlab.erp.finance.entity.FinanceCostBatch;
+import com.smartlab.erp.finance.support.FinanceAmounts;
 import com.smartlab.erp.security.RbacService;
 import com.smartlab.erp.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,7 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -117,6 +119,7 @@ public class ProjectService {
     private final FinanceCostBatchRepository costBatchRepository;
     private final ProjectCostAdjustmentRepository costAdjustmentRepository;
     private final ProjectExpenseRepository expenseRepository;
+    private final ProjectExpenseFileRepository expenseFileRepository;
     private final JdbcTemplate jdbcTemplate;
 
     @Value("${file.upload-dir:./uploads}")
@@ -1987,7 +1990,7 @@ public class ProjectService {
     private static final String CHENLEI_ID = "000044";
 
     @Transactional
-    public Map<String, Object> submitProjectExpense(String projectId, SubmitProjectExpenseRequest request, MultipartFile invoiceFile) {
+    public Map<String, Object> submitProjectExpense(String projectId, SubmitProjectExpenseRequest request, List<MultipartFile> invoiceFiles) {
         UserPrincipal currentUser = AuthUtils.getCurrentUserPrincipal();
         if (currentUser == null) {
             throw new PermissionDeniedException("用户未登录或会话已过期");
@@ -2027,21 +2030,37 @@ public class ProjectService {
                 .status(ProjectExpenseStatus.PENDING_JIAOMIAO)
                 .build();
 
-        if (invoiceFile != null && !invoiceFile.isEmpty()) {
+        if (invoiceFiles != null && !invoiceFiles.isEmpty()) {
+            List<ProjectExpenseFile> files = new ArrayList<>();
             try {
-                String originalFilename = invoiceFile.getOriginalFilename();
-                String ext = originalFilename != null && originalFilename.contains(".")
-                        ? originalFilename.substring(originalFilename.lastIndexOf("."))
-                        : "";
-                String storedName = UUID.randomUUID() + ext;
                 Path uploadPath = Paths.get(uploadDir, "project-expenses");
                 Files.createDirectories(uploadPath);
-                Path targetFile = uploadPath.resolve(storedName);
-                invoiceFile.transferTo(targetFile.toFile());
-                expense.setInvoiceFileName(originalFilename);
-                expense.setInvoiceFilePath(targetFile.toString());
-                expense.setInvoiceContentType(invoiceFile.getContentType());
-                expense.setInvoiceFileSize(invoiceFile.getSize());
+                for (int i = 0; i < invoiceFiles.size(); i++) {
+                    MultipartFile file = invoiceFiles.get(i);
+                    if (file == null || file.isEmpty()) continue;
+                    String originalFilename = file.getOriginalFilename();
+                    String ext = originalFilename != null && originalFilename.contains(".")
+                            ? originalFilename.substring(originalFilename.lastIndexOf("."))
+                            : "";
+                    String storedName = UUID.randomUUID() + ext;
+                    Path targetFile = uploadPath.resolve(storedName);
+                    file.transferTo(targetFile.toFile());
+                    ProjectExpenseFile expenseFile = ProjectExpenseFile.builder()
+                            .expense(expense)
+                            .fileName(originalFilename)
+                            .filePath(targetFile.toString())
+                            .contentType(file.getContentType())
+                            .fileSize(file.getSize())
+                            .build();
+                    files.add(expenseFile);
+                    if (i == 0) {
+                        expense.setInvoiceFileName(originalFilename);
+                        expense.setInvoiceFilePath(targetFile.toString());
+                        expense.setInvoiceContentType(file.getContentType());
+                        expense.setInvoiceFileSize(file.getSize());
+                    }
+                }
+                expense.setFiles(files);
             } catch (IOException e) {
                 throw new BusinessException("发票文件上传失败: " + e.getMessage());
             }
@@ -2053,6 +2072,9 @@ public class ProjectService {
             case HARDWARE -> "硬件采购";
             case EXTERNAL_SERVICE -> "外部技术服务";
             case REIMBURSEMENT -> "报销";
+            case BUSINESS_MEAL -> "商务餐费";
+            case NORMAL_TRAVEL -> "正常差旅";
+            case PRICE_DIFF -> "补差价";
         };
         internalMessageService.sendMessage(
                 JIAOMIAO_ID,
@@ -2114,6 +2136,13 @@ public class ProjectService {
                     "EXPENSE_PENDING",
                     "新的费用审批",
                     expense.getProjectName() + " 提交了费用：¥" + expense.getAmount() + "（" + expense.getItemName() + "），焦淼已通过，请您审批。",
+                    expense.getProjectId()
+            );
+            internalMessageService.sendMessage(
+                    expense.getSubmitterUserId(),
+                    "EXPENSE_STATUS",
+                    "费用审批进展",
+                    "您在 " + expense.getProjectName() + " 提交的费用 ¥" + expense.getAmount() + "（" + expense.getItemName() + "）已由焦淼审批通过，等待陈磊审批。",
                     expense.getProjectId()
             );
         } else {
@@ -2247,9 +2276,95 @@ public class ProjectService {
         return costAdjustmentRepository.findAllByOrderByCreatedAtDesc();
     }
 
+    public record CostBreakdown(BigDecimal humanCost, BigDecimal procurementCost,
+                                BigDecimal externalServiceCost, BigDecimal businessTravelCost,
+                                BigDecimal adjustmentCost) {}
+
+    @Transactional(readOnly = true)
+    public CostBreakdown getProjectCostBreakdown(String projectId, BigDecimal humanCost) {
+        List<ProjectExpense> expenses = expenseRepository.findByProjectIdOrderByCreatedAtDesc(projectId).stream()
+                .filter(e -> e.getStatus() == com.smartlab.erp.enums.ProjectExpenseStatus.APPROVED)
+                .toList();
+
+        BigDecimal procurement = BigDecimal.ZERO;
+        BigDecimal external = BigDecimal.ZERO;
+        BigDecimal bizTravel = BigDecimal.ZERO;
+
+        for (ProjectExpense e : expenses) {
+            BigDecimal amt = e.getAmount() != null ? e.getAmount() : BigDecimal.ZERO;
+            switch (e.getExpenseType()) {
+                case HARDWARE -> procurement = procurement.add(amt);
+                case EXTERNAL_SERVICE -> external = external.add(amt);
+                case REIMBURSEMENT, BUSINESS_MEAL, NORMAL_TRAVEL, PRICE_DIFF -> bizTravel = bizTravel.add(amt);
+            }
+        }
+
+        BigDecimal adjustment = BigDecimal.ZERO;
+        for (ProjectCostAdjustment adj : costAdjustmentRepository.findByProjectIdOrderByCreatedAtDesc(projectId)) {
+            BigDecimal adjAmt = adj.getAmount() != null ? adj.getAmount() : BigDecimal.ZERO;
+            adjustment = adjustment.add(adjAmt);
+        }
+
+        BigDecimal hc = humanCost != null ? humanCost : BigDecimal.ZERO;
+        BigDecimal procurementScaled = FinanceAmounts.scale(procurement);
+        BigDecimal externalScaled = FinanceAmounts.scale(external);
+        BigDecimal bizTravelScaled = FinanceAmounts.scale(bizTravel);
+        BigDecimal adjustmentScaled = FinanceAmounts.scale(adjustment);
+
+        return new CostBreakdown(hc, procurementScaled, externalScaled, bizTravelScaled, adjustmentScaled);
+    }
+
     @Transactional(readOnly = true)
     public List<FinanceCostBatch> getBatchLog() {
         return costBatchRepository.findAll();
+    }
+
+    public record ExpenseInvoicePayload(String fileName, String contentType, Long fileSize, byte[] bytes) {}
+
+    public ExpenseInvoicePayload loadExpenseInvoice(Long expenseId) {
+        ProjectExpense expense = expenseRepository.findById(expenseId)
+                .orElseThrow(() -> new BusinessException("费用记录不存在"));
+        try {
+            byte[] bytes = Files.readAllBytes(Path.of(expense.getInvoiceFilePath()));
+            return new ExpenseInvoicePayload(
+                    expense.getInvoiceFileName(),
+                    expense.getInvoiceContentType(),
+                    expense.getInvoiceFileSize(),
+                    bytes
+            );
+        } catch (IOException ex) {
+            throw new BusinessException("发票文件不存在或无法读取");
+        }
+    }
+
+    public ExpenseInvoicePayload loadExpenseFile(Long fileId) {
+        ProjectExpenseFile file = expenseFileRepository.findById(fileId)
+                .orElseThrow(() -> new BusinessException("附件不存在"));
+        try {
+            byte[] bytes = Files.readAllBytes(Path.of(file.getFilePath()));
+            return new ExpenseInvoicePayload(
+                    file.getFileName(),
+                    file.getContentType(),
+                    file.getFileSize(),
+                    bytes
+            );
+        } catch (IOException ex) {
+            throw new BusinessException("附件文件不存在或无法读取");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public long getPendingExpenseCount() {
+        UserPrincipal currentUser = AuthUtils.getCurrentUserPrincipal();
+        if (currentUser == null) return 0;
+        String uid = currentUser.getId();
+        if (!JIAOMIAO_ID.equals(uid) && !CHENLEI_ID.equals(uid)) return 0;
+
+        boolean isJiaomiao = JIAOMIAO_ID.equals(uid);
+        if (isJiaomiao) {
+            return expenseRepository.countByStatus(ProjectExpenseStatus.PENDING_JIAOMIAO);
+        }
+        return expenseRepository.countByStatus(ProjectExpenseStatus.PENDING_CHENLEI);
     }
 
     private ProjectSubtaskResponse toSubtaskResponse(ProjectSubtask task) {

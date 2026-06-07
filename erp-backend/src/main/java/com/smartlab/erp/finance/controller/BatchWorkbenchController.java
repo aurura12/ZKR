@@ -13,6 +13,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -105,6 +106,14 @@ public class BatchWorkbenchController {
             @RequestParam(required = false) String note) {
         return ok(FinanceApiResponse.success("project control updated",
                 batchControlService.updateProjectCostControl(projectId, enabled, priority, note)));
+    }
+
+    @PostMapping("/rebuild/{ledgerMonth}")
+    @PreAuthorize("isAuthenticated() and (hasRole('ADMIN') or hasAuthority('SCOPE_system') or principal.accountDomain == T(com.smartlab.erp.enums.AccountDomain).FINANCE)")
+    public ResponseEntity<FinanceApiResponse<Map<String, Object>>> rebuildMonth(@PathVariable String ledgerMonth) {
+        var result = financeCostBatchService.rebuildMonth(ledgerMonth);
+        return ok(FinanceApiResponse.success("month rebuilt: " + ledgerMonth, 
+                Map.of("batchId", result.getBatchId(), "records", result.getGeneratedRecordCount())));
     }
 
     private <T> ResponseEntity<FinanceApiResponse<T>> ok(FinanceApiResponse<T> response) {

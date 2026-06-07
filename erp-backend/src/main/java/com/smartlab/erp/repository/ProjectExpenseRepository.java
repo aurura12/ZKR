@@ -18,4 +18,6 @@ public interface ProjectExpenseRepository extends JpaRepository<ProjectExpense, 
 
     @Query("SELECT e FROM ProjectExpense e WHERE e.jiaomiaoAction IS NOT NULL OR e.chenleiAction IS NOT NULL ORDER BY e.updatedAt DESC")
     List<ProjectExpense> findAllReviewed();
+
+    long countByStatus(ProjectExpenseStatus status);
 }
