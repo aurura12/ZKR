@@ -17,6 +17,7 @@ import LeaderDashboardView from '../views/LeaderDashboardView.vue'
 import LeaderManagementView from '../views/LeaderManagementView.vue'
 import WageManagementView from '../views/WageManagementView.vue'
 import ExpenseReviewView from '../views/finance/ExpenseReviewView.vue'
+import MeetingCenterView from '../views/MeetingCenterView.vue'
 
 
 
@@ -119,6 +120,16 @@ const router = createRouter({
       path: '/erp/personal-procurement',
       name: 'personal-procurement',
       component: PersonalProcurementView,
+      meta: {
+        requiresAuth: true,
+        routeDomain: DOMAIN_ERP
+      }
+    },
+    // === 会议中心 ===
+    {
+      path: '/meetings',
+      name: 'meeting-center',
+      component: MeetingCenterView,
       meta: {
         requiresAuth: true,
         routeDomain: DOMAIN_ERP

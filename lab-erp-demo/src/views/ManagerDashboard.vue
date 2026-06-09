@@ -8,6 +8,15 @@
 
       <div class="header-right">
         <el-button
+            type="info"
+            size="large"
+            @click="$router.push('/meetings')"
+            style="font-weight: bold; border-radius: 8px; padding: 12px 24px; margin-right: 8px;"
+        >
+          <el-icon style="margin-right: 6px"><VideoCamera /></el-icon>
+          会议中心
+        </el-button>
+        <el-button
             v-if="isAdmin"
             type="danger"
             size="large"
@@ -190,7 +199,7 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import request from '@/utils/request'
 
 import * as echarts from 'echarts'
-import { Plus,User,Setting } from '@element-plus/icons-vue'
+import { Plus,User,Setting,VideoCamera } from '@element-plus/icons-vue'
 import ProjectDetail from '@/views/ProjectDetail.vue'
 import { useRouter } from "vue-router" // 修正：组件内通常用 useRouter
 import { useUserStore } from '@/stores/userStore'

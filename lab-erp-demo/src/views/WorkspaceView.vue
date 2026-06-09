@@ -7,6 +7,13 @@
         <div class="subtitle">共 {{ projects.length }} 个项目 · {{ responsibilityStats.ratio }} 主控</div>
       </div>
 
+      <div class="quick-links">
+        <router-link to="/meetings" class="quick-link-item">
+          <el-icon><VideoCamera /></el-icon>
+          <span>会议中心</span>
+        </router-link>
+      </div>
+
       <div class="project-list">
         <div v-for="p in projects" :key="p.projectId"
              class="nav-item"
@@ -66,6 +73,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { VideoCamera } from '@element-plus/icons-vue'
 
 // 🟢 1. 核心修改：删掉原来的 import API，改成直接引入 request 工具
 import request from '@/utils/request'
@@ -293,6 +301,30 @@ const resolveManagerName = (project) => {
   font-size: 11px;
   color: var(--text-sub);
   font-weight: 500;
+}
+
+/* --- 快捷链接 --- */
+.quick-links {
+  margin-bottom: 16px;
+  padding: 0 8px;
+}
+
+.quick-link-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: var(--text-main);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.quick-link-item:hover {
+  background: var(--science-hover);
+  color: var(--primary);
 }
 
 /* --- 项目列表区 --- */

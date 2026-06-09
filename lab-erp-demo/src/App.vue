@@ -11,7 +11,7 @@
 
     <div v-if="showAuthenticatedNavbar" class="tech-navbar">
       <div class="nav-left">
-        <div class="logo-box">
+        <div class="logo-box" style="cursor: pointer;" @click="goHome">
           <span class="logo-icon">♟️</span>
           <span class="logo-text">智能博弈实验室</span>
         </div>
@@ -180,6 +180,14 @@ const applyTheme = (value) => {
   document.documentElement.classList.toggle('dark', finalTheme === 'dark')
   document.documentElement.setAttribute('data-theme', finalTheme)
   localStorage.setItem('app-theme', finalTheme)
+}
+
+const goHome = () => {
+  if (userStore.isErpLoggedIn) {
+    router.push('/manager/dashboard')
+  } else {
+    router.push('/login')
+  }
 }
 
 const toggleTheme = () => {
