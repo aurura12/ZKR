@@ -155,7 +155,7 @@ const fetchMeetings = async () => {
 
 const fetchUsers = async () => {
   try {
-    const res = await request.get('/api/users')
+    const res = await request.get('/api/meetings/mapped-users')
     userList.value = res.data || []
   } catch (e) {
     console.error('获取用户列表失败', e)

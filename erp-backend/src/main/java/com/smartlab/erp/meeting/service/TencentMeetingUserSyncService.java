@@ -210,6 +210,25 @@ public class TencentMeetingUserSyncService {
         }
     }
 
+    /**
+     * 获取已映射的腾讯会议用户列表（供参会人选单使用）
+     */
+    public List<Map<String, String>> getMappedUsers() {
+        return mappingRepository.findAll().stream()
+                .map(mapping -> {
+                    Map<String, String> item = new java.util.LinkedHashMap<>();
+                    item.put("userId", mapping.getErpUserId());
+                    item.put("tencentUserId", mapping.getTencentUserId());
+                    // 从 ERP 用户表查姓名
+                    String name = userRepository.findById(mapping.getErpUserId())
+                            .map(User::getName)
+                            .orElse(mapping.getErpUserId());
+                    item.put("name", name);
+                    return item;
+                })
+                .collect(java.util.stream.Collectors.toList());
+    }
+
     private String urlEncode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }

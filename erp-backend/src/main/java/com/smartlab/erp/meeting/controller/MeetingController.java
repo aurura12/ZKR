@@ -83,6 +83,18 @@ public class MeetingController {
     }
 
     /**
+     * 获取已映射的腾讯会议用户列表（用于参会人选单）
+     */
+    @GetMapping("/mapped-users")
+    public ResponseEntity<Map<String, Object>> getMappedUsers() {
+        List<Map<String, String>> users = userSyncService.getMappedUsers();
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "data", users
+        ));
+    }
+
+    /**
      * 手动触发腾讯会议用户同步：拉取腾讯会议用户列表，按手机号匹配钉钉目录，自动建立映射
      */
     @PostMapping("/sync-users")
