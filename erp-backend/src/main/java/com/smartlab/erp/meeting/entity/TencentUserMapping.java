@@ -23,6 +23,9 @@ public class TencentUserMapping {
     @Column(name = "tencent_user_id", nullable = false, length = 128)
     private String tencentUserId;
 
+    @Column(name = "tencent_username", length = 128)
+    private String tencentUsername;
+
     @Column(name = "phone", length = 32)
     private String phone;
 

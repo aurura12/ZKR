@@ -10,4 +10,6 @@ import java.util.Optional;
 public interface TencentUserMappingRepository extends JpaRepository<TencentUserMapping, String> {
 
     Optional<TencentUserMapping> findByErpUserId(String erpUserId);
+
+    Optional<TencentUserMapping> findByTencentUserId(String tencentUserId);
 }

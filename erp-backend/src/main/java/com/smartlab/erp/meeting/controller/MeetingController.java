@@ -95,6 +95,18 @@ public class MeetingController {
     }
 
     /**
+     * 直接从腾讯会议拉取所有用户（创建会议时选择参会人）
+     */
+    @GetMapping("/tm-users")
+    public ResponseEntity<Map<String, Object>> listTmUsers() {
+        List<Map<String, String>> users = userSyncService.listAllTmUsers();
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "data", users
+        ));
+    }
+
+    /**
      * 手动触发腾讯会议用户同步：拉取腾讯会议用户列表，按手机号匹配钉钉目录，自动建立映射
      */
     @PostMapping("/sync-users")

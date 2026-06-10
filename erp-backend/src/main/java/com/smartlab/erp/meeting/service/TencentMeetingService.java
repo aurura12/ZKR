@@ -74,10 +74,19 @@ public class TencentMeetingService {
             // 2. 调用腾讯会议 API
             JsonNode responseNode = invokeMeetingApi("创建会议", "/v1/meetings", payload, false);
 
-            // 3. 解析响应
-            String meetingId = responseNode.path("meeting_id").asText();
-            String joinUrl = responseNode.path("join_url").asText();
-            String password = responseNode.has("password") ? responseNode.path("password").asText() : request.getPassword();
+            // 3. 解析响应（V1 API 的 meeting_id 在 meeting_info_list[0] 中）
+            JsonNode meetingInfo = responseNode.path("meeting_info_list").get(0);
+            if (meetingInfo == null) {
+                log.error("[TencentMeeting] 响应中缺少 meeting_info_list，完整响应: {}", responseNode);
+                throw new TencentMeetingException("创建会议", "响应格式异常，缺少 meeting_info_list", null, null);
+            }
+            String meetingId = meetingInfo.path("meeting_id").asText();
+            if (meetingId == null || meetingId.isBlank()) {
+                log.error("[TencentMeeting] 腾讯会议返回的meeting_id为空，完整响应: {}", responseNode);
+                throw new TencentMeetingException("创建会议", "腾讯会议返回的meeting_id为空", null, null);
+            }
+            String joinUrl = meetingInfo.path("join_url").asText();
+            String password = meetingInfo.has("password") ? meetingInfo.path("password").asText() : request.getPassword();
 
             // 4. 保存到本地数据库
             MeetingRecord record = MeetingRecord.builder()
@@ -142,6 +151,29 @@ public class TencentMeetingService {
     @Transactional
     public void cancelMeeting(Long id) {
         MeetingRecord record = getMeetingDetail(id);
+
+        // 调腾讯会议 API 取消会议
+        try {
+            String meetingId = record.getMeetingId();
+            if (meetingId != null) {
+                // 查创建人的腾讯会议 userid
+                String tencentUserId = tencentUserMappingRepository.findByErpUserId(record.getCreatorId())
+                        .map(TencentUserMapping::getTencentUserId)
+                        .orElse(record.getCreatorId());
+
+                Map<String, Object> cancelPayload = new LinkedHashMap<>();
+                cancelPayload.put("userid", tencentUserId);
+                cancelPayload.put("instanceid", 1);
+                cancelPayload.put("reason_code", 1);
+                cancelPayload.put("reason_detail", "用户在ERP系统取消会议");
+
+                invokeMeetingApi("取消会议", "/v1/meetings/" + meetingId + "/cancel", cancelPayload, false);
+                log.info("[TencentMeeting] Remote meeting cancelled: meetingId={}", meetingId);
+            }
+        } catch (Exception e) {
+            log.warn("[TencentMeeting] 远程取消会议失败, 仅更新本地状态: {}", e.getMessage());
+        }
+
         record.setStatus("CANCELLED");
         meetingRecordRepository.save(record);
         log.info("[TencentMeeting] Meeting cancelled: id={}", id);
@@ -248,15 +280,25 @@ public class TencentMeetingService {
     public MeetingResponse convertToResponse(MeetingRecord record) {
         List<MeetingParticipant> participants = meetingParticipantRepository.findByMeetingRecordId(record.getId());
 
-        String creatorName = userRepository.findById(record.getCreatorId())
-                .map(User::getName)
-                .orElse("未知");
+        // 创建人名称：优先展示腾讯会议用户名
+        String creatorName = tencentUserMappingRepository.findByErpUserId(record.getCreatorId())
+                .map(TencentUserMapping::getTencentUsername)
+                .filter(name -> name != null && !name.isBlank())
+                .orElseGet(() -> userRepository.findById(record.getCreatorId())
+                        .map(User::getName)
+                        .orElse("未知"));
 
         List<MeetingResponse.ParticipantInfo> participantInfos = participants.stream()
                 .map(p -> {
-                    String userName = userRepository.findById(p.getUserId())
-                            .map(User::getName)
-                            .orElse("未知用户");
+                    String userName = tencentUserMappingRepository.findByErpUserId(p.getUserId())
+                            .map(TencentUserMapping::getTencentUsername)
+                            .filter(name -> name != null && !name.isBlank())
+                            .orElseGet(() -> tencentUserMappingRepository.findByTencentUserId(p.getUserId())
+                                    .map(TencentUserMapping::getTencentUsername)
+                                    .filter(name -> name != null && !name.isBlank())
+                                    .orElseGet(() -> userRepository.findById(p.getUserId())
+                                            .map(User::getName)
+                                            .orElse(p.getUserId())));
                     return MeetingResponse.ParticipantInfo.builder()
                             .userId(p.getUserId())
                             .userName(userName)

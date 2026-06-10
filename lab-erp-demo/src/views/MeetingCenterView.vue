@@ -19,7 +19,9 @@
     </div>
 
     <!-- 会议列表 -->
-    <el-table :data="meetingList" v-loading="loading" stripe>
+    <el-table :data="meetingList" v-loading="loading" stripe
+              highlight-current-row @row-click="showDetail"
+              style="cursor: pointer">
       <el-table-column prop="topic" label="会议主题" min-width="200" />
       <el-table-column prop="startTime" label="开始时间" width="180">
         <template #default="{ row }">
@@ -29,7 +31,7 @@
       <el-table-column prop="duration" label="时长(分钟)" width="100" />
       <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
+          <el-tag :type="getStatusType(row.status, row)">{{ getStatusText(row.status, row) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="creatorName" label="创建人" width="120" />
@@ -40,16 +42,16 @@
       </el-table-column>
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
-          <el-button v-if="row.status === 'SCHEDULED'" type="primary" link @click="joinMeeting(row)">
+          <el-button v-if="row.status === 'SCHEDULED'" type="primary" link @click.stop="joinMeeting(row)">
             加入会议
           </el-button>
-          <el-button v-if="row.status === 'STARTED'" type="success" link @click="joinMeeting(row)">
+          <el-button v-if="row.status === 'STARTED'" type="success" link @click.stop="joinMeeting(row)">
             正在进行
           </el-button>
-          <el-button v-if="row.status === 'SCHEDULED'" type="warning" link @click="handleCancel(row)">
+          <el-button v-if="row.status === 'SCHEDULED'" type="warning" link @click.stop="handleCancel(row)">
             取消
           </el-button>
-          <el-button v-if="row.status === 'STARTED'" type="danger" link @click="handleEnd(row)">
+          <el-button v-if="row.status === 'STARTED'" type="danger" link @click.stop="handleEnd(row)">
             结束
           </el-button>
         </template>
@@ -113,6 +115,42 @@
         <el-button type="primary" @click="submitCreate" :loading="creating">创建</el-button>
       </template>
     </el-dialog>
+
+    <!-- 会议详情弹窗 -->
+    <el-dialog v-model="showDetailDialog" title="会议详情" width="600px">
+      <template v-if="currentMeeting">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="会议主题">{{ currentMeeting.topic }}</el-descriptions-item>
+          <el-descriptions-item label="开始时间">{{ formatTime(currentMeeting.startTime) }}</el-descriptions-item>
+          <el-descriptions-item label="时长">{{ currentMeeting.duration }} 分钟</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="getStatusType(currentMeeting.status, currentMeeting)">{{ getStatusText(currentMeeting.status, currentMeeting) }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="创建人">{{ currentMeeting.creatorName }}</el-descriptions-item>
+          <el-descriptions-item label="会议号">{{ currentMeeting.meetingId || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="会议密码">{{ currentMeeting.password || '无' }}</el-descriptions-item>
+          <el-descriptions-item label="参会人">
+            <div v-if="currentMeeting.participants && currentMeeting.participants.length">
+              <el-tag v-for="p in currentMeeting.participants" :key="p.userId"
+                      style="margin: 2px 4px 2px 0">
+                {{ p.userName }}
+              </el-tag>
+            </div>
+            <span v-else>—</span>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="currentMeeting.description" label="描述">{{ currentMeeting.description }}</el-descriptions-item>
+          <el-descriptions-item v-if="currentMeeting.recordingUrl" label="录制回放">
+            <a :href="currentMeeting.recordingUrl" target="_blank">查看回放</a>
+          </el-descriptions-item>
+        </el-descriptions>
+      </template>
+      <template #footer>
+        <el-button type="primary" v-if="currentMeeting?.joinUrl" @click="joinMeeting(currentMeeting)">
+          加入会议
+        </el-button>
+        <el-button @click="showDetailDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -125,6 +163,8 @@ import request from '@/utils/request'
 const loading = ref(false)
 const creating = ref(false)
 const showCreateDialog = ref(false)
+const showDetailDialog = ref(false)
+const currentMeeting = ref(null)
 const meetingList = ref([])
 const userList = ref([])
 const filterStatus = ref('')
@@ -155,7 +195,7 @@ const fetchMeetings = async () => {
 
 const fetchUsers = async () => {
   try {
-    const res = await request.get('/api/meetings/mapped-users')
+    const res = await request.get('/api/meetings/tm-users')
     userList.value = res.data || []
   } catch (e) {
     console.error('获取用户列表失败', e)
@@ -197,6 +237,11 @@ const submitCreate = async () => {
   }
 }
 
+const showDetail = (meeting) => {
+  currentMeeting.value = meeting
+  showDetailDialog.value = true
+}
+
 const joinMeeting = (meeting) => {
   if (meeting.joinUrl) {
     window.open(meeting.joinUrl, '_blank')
@@ -207,7 +252,17 @@ const joinMeeting = (meeting) => {
 
 const handleCancel = async (meeting) => {
   try {
-    await ElMessageBox.confirm('确定要取消该会议吗？', '确认取消', { type: 'warning' })
+    await ElMessageBox.confirm(
+      '确定要取消该会议吗？会同时在腾讯会议中取消。',
+      '确认取消',
+      {
+        type: 'warning',
+        distinguishCancelAndClose: true,
+        confirmButtonText: '取消会议',
+        cancelButtonText: '保留会议',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
     await cancelMeeting(meeting.id)
     ElMessage.success('会议已取消')
     fetchMeetings()
@@ -236,12 +291,22 @@ const formatTime = (time) => {
   return new Date(time).toLocaleString('zh-CN')
 }
 
-const getStatusType = (status) => {
+const getStatusType = (status, row) => {
+  if (status === 'SCHEDULED' && row.startTime) {
+    const endTime = new Date(row.startTime).getTime() + (row.duration || 0) * 60000
+    if (Date.now() > endTime) return 'danger'
+    if (Date.now() > new Date(row.startTime).getTime()) return 'success'
+  }
   const map = { SCHEDULED: 'info', STARTED: 'success', ENDED: '', CANCELLED: 'danger' }
   return map[status] || 'info'
 }
 
-const getStatusText = (status) => {
+const getStatusText = (status, row) => {
+  if (status === 'SCHEDULED' && row.startTime) {
+    const endTime = new Date(row.startTime).getTime() + (row.duration || 0) * 60000
+    if (Date.now() > endTime) return '已过期'
+    if (Date.now() > new Date(row.startTime).getTime()) return '进行中'
+  }
   const map = { SCHEDULED: '待开始', STARTED: '进行中', ENDED: '已结束', CANCELLED: '已取消' }
   return map[status] || status
 }

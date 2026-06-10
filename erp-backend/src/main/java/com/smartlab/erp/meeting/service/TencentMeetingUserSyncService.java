@@ -128,6 +128,7 @@ public class TencentMeetingUserSyncService {
                     for (JsonNode userNode : usersNode) {
                         totalTmUsers++;
                         String tmUserId = userNode.path("userid").asText();
+                        String tmUserName = userNode.path("username").asText("");
                         String phone = userNode.path("phone").asText(null);
 
                         if (phone == null || phone.isBlank()) {
@@ -143,7 +144,7 @@ public class TencentMeetingUserSyncService {
                         if (userOpt.isPresent()) {
                             String erpUserId = userOpt.get().getUserId();
                             // 7. 写入/更新映射
-                            saveMapping(erpUserId, tmUserId, cleanPhone);
+                            saveMapping(erpUserId, tmUserId, tmUserName, cleanPhone);
                             matched++;
                             log.info("[TencentMeetingSync] 匹配成功: ERP={} → TM={} (手机号={})", erpUserId, tmUserId, cleanPhone);
                         } else {
@@ -191,11 +192,12 @@ public class TencentMeetingUserSyncService {
     /**
      * 写入或更新映射
      */
-    private void saveMapping(String erpUserId, String tmUserId, String phone) {
+    private void saveMapping(String erpUserId, String tmUserId, String tmUserName, String phone) {
         Optional<TencentUserMapping> existing = mappingRepository.findByErpUserId(erpUserId);
         if (existing.isPresent()) {
             TencentUserMapping mapping = existing.get();
             mapping.setTencentUserId(tmUserId);
+            mapping.setTencentUsername(tmUserName);
             mapping.setPhone(phone);
             mapping.setUpdatedAt(Instant.now());
             mappingRepository.save(mapping);
@@ -203,6 +205,7 @@ public class TencentMeetingUserSyncService {
             TencentUserMapping mapping = TencentUserMapping.builder()
                     .erpUserId(erpUserId)
                     .tencentUserId(tmUserId)
+                    .tencentUsername(tmUserName)
                     .phone(phone)
                     .remark("通过手机号自动同步")
                     .build();
@@ -219,14 +222,80 @@ public class TencentMeetingUserSyncService {
                     Map<String, String> item = new java.util.LinkedHashMap<>();
                     item.put("userId", mapping.getErpUserId());
                     item.put("tencentUserId", mapping.getTencentUserId());
-                    // 从 ERP 用户表查姓名
-                    String name = userRepository.findById(mapping.getErpUserId())
-                            .map(User::getName)
-                            .orElse(mapping.getErpUserId());
+                    // 优先显示腾讯会议用户名，没有则用 ERP 用户名兜底
+                    String name = mapping.getTencentUsername();
+                    if (name == null || name.isBlank()) {
+                        name = userRepository.findById(mapping.getErpUserId())
+                                .map(User::getName)
+                                .orElse(mapping.getErpUserId());
+                    }
                     item.put("name", name);
                     return item;
                 })
                 .collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * 直接从腾讯会议拉取所有用户列表（用于创建会议时选择参会人）
+     */
+    public List<Map<String, String>> listAllTmUsers() {
+        String operatorId = resolveOperatorId();
+        if (operatorId == null) return List.of();
+
+        List<Map<String, String>> result = new ArrayList<>();
+        String pos = "";
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+
+        try {
+            do {
+                String queryString = "operator_id=" + urlEncode(operatorId)
+                        + "&operator_id_type=1"
+                        + "&size=" + PAGE_SIZE;
+                if (!pos.isEmpty()) {
+                    queryString += "&pos=" + urlEncode(pos);
+                }
+                String fullUrl = "/v1/users/advance/list?" + queryString;
+
+                Map<String, String> headers = signatureService.generateCommonHeaders();
+                String signature = signatureService.calculateSignature("GET", fullUrl, "", headers);
+
+                HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                        .uri(URI.create(config.getApiBaseUrl() + fullUrl))
+                        .timeout(Duration.ofSeconds(30))
+                        .header("Content-Type", "application/json")
+                        .header("AppId", headers.get("AppId"))
+                        .header("X-TC-Key", headers.get("X-TC-Key"))
+                        .header("X-TC-Timestamp", headers.get("X-TC-Timestamp"))
+                        .header("X-TC-Nonce", headers.get("X-TC-Nonce"))
+                        .header("X-TC-Signature", signature)
+                        .header("X-TC-Registered", "1");
+                if (headers.containsKey("SdkId")) {
+                    requestBuilder.header("SdkId", headers.get("SdkId"));
+                }
+                HttpResponse<String> response = client.send(requestBuilder.GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+
+                if (response.statusCode() < 200 || response.statusCode() >= 300) break;
+
+                JsonNode root = MAPPER.readTree(response.body());
+                JsonNode usersNode = root.get("users");
+                if (usersNode != null && usersNode.isArray()) {
+                    for (JsonNode userNode : usersNode) {
+                        Map<String, String> item = new java.util.LinkedHashMap<>();
+                        item.put("userId", userNode.path("userid").asText());
+                        item.put("name", userNode.path("username").asText());
+                        result.add(item);
+                    }
+                }
+                boolean hasRemaining = root.path("has_remaining").asBoolean(false);
+                pos = hasRemaining ? root.path("next_pos").asText("") : "";
+            } while (!pos.isEmpty());
+        } catch (Exception e) {
+            log.warn("[TencentMeetingSync] 拉取腾讯会议用户列表异常", e);
+        }
+        return result;
     }
 
     private String urlEncode(String value) {
