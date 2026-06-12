@@ -57,6 +57,7 @@
               <el-dropdown-item command="profile">👤 个人中心</el-dropdown-item>
               <el-dropdown-item v-if="showProvisionUserAction" command="provision-user">🪪 创建账号</el-dropdown-item>
               <el-dropdown-item v-if="showProvisionUserAction" command="wage-management">💰 工资管理</el-dropdown-item>
+              <el-dropdown-item v-if="showServerManagementEntry" command="server-management">🖥️ 服务器管理</el-dropdown-item>
               <el-dropdown-item v-if="showExpenseReviewEntry" command="expense-review">
                 📋 费用审批
                 <span v-if="pendingExpenseCount > 0" class="mail-count expense-badge">+{{ pendingExpenseCount > 99 ? '99+' : pendingExpenseCount }}</span>
@@ -72,9 +73,9 @@
       </div>
     </div>
 
-    <router-view v-slot="{ Component }">
+    <router-view v-slot="{ Component, route: r }">
       <transition name="fade-scale" mode="out-in">
-        <component :is="Component" :key="$route.fullPath" />
+        <component :is="Component" :key="r.matched[0]?.path || r.path.split('/')[1]" />
       </transition>
     </router-view>
 
@@ -179,6 +180,10 @@ const showProvisionUserAction = computed(() => userStore.isErpLoggedIn && canAcc
 const showExpenseReviewEntry = computed(() => {
   const uid = String(userStore.activeUserInfo?.userId || '')
   return uid === '000027' || uid === '000044'
+})
+
+const showServerManagementEntry = computed(() => {
+  return userStore.isErpLoggedIn && Boolean(userStore.activeUserInfo?.serverOpsAdmin)
 })
 const showFullscreenCockpitEntry = computed(() => activeDomain.value === 'FINANCE' && canAccessFinance.value)
 const showMessageDrawer = ref(false)
@@ -446,6 +451,7 @@ const handleCommand = (cmd) => {
   else if (cmd === 'profile') router.push('/profile')
   else if (cmd === 'provision-user') router.push('/admin/users/create')
   else if (cmd === 'wage-management') router.push('/admin/wage-management')
+  else if (cmd === 'server-management') router.push('/admin/server-management')
   else if (cmd === 'expense-review') router.push('/expense-review')
   else if (cmd === 'award-badge') openBadgeDialog()
   else if (cmd === 'fullscreen-cockpit') {
