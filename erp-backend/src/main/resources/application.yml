@@ -1,5 +1,8 @@
 server:
   port: 8101
+  mgmt:
+    api:
+      base-url: ${SERVER_MGMT_API_BASE_URL:http://server-mgmt-api:17000}
 
 spring:
   jackson:
@@ -73,3 +76,4 @@ finance:
 dingtalk:
   app-key: ${DINGTALK_APP_KEY:}
   app-secret: ${DINGTALK_APP_SECRET:}
+
