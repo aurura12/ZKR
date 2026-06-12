@@ -1,0 +1,67 @@
+# 员工账号配置 — 由 SQLite 导出
+# 编辑后执行 playbook-users.yml
+employees:
+- name: dengweijun
+  hosts:
+  - srv3
+  ssh_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEsJx+f2waWklRttzXFwWNDaEVZAm6XqZYAD2XUGaSkL
+    iiiioooo@io
+  state: present
+- name: duanzerui
+  hosts:
+  - srv1
+  ssh_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFU/4oWuDDgPQwwTtYYcMGWdjvpaHxzlyNOY8zQXHSBt
+    1003726666@qq.com
+  state: present
+- name: lihaotian
+  hosts:
+  - srv1
+  - srv3
+  ssh_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA+fT82FULfJ/OBvYBs2FtbyKUTgZYtoQYysFSiwr5EX
+    lihaotian25@mails.ucas.ac.cn
+  state: present
+- name: lijingru
+  hosts:
+  - srv1
+  ssh_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEsJx+f2waWklRttzXFwWNDaEVZAm6XqZYAD2XUGaSkL
+    iiiioooo@io
+  state: present
+- name: tanyuqiang
+  hosts:
+  - srv2
+  ssh_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMnlDDvB7EqUgSaQA0B3Q2MjMUuN/7lEisyE1rNh6h3P
+    13065426126@163.com
+  state: present
+- name: wangchen
+  hosts:
+  - srv2
+  ssh_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOB1STkVW3S/K9rXQsTkXC2xID10COp2hV/Cvps2iQzo
+    2875580122@qq.com
+  state: present
+- name: xiaotianxue
+  hosts:
+  - srv1
+  ssh_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMJAWZ0s0LUjSmNhmL56zRw/k9he/okpQ6Rwd4WB1tk9
+    xiaotianxue84@gmail.com
+  state: present
+- name: yuwenqing
+  hosts:
+  - srv3
+  ssh_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEsJx+f2waWklRttzXFwWNDaEVZAm6XqZYAD2XUGaSkL
+    iiiioooo@io
+  state: present
+- name: zhonghaoyang
+  hosts:
+  - srv2
+  ssh_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINJzjar3BO5Np5dFlbZ4lF6S4Ah/eljmUw92aPFGoycU
+    2624384558@qq.com
+  state: present

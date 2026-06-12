@@ -1,0 +1,25 @@
+# Git / 本地环境
+.git
+.gitignore
+.venv
+.pytest_cache
+__pycache__
+*.pyc
+*.pyo
+*.retry
+.ansible
+
+# 敏感与本地数据（通过 volume 挂载）
+data/
+id_ed25519
+id_ed25519.pub
+inventory.local.ini
+users.local.yml
+
+# 测试与文档（镜像内不需要）
+tests/
+README.md
+
+# IDE
+.cursor
+.vscode
