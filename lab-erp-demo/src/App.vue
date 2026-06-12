@@ -474,57 +474,63 @@ const handleCommand = (cmd) => {
 
 <style>
 :root {
-  --bg-base: #F1F5F9;
-  --bg-surface: #FFFFFF;
-  --bg-elevated: #F8FAFC;
-  --text-primary: #1E293B;
-  --text-secondary: #64748B;
-  --border-subtle: #E2E8F0;
-  --shadow-soft: 0 10px 30px rgba(2, 6, 23, 0.08);
+  --bg-base: #f5f5f7;
+  --bg-surface: #ffffff;
+  --bg-elevated: #fafafc;
+  --text-primary: #1d1d1f;
+  --text-secondary: #7a7a7a;
+  --border-subtle: #e0e0e0;
+  --shadow-soft: none;
 
-  --science-dark-bg: #0F172A;
+  --science-dark-bg: #000000;
   --science-canvas: var(--bg-base);
   --science-surface: var(--bg-surface);
   --science-surface-muted: var(--bg-elevated);
-  --science-blue: #2563EB;
-  --science-blue-hover: #1D4ED8;
-  --text-on-dark: #F8FAFC;
+  --science-blue: #0066cc;
+  --science-blue-hover: #0071e3;
+  --text-on-dark: #ffffff;
   --text-main: var(--text-primary);
   --text-sub: var(--text-secondary);
   --border-soft: var(--border-subtle);
-  --shadow-md: var(--shadow-soft);
+  --shadow-md: none;
   --sidebar-width: 240px;
-  --nav-height: 60px;
+  --nav-height: 44px;
   --pad-x: 24px;
 }
 
 .dark {
-  --bg-base: #0B1220;
-  --bg-surface: #111B2E;
-  --bg-elevated: #0E172A;
-  --text-primary: #E2E8F0;
-  --text-secondary: #94A3B8;
-  --border-subtle: #1E293B;
-  --shadow-soft: 0 10px 30px rgba(2, 6, 23, 0.45);
+  --bg-base: #272729;
+  --bg-surface: #000000;
+  --bg-elevated: #2a2a2c;
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --border-subtle: #404040;
+  --shadow-soft: none;
 
-  --science-dark-bg: #020817;
+  --science-dark-bg: #000000;
   --science-canvas: var(--bg-base);
   --science-surface: var(--bg-surface);
   --science-surface-muted: var(--bg-elevated);
-  --science-blue: #3B82F6;
-  --science-blue-hover: #60A5FA;
-  --text-on-dark: #E2E8F0;
+  --science-blue: #2997ff;
+  --science-blue-hover: #0071e3;
+  --text-on-dark: #ffffff;
   --text-main: var(--text-primary);
   --text-sub: var(--text-secondary);
   --border-soft: var(--border-subtle);
-  --shadow-md: var(--shadow-soft);
+  --shadow-md: none;
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, sans-serif;
+  font-family: "SF Pro Text", "Inter", system-ui, -apple-system, sans-serif;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.47;
+  letter-spacing: -0.374px;
   background-color: var(--science-canvas);
   color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .tech-navbar {
@@ -556,8 +562,8 @@ body {
 .role-badge {
   font-size: 11px;
   padding: 3px 8px;
-  border-radius: 4px;
-  background: rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .role-badge.pm {
@@ -591,11 +597,23 @@ body {
 
 .tech-btn.primary {
   background-color: var(--science-blue);
-  color: white;
+  color: #ffffff;
   border: none;
-  padding: 7px 16px;
-  border-radius: 4px;
+  padding: 11px 22px;
+  border-radius: 999px;
   cursor: pointer;
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: -0.374px;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.tech-btn.primary:hover {
+  background-color: var(--science-blue-hover);
+}
+
+.tech-btn.primary:active {
+  transform: scale(0.95);
 }
 
 .mail-trigger {
@@ -663,12 +681,11 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: var(--shadow-md);
-  transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.15s ease, background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .theme-toggle:hover {
-  transform: translateY(-1px);
+  transform: scale(0.95);
 }
 
 .theme-toggle.floating {
@@ -779,7 +796,7 @@ body {
 
 .message-card {
   padding: 14px;
-  border-radius: 12px;
+  border-radius: 18px;
   border: 1px solid var(--border-soft);
   background: var(--science-surface);
   transition: border-color 0.15s;
@@ -858,8 +875,8 @@ body {
 
 .dark .el-select-dropdown,
 .dark .el-popper.is-light {
-  background: #0f172a !important;
-  border-color: #334155 !important;
+  background: #252527 !important;
+  border-color: #404040 !important;
 }
 
 .dark .el-select-dropdown__item,
@@ -868,38 +885,38 @@ body {
 .dark .el-select-dropdown__loading,
 .dark .el-select-dropdown__wrap,
 .dark .el-select-dropdown__list {
-  color: #e2e8f0 !important;
+  color: #ffffff !important;
 }
 
 .dark .el-select-dropdown__item.hover,
 .dark .el-select-dropdown__item:hover {
-  background: rgba(59, 130, 246, 0.22) !important;
+  background: rgba(41, 151, 255, 0.18) !important;
 }
 
 .dark .el-input__wrapper,
 .dark .el-select .el-select__wrapper,
 .dark .el-textarea__inner,
 .dark .el-input__inner {
-  background: #0f172a !important;
-  color: #e2e8f0 !important;
-  border-color: #334155 !important;
+  background: #252527 !important;
+  color: #ffffff !important;
+  border-color: #404040 !important;
 }
 
 .dark .project-manager-select-popper .option-name,
 .dark .project-team-select-popper .option-name,
 .dark .project-data-engineer-select-popper .option-name {
-  color: #e2e8f0 !important;
+  color: #ffffff !important;
 }
 
 .dark .project-manager-select-popper .option-role,
 .dark .project-team-select-popper .option-role,
 .dark .project-data-engineer-select-popper .option-role {
-  color: #94a3b8 !important;
+  color: #cccccc !important;
 }
 
 /* Dialog dark-mode hardening for teleported overlays */
 .dark .el-overlay {
-  --el-overlay-color-lighter: rgba(2, 6, 23, 0.72);
+  --el-overlay-color-lighter: rgba(0, 0, 0, 0.72);
 }
 
 .dark .el-overlay .el-dialog {
