@@ -18,7 +18,7 @@ services:
 
   erp-backend:
     container_name: zkr-erp-backend
-    image: 127.0.0.1:5555/zhangqi_backend:v1.119
+    image: 127.0.0.1:5555/zhangqi_backend:v1.131
     restart: unless-stopped
     depends_on:
       postgres:
@@ -113,7 +113,7 @@ services:
 
   lab-erp-demo:
     container_name: zkr-lab-erp-demo
-    image: 127.0.0.1:5555/zhangqi_frontend:v1.148
+    image: 127.0.0.1:5555/zhangqi_frontend:v1.153
     restart: unless-stopped
     ports:
       - "${FRONTEND_PUBLIC_PORT}:80"
@@ -122,6 +122,23 @@ services:
       - "${PUBLIC_DOWNLOADS_DIR:?set PUBLIC_DOWNLOADS_DIR}:/srv/public-downloads:ro"
     networks:
       - runtime-default
+
+  server-mgmt-api:
+    build: ./server-mgmt
+    image: server-mgmt:latest
+    container_name: server-mgmt-api
+    environment:
+      SERVER_MGMT_DB_PATH: /app/data/server_mgmt.db
+      PORT: "17000"
+      IMPORT_ON_START: "1"
+    volumes:
+      - server-mgmt-data:/app/data
+      - ./server-mgmt/inventory.ini:/app/inventory.ini
+      - ./server-mgmt/users.yml:/app/users.yml
+      - ./server-mgmt/id_ed25519:/app/id_ed25519:ro
+    networks:
+      - erp-internal
+    restart: unless-stopped
 
 networks:
   erp-internal:
@@ -138,3 +155,4 @@ volumes:
   finance-rag-qdrant-data:
   finance-rag-redis-data:
   finance-rag-cache:
+  server-mgmt-data:
