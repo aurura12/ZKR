@@ -70,6 +70,10 @@ public class User implements UserDetails {
     @Builder.Default
     private BigDecimal dailyWage = new BigDecimal("300.00");
 
+    @Column(name = "is_server_ops_admin")
+    @Builder.Default
+    private Boolean serverOpsAdmin = false;
+
     @Transient
     @Builder.Default
     private List<UserBadge> badges = new ArrayList<>();
