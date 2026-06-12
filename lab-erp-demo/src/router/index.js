@@ -173,6 +173,15 @@ const router = createRouter({
         routeDomain: DOMAIN_ERP
       }
     },
+    {
+      path: '/admin/server-management',
+      name: 'server-management',
+      component: () => import('@/views/ServerManagementView.vue'),
+      meta: {
+        requiresAuth: true,
+        routeDomain: DOMAIN_ERP
+      }
+    },
     ...financeRoutes
   ]
 })

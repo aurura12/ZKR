@@ -2,7 +2,7 @@ export const DOMAIN_FINANCE = 'FINANCE'
 export const DOMAIN_ERP = 'ERP'
 
 const ERP_ROUTE_PREFIXES = ['/manager', '/workspace']
-const ERP_EXACT_PATHS = ['/admin/users/create', '/admin/wage-management']
+const ERP_EXACT_PATHS = ['/admin/users/create', '/admin/wage-management', '/admin/server-management']
 const ERP_DASHBOARD_ROLES = new Set(['ADMIN', 'MANAGER', 'BUSINESS'])
 
 const normalizeDomain = value => {
