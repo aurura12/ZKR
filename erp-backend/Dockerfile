@@ -1,4 +1,4 @@
-ARG APP_VERSION=v1.67
+ARG APP_VERSION=v1.132
 
 FROM maven:3.9.9-eclipse-temurin-17 AS build
 
