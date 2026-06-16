@@ -1,4 +1,4 @@
-ARG APP_VERSION=v1.154
+ARG APP_VERSION=v1.155
 
 FROM node:20-alpine AS build
 
