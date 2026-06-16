@@ -21,7 +21,7 @@
 
         <div class="field-block">
           <label>账号</label>
-          <el-input v-model="form.username" placeholder="请输入登录账号" />
+          <el-input v-model="form.username" placeholder="请输入登录账号" @blur="handleUsernameBlur" />
         </div>
 
         <div class="field-block">
@@ -90,6 +90,23 @@
 
       <div class="footer-row">
         <el-button @click="router.push('/profile')">返回个人中心</el-button>
+        <el-button type="success" @click="handleGenerateAgreement">📄 生成协议</el-button>
+        <el-upload
+          :show-file-list="false"
+          :before-upload="handleUploadIdCard"
+          accept="image/*,.pdf"
+          style="display:inline-block;margin:0 8px"
+        >
+          <el-button type="warning">🪪 上传证件</el-button>
+        </el-upload>
+        <el-upload
+          :show-file-list="false"
+          :before-upload="handleUploadStudentCard"
+          accept="image/*,.pdf"
+          style="display:inline-block"
+        >
+          <el-button type="info">🎓 上传学生证</el-button>
+        </el-upload>
         <el-button type="primary" :loading="submitting" @click="handleSubmit">创建账号</el-button>
       </div>
     </div>
@@ -141,6 +158,38 @@ watch(() => form.role, (newRole) => {
 }, { immediate: true })
 
 const submitting = ref(false)
+
+const handleUsernameBlur = async () => {
+  const q = form.username?.trim()
+  if (!q || q.length < 2) return
+  try {
+    const res = await request.get('/api/admin/users/search', { params: { q } })
+    if (res && res.length > 0) {
+      const u = res[0]
+      if (!form.name) form.name = u.name
+      if (!form.role) {
+        form.role = u.role
+      }
+      if (!form.dailyWage || form.dailyWage === 300) form.dailyWage = Number(u.dailyWage || 300)
+    }
+  } catch (e) {
+    // Silently ignore search errors
+  }
+}
+
+const handleGenerateAgreement = async () => {
+  ElMessage.info('请先创建账号，然后在劳动关系资料模块中生成协议')
+}
+
+const handleUploadIdCard = async (file) => {
+  ElMessage.info('请先创建账号，然后在劳动关系资料模块中上传证件')
+  return false
+}
+
+const handleUploadStudentCard = async (file) => {
+  ElMessage.info('请先创建账号，然后在劳动关系资料模块中上传证件')
+  return false
+}
 
 const handleSubmit = async () => {
   if (!form.username.trim()) {
