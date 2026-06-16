@@ -5079,7 +5079,7 @@ const handleBeforeUnload = (e) => {
 }
 
 .product-flow-grid > :first-child { grid-column: 1; grid-row: 1; }
-.product-flow-grid > :nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+.product-flow-grid > :nth-child(2) { grid-column: 2; grid-row: 2; }
 
 .detail-body-grid {
   display: grid;
