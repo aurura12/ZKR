@@ -1,6 +1,7 @@
 package com.smartlab.erp.finance.service;
 
 import com.smartlab.erp.entity.AttendanceRecord;
+import com.smartlab.erp.entity.CompanyExpense;
 import com.smartlab.erp.entity.FlowType;
 import com.smartlab.erp.entity.ProjectCostAdjustment;
 import com.smartlab.erp.entity.ProjectExpense;
@@ -9,6 +10,7 @@ import com.smartlab.erp.entity.ProjectMemberParticipationHistory;
 import com.smartlab.erp.entity.SysProject;
 import com.smartlab.erp.entity.SysProjectMember;
 import com.smartlab.erp.entity.User;
+import com.smartlab.erp.enums.CompanyExpenseStatus;
 import com.smartlab.erp.enums.ProjectExpenseStatus;
 import com.smartlab.erp.finance.dto.FinanceCostBatchRunResponse;
 import com.smartlab.erp.finance.dto.FinanceCostPreviewItem;
@@ -27,6 +29,7 @@ import com.smartlab.erp.finance.repository.FinanceCostSummaryRepository;
 import com.smartlab.erp.finance.repository.FinanceVentureProfileRepository;
 import com.smartlab.erp.finance.support.FinanceAmounts;
 import com.smartlab.erp.repository.AttendanceRecordRepository;
+import com.smartlab.erp.repository.CompanyExpenseRepository;
 import com.smartlab.erp.repository.ProjectCostAdjustmentRepository;
 import com.smartlab.erp.repository.ProjectExpenseRepository;
 import com.smartlab.erp.repository.ProjectMemberParticipationHistoryRepository;
@@ -81,6 +84,7 @@ public class FinanceCostBatchService {
     private final AttendanceRecordRepository attendanceRecordRepository;
     private final ProjectExpenseRepository expenseRepository;
     private final ProjectCostAdjustmentRepository costAdjustmentRepository;
+    private final CompanyExpenseRepository companyExpenseRepository;
 
     @Transactional
     public FinanceCostBatchRunResponse runBatch(String ledgerMonth) {
@@ -288,6 +292,7 @@ public class FinanceCostBatchService {
             }
 
             Map<String, List<FinanceCostEntry>> entriesByProject = allEntries.stream()
+                    .filter(e -> e.getProject() != null)
                     .collect(Collectors.groupingBy(e -> e.getProject().getProjectId()));
 
             for (SysProject project : projects) {
@@ -645,6 +650,26 @@ public class FinanceCostBatchService {
                     .middlewareRoyaltyFee(BigDecimal.ZERO)
                     .finalSettlementCost(FinanceAmounts.scale(adj.getAmount()))
                     .sourceTable("project_cost_adjustment").sourceId(adj.getId()).build());
+        }
+
+        List<CompanyExpense> approvedCompanyExpenses = companyExpenseRepository
+            .findByApprovalStatusAndChenleiAtBetween(
+                CompanyExpenseStatus.APPROVED, dayStart, dayEnd);
+        for (CompanyExpense expense : approvedCompanyExpenses) {
+            entries.add(FinanceCostEntry.builder()
+                    .batch(batch)
+                    .project(null)
+                    .user(null)
+                    .ledgerMonth(ledgerMonth)
+                    .accrualDate(accrualDate)
+                    .workHours(BigDecimal.ZERO)
+                    .dailyWageSnapshot(BigDecimal.ZERO)
+                    .laborCost(FinanceAmounts.scale(expense.getTotalAmount()))
+                    .middlewareRoyaltyFee(BigDecimal.ZERO)
+                    .finalSettlementCost(FinanceAmounts.scale(expense.getTotalAmount()))
+                    .sourceTable("company_expense")
+                    .sourceId(expense.getId())
+                    .build());
         }
 
         return entries;
