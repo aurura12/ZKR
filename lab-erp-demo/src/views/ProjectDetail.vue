@@ -5078,9 +5078,6 @@ const handleBeforeUnload = (e) => {
   align-items: start;
 }
 
-.product-flow-grid > :first-child { grid-column: 1; grid-row: 1; }
-.product-flow-grid > :nth-child(2) { grid-column: 2; grid-row: 2; }
-
 .detail-body-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
