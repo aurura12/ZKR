@@ -515,6 +515,26 @@
       </div>
     </div>
 
+    <div v-if="!isProductFlow" class="panel team-panel" style="margin-bottom:var(--card-gap)">
+      <div class="panel-header-row compact-header">
+        <h3 class="panel-title">👥 {{ squadTitle }}</h3>
+        <el-button v-if="canSwapProjectManager" type="warning" size="small" plain @click="swapProjectManager">🔄 摇摆 Manager</el-button>
+        <el-button v-if="canManageProductMembers" type="primary" size="small" plain @click="openProductMemberDialog">成员管理</el-button>
+        <el-button v-else-if="canManageProjectMembers" type="primary" size="small" plain @click="openProjectMemberDialog">成员管理</el-button>
+      </div>
+      <div class="avatar-group">
+        <div v-for="(m, idx) in sortedSquadMembers" :key="m.userId" class="member-item" :class="{ prioritized: idx === 0 && isLeadMember(m) }">
+          <img :src="m.hiddenAvatar ? hiddenAvatar : (m.avatar || defaultAvatar)" class="avatar" :title="m.name">
+          <div v-if="showResponsibilityRatio(m)" class="ratio-badge-group">
+            <span v-if="Number(m.managerResponsibilityRatio || 0) > 0" class="ratio-badge ratio-badge-manager">管理 {{ m.managerResponsibilityRatio }}</span>
+            <span v-if="Number(m.executionResponsibilityRatio || 0) > 0" class="ratio-badge ratio-badge-exec">执行 {{ m.executionResponsibilityRatio }}</span>
+          </div>
+          <span class="role-badge">{{ formatMemberIdentityTag(m) }}</span>
+        </div>
+        <div v-if="canBuildTeam" class="add-member-btn" @click="inviteMember">+</div>
+      </div>
+    </div>
+
     <div v-if="!isProductFlow" class="main-grid">
       <div class="left-col">
       <div v-if="!isProductFlow && !isResearchFlow" class="panel project-task-panel project-task-panel-left">
@@ -634,30 +654,6 @@
       </div>
 
       <div class="right-col">
-        <div class="panel team-panel">
-          <div class="panel-header-row compact-header">
-            <h3 class="panel-title">👥 {{ squadTitle }}</h3>
-            <el-button v-if="canSwapProjectManager" type="warning" size="small" plain @click="swapProjectManager">🔄 摇摆 Manager</el-button>
-            <el-button v-if="canManageProductMembers" type="primary" size="small" plain @click="openProductMemberDialog">成员管理</el-button>
-            <el-button v-else-if="canManageProjectMembers" type="primary" size="small" plain @click="openProjectMemberDialog">成员管理</el-button>
-          </div>
-          <div class="avatar-group">
-            <div
-              v-for="(m, idx) in sortedSquadMembers"
-              :key="m.userId"
-              class="member-item"
-              :class="{ prioritized: idx === 0 && isLeadMember(m) }"
-            >
-              <img :src="m.hiddenAvatar ? hiddenAvatar : (m.avatar || defaultAvatar)" class="avatar" :title="m.name">
-              <div v-if="showResponsibilityRatio(m)" class="ratio-badge-group">
-                <span v-if="Number(m.managerResponsibilityRatio || 0) > 0" class="ratio-badge ratio-badge-manager">管理 {{ m.managerResponsibilityRatio }}</span>
-                <span v-if="Number(m.executionResponsibilityRatio || 0) > 0" class="ratio-badge ratio-badge-exec">执行 {{ m.executionResponsibilityRatio }}</span>
-              </div>
-              <span class="role-badge">{{ formatMemberIdentityTag(m) }}</span>
-            </div>
-            <div v-if="canBuildTeam" class="add-member-btn" @click="inviteMember">+</div>
-          </div>
-        </div>
 
         <div v-if="isProjectFlow" class="panel earnings-panel">
           <div class="panel-header-row compact-header earnings-header">
