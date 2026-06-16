@@ -193,7 +193,7 @@ public class AttendanceService {
                 }
                 w.write(String.format("%s,%s,%s,%s,%s,%s,%s,%s\n",
                         csvCell(row.userName()),
-                        csvCell(row.userId()),
+                        csvIdCell(row.userId()),
                         row.workDate().format(DATE_FMT),
                         row.onTime() != null ? row.onTime().format(TIME_FMT) : "",
                         row.offTime() != null ? row.offTime().format(TIME_FMT) : "",
@@ -205,7 +205,7 @@ public class AttendanceService {
             w.write("员工姓名,员工ID,出勤天数,加班天数,缺卡天数,折算总工天\n");
             for (AttendanceUserSummary s : summaries.values()) {
                 w.write(String.format("%s,%s,%d,%d,%d,%.2f\n",
-                        csvCell(s.userName()), csvCell(s.userId()),
+                        csvCell(s.userName()), csvIdCell(s.userId()),
                         s.totalDays(), s.overtimeDays(), s.notSignedDays(), s.equivalentDays()));
             }
         } catch (java.io.IOException e) {
@@ -222,6 +222,11 @@ public class AttendanceService {
             return "\"" + value.replace("\"", "\"\"") + "\"";
         }
         return value;
+    }
+
+    private String csvIdCell(String value) {
+        if (value == null) return "";
+        return "=\"" + value + "\"";
     }
 
     private LocalTime toLocalTime(AttendanceRecord record) {

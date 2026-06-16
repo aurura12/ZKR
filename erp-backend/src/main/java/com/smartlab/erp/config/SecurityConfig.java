@@ -119,6 +119,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/users").permitAll() // 注册接口
                         .requestMatchers("/api/attendance/**").access(this::requireAttendanceDomain)
                         .requestMatchers("/api/messages/**").access(this::requireAttendanceDomain)
+                        .requestMatchers(HttpMethod.POST, "/api/finance/projects/*/cost-adjustments").access(this::requireAttendanceDomain)
                         .requestMatchers(FINANCE_API_PATTERNS).access(this::requireFinanceDomain)
                         .requestMatchers("/api/**").access(this::requireErpDomain)
 

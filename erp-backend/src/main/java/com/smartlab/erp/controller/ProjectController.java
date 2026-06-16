@@ -288,22 +288,6 @@ public class ProjectController {
         return ResponseEntity.ok().body(Map.of("success", true, "newStatus", status));
     }
 
-    @PostMapping("/{projectId}/adjust-cost")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Map<String, String>> adjustProjectCost(
-            @PathVariable String projectId,
-            @RequestParam("itemName") String itemName,
-            @RequestParam("type") String type,
-            @RequestParam("amount") String amount,
-            @RequestParam(value = "invoiceFile", required = false) MultipartFile invoiceFile) {
-        AdjustProjectCostRequest request = new AdjustProjectCostRequest();
-        request.setItemName(itemName);
-        request.setType(type);
-        request.setAmount(new java.math.BigDecimal(amount));
-        projectService.adjustProjectCost(projectId, request, invoiceFile);
-        return ResponseEntity.ok(Map.of("message", "成本调整成功"));
-    }
-
     @PostMapping("/{projectId}/expenses")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Object>> submitProjectExpense(

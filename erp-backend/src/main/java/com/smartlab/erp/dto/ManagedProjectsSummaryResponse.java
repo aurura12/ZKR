@@ -52,5 +52,6 @@ public class ManagedProjectsSummaryResponse {
         private String managerAvatar;
         private Instant createdAt;
         private String projectTier;
+        private Boolean costControlEnabled;
     }
 }

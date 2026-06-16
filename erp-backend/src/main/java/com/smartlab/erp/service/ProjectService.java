@@ -25,6 +25,7 @@ import com.smartlab.erp.util.AuthUtils;
 import com.smartlab.erp.repository.*;
 import com.smartlab.erp.finance.repository.FinanceCostSummaryRepository;
 import com.smartlab.erp.finance.repository.FinanceCostBatchRepository;
+import com.smartlab.erp.finance.repository.BatchProjectCostControlRepository;
 import com.smartlab.erp.finance.entity.FinanceCostSummary;
 import com.smartlab.erp.finance.entity.FinanceCostBatch;
 import com.smartlab.erp.finance.support.FinanceAmounts;
@@ -37,17 +38,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -56,6 +61,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Service
 @RequiredArgsConstructor
@@ -120,6 +127,7 @@ public class ProjectService {
     private final ProjectCostAdjustmentRepository costAdjustmentRepository;
     private final ProjectExpenseRepository expenseRepository;
     private final ProjectExpenseFileRepository expenseFileRepository;
+    private final BatchProjectCostControlRepository batchProjectCostControlRepository;
     private final JdbcTemplate jdbcTemplate;
 
     @Value("${file.upload-dir:./uploads}")
@@ -993,6 +1001,11 @@ public class ProjectService {
         Map<String, ProjectFinancialMetricsService.ProjectFinancialSnapshot> projectFinancialSnapshots =
                 projectFinancialMetricsService.getProjectSnapshots(managedProjects, executionPlanByProject);
 
+        Map<String, Boolean> costControlEnabledByProject = projectIds.isEmpty()
+                ? Map.of()
+                : batchProjectCostControlRepository.findAllById(projectIds).stream()
+                    .collect(Collectors.toMap(c -> c.getProjectId(), c -> c.getEnabled() != null && c.getEnabled()));
+
         Map<String, List<ProjectMemberSchedule>> schedulesByProject = projectIds.isEmpty()
                 ? Map.of()
                 : projectMemberScheduleRepository.findByProjectIdIn(projectIds).stream()
@@ -1060,6 +1073,7 @@ public class ProjectService {
                             .managerAvatar(project.getManager() == null || Boolean.TRUE.equals(project.getManager().getHiddenAvatar()) ? null : project.getManager().getAvatar())
                             .createdAt(project.getCreatedAt())
                             .projectTier(plan != null && plan.getProjectTier() != null ? plan.getProjectTier().name() : (project.getProjectTier() == null ? null : project.getProjectTier().name()))
+                            .costControlEnabled(costControlEnabledByProject.getOrDefault(projectId, true))
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -1128,10 +1142,24 @@ public class ProjectService {
     }
 
     public List<SysProject> getParticipatedProjects(UserPrincipal currentUser) {
+        List<SysProject> projects;
         if (currentUser != null && isAdminRole(currentUser.getRole(), currentUser.getUsername())) {
-            return getAllProjectsOrdered();
+            projects = getAllProjectsOrdered();
+        } else {
+            projects = projectRepository.findParticipatedProjects(currentUser.getId());
         }
-        return projectRepository.findParticipatedProjects(currentUser.getId());
+        populateCostControlEnabled(projects);
+        return projects;
+    }
+
+    private void populateCostControlEnabled(List<SysProject> projects) {
+        if (projects == null || projects.isEmpty()) return;
+        List<String> pids = projects.stream().map(SysProject::getProjectId).toList();
+        Map<String, Boolean> enabledMap = batchProjectCostControlRepository.findAllById(pids).stream()
+                .collect(Collectors.toMap(c -> c.getProjectId(), c -> c.getEnabled() != null && c.getEnabled()));
+        for (SysProject p : projects) {
+            p.setCostControlEnabled(enabledMap.getOrDefault(p.getProjectId(), true));
+        }
     }
 
     @Transactional
@@ -1926,13 +1954,6 @@ public class ProjectService {
         SysProject project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new BusinessException("项目不存在: " + projectId));
 
-        ProjectCostAdjustmentType type;
-        try {
-            type = ProjectCostAdjustmentType.valueOf(request.getType().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException("无效的成本类型: " + request.getType());
-        }
-
         if (request.getItemName() == null || request.getItemName().isBlank()) {
             throw new BusinessException("名称不能为空");
         }
@@ -1940,10 +1961,12 @@ public class ProjectService {
             throw new BusinessException("金额必须大于0");
         }
 
-        BigDecimal previousCost = project.getCost() != null ? project.getCost() : BigDecimal.ZERO;
-        BigDecimal newCost = previousCost.add(request.getAmount());
-        project.setCost(newCost);
-        projectRepository.save(project);
+        ProjectCostAdjustmentType type;
+        try {
+            type = ProjectCostAdjustmentType.valueOf(request.getType().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("无效的成本类型: " + request.getType());
+        }
 
         ProjectCostAdjustment adjustment = ProjectCostAdjustment.builder()
                 .projectId(projectId)
@@ -1966,7 +1989,6 @@ public class ProjectService {
                 Files.createDirectories(uploadPath);
                 Path targetFile = uploadPath.resolve(storedName);
                 invoiceFile.transferTo(targetFile.toFile());
-
                 adjustment.setInvoiceFileName(originalFilename);
                 adjustment.setInvoiceFilePath(targetFile.toString());
                 adjustment.setInvoiceContentType(invoiceFile.getContentType());
@@ -2156,17 +2178,11 @@ public class ProjectService {
             expense.setChenleiAt(Instant.now());
             expense.setStatus(ProjectExpenseStatus.APPROVED);
 
-            SysProject project = projectRepository.findById(expense.getProjectId()).orElse(null);
-            if (project != null) {
-                BigDecimal prev = project.getCost() != null ? project.getCost() : BigDecimal.ZERO;
-                project.setCost(prev.add(expense.getAmount()));
-                projectRepository.save(project);
-            }
             internalMessageService.sendMessage(
                     expense.getSubmitterUserId(),
                     "EXPENSE_APPROVED",
                     "费用审批通过",
-                    expense.getProjectName() + " 的费用 ¥" + expense.getAmount() + "（" + expense.getItemName() + "）已审批通过，已计入项目成本。",
+                    expense.getProjectName() + " 的费用 ¥" + expense.getAmount() + "（" + expense.getItemName() + "）已审批通过，已移交财务系统核算。",
                     expense.getProjectId()
             );
         }
@@ -2378,5 +2394,79 @@ public class ProjectService {
                 .completed(Boolean.TRUE.equals(task.getCompleted()))
                 .completedAt(task.getCompletedAt() != null ? DATE_FORMATTER.format(task.getCompletedAt()) : null)
                 .build();
+    }
+
+    public byte[] exportReimbursementsZip(LocalDate from, LocalDate to) {
+        Instant fromInstant = from.atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant();
+        Instant toInstant = to.plusDays(1).atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant();
+
+        List<ProjectExpense> expenses = expenseRepository.findAll().stream()
+                .filter(e -> e.getChenleiAt() != null)
+                .filter(e -> !e.getChenleiAt().isBefore(fromInstant) && e.getChenleiAt().isBefore(toInstant))
+                .filter(e -> e.getStatus() == com.smartlab.erp.enums.ProjectExpenseStatus.APPROVED)
+                .sorted(Comparator.comparing(ProjectExpense::getSubmitterName, Comparator.nullsLast(String::compareTo))
+                        .thenComparing(ProjectExpense::getChenleiAt, Comparator.nullsLast(Instant::compareTo)))
+                .toList();
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(baos)) {
+            StringBuilder csv = new StringBuilder("\uFEFF员工姓名,项目名称,费用类型,费用名称,金额,审批时间,附件\n");
+            Map<String, List<ProjectExpense>> byMember = new LinkedHashMap<>();
+            for (ProjectExpense e : expenses) {
+                String name = e.getSubmitterName() != null ? e.getSubmitterName() : e.getSubmitterUserId();
+                byMember.computeIfAbsent(name, k -> new ArrayList<>()).add(e);
+            }
+
+            for (Map.Entry<String, List<ProjectExpense>> entry : byMember.entrySet()) {
+                String member = entry.getKey();
+                BigDecimal total = BigDecimal.ZERO;
+                int count = 0;
+                for (ProjectExpense e : entry.getValue()) {
+                    total = total.add(e.getAmount() != null ? e.getAmount() : BigDecimal.ZERO);
+
+                    List<ProjectExpenseFile> files = expenseFileRepository.findByExpenseIdOrderByCreatedAtAsc(e.getId());
+                    String fileNames = files.stream().map(ProjectExpenseFile::getFileName)
+                            .filter(Objects::nonNull).collect(Collectors.joining("; "));
+
+                    csv.append(String.format("%s,%s,%s,%s,%.2f,%s,%s\n",
+                            csvField(member),
+                            csvField(e.getProjectName()),
+                            csvField(e.getExpenseType() != null ? e.getExpenseType().name() : ""),
+                            csvField(e.getItemName()),
+                            e.getAmount(),
+                            e.getChenleiAt() != null ? e.getChenleiAt().toString() : "",
+                            csvField(fileNames)));
+
+                    for (ProjectExpenseFile f : files) {
+                        try {
+                            byte[] fileBytes = Files.readAllBytes(Path.of(f.getFilePath()));
+                            zos.putNextEntry(new java.util.zip.ZipEntry(sanitizeZipName(member) + "/" + f.getId() + "_" + f.getFileName()));
+                            zos.write(fileBytes);
+                            zos.closeEntry();
+                        } catch (IOException ignored) {}
+                    }
+                    count++;
+                }
+                csv.append(String.format("\n--- %s 汇总: %d笔, 合计 ¥%.2f ---\n\n", member, count, total));
+            }
+
+            zos.putNextEntry(new java.util.zip.ZipEntry("reimbursement_detail.csv"));
+            zos.write(csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            zos.closeEntry();
+        } catch (IOException e) {
+            throw new BusinessException("导出ZIP失败: " + e.getMessage());
+        }
+        return baos.toByteArray();
+    }
+
+    private String csvField(String v) {
+        if (v == null) return "";
+        if (v.contains(",") || v.contains("\"") || v.contains("\n"))
+            return "\"" + v.replace("\"", "\"\"") + "\"";
+        return v;
+    }
+
+    private String sanitizeZipName(String name) {
+        return name.replaceAll("[\\\\/:*?\"<>|]", "_");
     }
 }

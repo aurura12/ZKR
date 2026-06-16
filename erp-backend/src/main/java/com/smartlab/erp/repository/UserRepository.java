@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -22,4 +23,6 @@ public interface UserRepository extends JpaRepository<User, String> { // 主键�
     // 🟢 核心补充：查询目前最大的 ID 用于生成下一个
     @Query("SELECT MAX(u.userId) FROM User u")
     Optional<String> findMaxUserId();
+
+    List<User> findAllByOrderByUserIdAsc();
 }

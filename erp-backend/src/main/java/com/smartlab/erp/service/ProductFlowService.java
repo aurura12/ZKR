@@ -969,7 +969,7 @@ public class ProductFlowService {
                 .productStatus(ProductStatus.IDEA)
                 // 可以沿用预算等信息，也可以重新评估；此处简单继承预算
                 .budget(sourceProductProject.getBudget())
-                .cost(sourceProductProject.getCost())
+                .cost(BigDecimal.ZERO)
                 .techStack(sourceProductProject.getTechStack())
                 .repoUrl(sourceProductProject.getRepoUrl())
                 .deployUrl(sourceProductProject.getDeployUrl())

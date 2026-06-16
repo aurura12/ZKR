@@ -8,6 +8,8 @@ import com.smartlab.erp.service.AuthService;
 import com.smartlab.erp.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -61,5 +63,15 @@ public class AdminUserController {
         requireProvisionAdmin();
         userService.activateUser(userId);
         return ResponseEntity.ok(Map.of("message", "用户已还原为在职"));
+    }
+
+    @GetMapping("/users/export")
+    public ResponseEntity<byte[]> exportRoster() {
+        requireProvisionAdmin();
+        byte[] xlsxBytes = userService.exportRosterXlsx();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        headers.setContentDispositionFormData("attachment", "花名册.xlsx");
+        return ResponseEntity.ok().headers(headers).body(xlsxBytes);
     }
 }

@@ -9,6 +9,22 @@
       <el-button size="small" :loading="loading" @click="loadCenter">刷新汇总</el-button>
     </header>
 
+    <div class="export-bar">
+      <el-date-picker
+        v-model="exportDateRange"
+        type="daterange"
+        range-separator="至"
+        start-placeholder="开始日期"
+        end-placeholder="结束日期"
+        value-format="YYYY-MM-DD"
+        size="small"
+        style="width:260px"
+      />
+      <el-button type="success" size="small" :loading="exporting" @click="exportReimbursements">
+        📦 导出报销汇总
+      </el-button>
+    </div>
+
     <section class="summary-grid">
       <article class="summary-card">
         <span>总单数</span>
@@ -105,11 +121,39 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { downloadFinanceSubmissionInvoice, getFinanceSubmissionCenter } from '@/api/finance/submissions'
+import { downloadFinanceSubmissionInvoice, getFinanceSubmissionCenter, exportReimbursementsZip } from '@/api/finance/submissions'
 import { unwrapFinanceEnvelope } from '@/utils/financeAdapters'
 
 const loading = ref(false)
+const exporting = ref(false)
+const exportDateRange = ref([])
 const center = ref({ summary: {}, submissions: [] })
+
+const defaultExportRange = () => {
+  const now = new Date()
+  const thisMonth10 = new Date(now.getFullYear(), now.getMonth(), 10)
+  const lastMonth11 = new Date(now.getFullYear(), now.getMonth() - 1, 11)
+  return [lastMonth11.toISOString().slice(0, 10), thisMonth10.toISOString().slice(0, 10)]
+}
+
+const exportReimbursements = async () => {
+  exporting.value = true
+  try {
+    const [from, to] = exportDateRange.value.length === 2 ? exportDateRange.value : defaultExportRange()
+    const blob = await exportReimbursementsZip(from, to)
+    const url = window.URL.createObjectURL(new Blob([blob]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `报销汇总_${from}_${to}.zip`
+    link.click()
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (e) {
+    ElMessage.error('导出失败: ' + (e.response?.data?.message || e.message || e))
+  } finally {
+    exporting.value = false
+  }
+}
 
 const summary = computed(() => center.value?.summary || {})
 const rows = computed(() => center.value?.submissions || [])
@@ -196,6 +240,7 @@ const downloadInvoice = async row => {
 }
 
 onMounted(() => {
+  exportDateRange.value = defaultExportRange()
   loadCenter()
   window.addEventListener('finance-global-refresh', loadCenter)
 })
@@ -234,10 +279,19 @@ onBeforeUnmount(() => {
   color: #0f766e;
 }
 
+.export-bar {
+  background: white;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .hero-card h1,
 .card-head h3 {
   margin: 0;
-  color: #0f172a;
 }
 
 .hero-copy {

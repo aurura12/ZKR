@@ -4,11 +4,11 @@
 
       <div class="sidebar-header">
         <div class="title">WORKSPACE</div>
-        <div class="subtitle">共 {{ projects.length }} 个项目 · {{ responsibilityStats.ratio }} 主控</div>
+        <div class="subtitle">共 {{ visibleProjects.length }} 个项目 · {{ responsibilityStats.ratio }} 主控</div>
       </div>
 
       <div class="project-list">
-        <div v-for="p in projects" :key="p.projectId"
+        <div v-for="p in visibleProjects" :key="p.projectId"
              class="nav-item"
              @click="goToProject(p.projectId)"
              :class="{ active: currentId == p.projectId }">
@@ -81,6 +81,7 @@ const managedSummary = ref(null)
 
 // 获取当前路由 ID 用于高亮
 const currentId = computed(() => route.params.id)
+const visibleProjects = computed(() => projects.value.filter(p => p.costControlEnabled !== false))
 
 // 计算权责比数据
 const responsibilityStats = computed(() => {
@@ -221,10 +222,10 @@ onMounted(fetchProjects)
 const ensureActiveProjectSelection = () => {
   if (!projects.value.length) return
   const routeProjectId = String(route.params.id || '')
-  const hasMatchedRouteProject = projects.value.some(project => String(project.projectId) === routeProjectId)
+  const hasMatchedRouteProject = visibleProjects.value.some(project => String(project.projectId) === routeProjectId)
   if (hasMatchedRouteProject) return
 
-  const firstProjectId = String(projects.value[0]?.projectId || '')
+  const firstProjectId = String(visibleProjects.value[0]?.projectId || '')
   if (!firstProjectId) return
   router.replace(`/workspace/project/${firstProjectId}`)
 }

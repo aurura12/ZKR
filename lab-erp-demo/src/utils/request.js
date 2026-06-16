@@ -48,7 +48,7 @@ service.interceptors.request.use(
     }
 )
 
-// 3. 🟢 新增：响应拦截器 (这是你缺失的关键代码！)
+        // 3. 🟢 新增：响应拦截器 (这是你缺失的关键代码！)
 service.interceptors.response.use(
     response => {
         // 自动脱壳：直接返回后端给的真实数据，剥离 axios 的外壳
@@ -59,10 +59,31 @@ service.interceptors.response.use(
         if (error.response) {
             const status = error.response.status
             const data = error.response.data
+            if (status === 401) {
+                if (data && data.message && typeof data.message === 'string') {
+                    error.message = data.message
+                } else {
+                    error.message = '登录已过期，请重新登录'
+                }
+                const scope = localStorage.getItem('active_auth_scope')
+                if (scope === 'ERP') {
+                    localStorage.removeItem('erp_token')
+                } else if (scope === 'FINANCE') {
+                    localStorage.removeItem('finance_token')
+                }
+                localStorage.removeItem('token')
+                window.location.href = scope === 'ERP' ? '/erp-login' : '/login'
+                return Promise.reject(error)
+            }
+            if (status === 403) {
+                if (data && data.message && typeof data.message === 'string') {
+                    error.message = data.message
+                } else {
+                    error.message = '当前账号无此权限'
+                }
+            }
             if (data && data.message && typeof data.message === 'string') {
                 error.message = data.message
-            } else if (status === 403) {
-                error.message = '当前账号无此权限'
             } else if (status === 503) {
                 error.message = '服务暂不可用，请稍后重试'
             }

@@ -77,7 +77,7 @@ public class FinanceReportingService {
         StatementTotals statementTotals = buildStatementTotals(clearingSheets, costSummaries, walletAccounts);
         CashPosition cashPosition = buildCashPosition(transactions, adjustments, latestSnapshot);
         BigDecimal totalWalletBalance = statementTotals.totalWalletBalance();
-        List<FinanceStatementsResponse.ActiveProjectAccounting> activeProjectAccounting = buildActiveProjectAccounting();
+        List<FinanceStatementsResponse.ActiveProjectAccounting> activeProjectAccounting = buildActiveProjectAccounting(costSummaries);
         BigDecimal activeProjectAssets = sum(activeProjectAccounting, FinanceStatementsResponse.ActiveProjectAccounting::getEstimatedAsset);
         BigDecimal activeProjectLiabilities = sum(activeProjectAccounting, FinanceStatementsResponse.ActiveProjectAccounting::getEstimatedLiability);
         BigDecimal totalAssets = FinanceAmounts.add(cashPosition.actualBankBalance(), activeProjectAssets);
@@ -136,11 +136,19 @@ public class FinanceReportingService {
                 .build();
     }
 
-    private List<FinanceStatementsResponse.ActiveProjectAccounting> buildActiveProjectAccounting() {
+    private List<FinanceStatementsResponse.ActiveProjectAccounting> buildActiveProjectAccounting(List<FinanceCostSummary> costSummaries) {
         List<SysProject> projects = sysProjectRepository.findAll().stream()
                 .filter(this::isActiveProject)
                 .sorted(Comparator.comparing(SysProject::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
+
+        Map<String, BigDecimal> cumulativeCostByProject = costSummaries.stream()
+                .filter(cs -> cs.getProject() != null && cs.getProject().getProjectId() != null)
+                .collect(Collectors.groupingBy(
+                        cs -> cs.getProject().getProjectId(),
+                        Collectors.reducing(BigDecimal.ZERO,
+                                FinanceCostSummary::getTotalSettlementCost,
+                                BigDecimal::add)));
 
         List<String> projectIds = projects.stream().map(SysProject::getProjectId).filter(Objects::nonNull).toList();
         Map<String, List<SysProjectMember>> membersByProject = projectIds.isEmpty()
@@ -181,7 +189,7 @@ public class FinanceReportingService {
 
         return projects.stream().map(project -> {
             BigDecimal estimatedAsset = scaleOrZero(project.getBudget());
-            BigDecimal estimatedLiability = scaleOrZero(project.getCost());
+            BigDecimal estimatedLiability = scaleOrZero(cumulativeCostByProject.getOrDefault(project.getProjectId(), BigDecimal.ZERO));
             List<FinanceStatementsResponse.MemberInfo> members = membersByProject.getOrDefault(project.getProjectId(), List.of()).stream()
                     .map(member -> FinanceStatementsResponse.MemberInfo.builder()
                             .userId(member.getUser().getUserId())

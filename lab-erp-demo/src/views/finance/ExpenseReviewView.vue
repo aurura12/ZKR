@@ -8,19 +8,19 @@
     <section class="review-section">
       <h3 class="section-title">⏳ 待审批</h3>
        <div v-if="!pending.length" class="empty-state">暂无待审批费用</div>
-       <div v-for="exp in pending" :key="exp.id" class="expense-card">
-        <div class="expense-top">
-          <span class="expense-type" :class="typeClass(exp.expenseType)">{{ typeLabel(exp.expenseType) }}</span>
-          <span class="expense-status" :class="statusClass(exp.status)">{{ statusLabel(exp.status) }}</span>
-        </div>
-        <div class="expense-body">
-          <div class="expense-name">{{ exp.itemName }}</div>
-          <div class="expense-meta">
-            <span>{{ exp.projectName }}</span>
-            <span>提交人: {{ exp.submitterName }}</span>
-            <span>{{ formatTime(exp.createdAt) }}</span>
-          </div>
-          <div class="expense-amount">¥{{ formatMoney(exp.amount) }}</div>
+        <div v-for="exp in pending" :key="exp.id" class="expense-card">
+         <span class="expense-status" :class="statusClass(exp.status)">{{ statusLabel(exp.status) }}</span>
+         <div class="expense-top">
+           <span class="expense-type" :class="typeClass(exp.expenseType)">{{ typeLabel(exp.expenseType) }}</span>
+         </div>
+         <div class="expense-body">
+           <div class="expense-name">{{ exp.itemName }}</div>
+           <div class="expense-meta">
+             <span>{{ exp.projectName }}</span>
+             <span>提交人: {{ exp.submitterName }}</span>
+             <span>{{ formatTime(exp.createdAt) }}</span>
+           </div>
+           <div class="expense-amount">¥{{ formatMoney(exp.amount) }}</div>
           <div v-if="exp.files && exp.files.length" class="expense-attachment">
             <div v-for="f in exp.files" :key="f.id" class="attachment-file-row">
               <el-link type="primary" :underline="false" @click="previewFile(f)">
@@ -45,9 +45,9 @@
       <h3 class="section-title">📜 历史记录</h3>
       <div v-if="!history.length" class="empty-state">暂无历史记录</div>
       <div v-for="exp in history" :key="exp.id" class="expense-card history">
+        <span class="expense-status" :class="statusClass(exp.status)">{{ statusLabel(exp.status) }}</span>
         <div class="expense-top">
           <span class="expense-type" :class="typeClass(exp.expenseType)">{{ typeLabel(exp.expenseType) }}</span>
-          <span class="expense-status" :class="statusClass(exp.status)">{{ statusLabel(exp.status) }}</span>
         </div>
         <div class="expense-body">
           <div class="expense-name">{{ exp.itemName }}</div>
@@ -263,10 +263,11 @@ onMounted(() => {
 .subtitle { color: #94a3b8; font-size: 14px; }
 .section-title { font-size: 18px; font-weight: 600; margin: 24px 0 12px; }
 .empty-state { color: #94a3b8; padding: 24px; text-align: center; background: #f8fafc; border-radius: 8px; }
-.expense-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+.expense-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 12px; position: relative; }
 .expense-card.history { opacity: 0.85; }
 .expense-top { display: flex; gap: 8px; margin-bottom: 8px; }
 .expense-type { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+.expense-status { position: absolute; top: 12px; right: 16px; font-size: 18px; font-weight: 700; padding: 4px 14px; border-radius: 8px; }
 .type-hardware { background: #e3f2fd; color: #1565c0; }
 .type-external_service { background: #f3e5f5; color: #7b1fa2; }
 .type-reimbursement { background: #fce4ec; color: #c62828; }
@@ -274,7 +275,6 @@ onMounted(() => {
 .type-normal_travel { background: #e8f5e9; color: #2e7d32; }
 .type-price_diff { background: #fce4ec; color: #c62828; }
 .type-reimbursement { background: #e8f5e9; color: #2e7d32; }
-.expense-status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
 .status-pending_jiaomiao, .status-pending_chenlei { background: #fff3e0; color: #e65100; }
 .status-approved { background: #e8f5e9; color: #2e7d32; }
 .status-rejected { background: #ffebee; color: #c62828; }

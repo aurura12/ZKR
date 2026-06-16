@@ -2973,7 +2973,7 @@ const submitCostAdjust = async () => {
     const file = invoiceFileList?.[0]?.raw
     if (file) form.append('invoiceFile', file)
 
-    await request.post(`/api/projects/${targetId}/adjust-cost`, form, {
+    await request.post(`/api/finance/projects/${targetId}/cost-adjustments`, form, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
     ElMessage.success('项目成本已调整')

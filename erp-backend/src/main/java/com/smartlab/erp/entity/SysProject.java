@@ -90,6 +90,9 @@ public class SysProject {
     @Builder.Default
     private BigDecimal cost = BigDecimal.ZERO;
 
+    @Transient
+    private Boolean costControlEnabled;
+
     // 6. 产品研发专用字段 (可空)
     @Column(name = "tech_stack")
     private String techStack;

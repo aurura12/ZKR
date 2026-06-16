@@ -135,6 +135,15 @@ public class AuthService {
                 .accountDomain(domain)
                 .active(true)
                 .dailyWage(wage)
+                .idNumber(request.getIdNumber())
+                .phone(request.getPhone())
+                .bankName(request.getBankName())
+                .bankAccount(request.getBankAccount())
+                .ethnicity(request.getEthnicity())
+                .department(request.getDepartment() != null ? request.getDepartment() : mapRoleToDepartment(request.getRole()))
+                .position(request.getPosition())
+                .partTime(request.getPartTime() != null ? request.getPartTime() : false)
+                .paymentEntity(request.getPaymentEntity() != null ? request.getPaymentEntity() : "国科九天")
                 .build();
 
         userRepository.save(user);
@@ -409,6 +418,21 @@ public class AuthService {
 
         // Clean up used verification code
         emailVerificationCodeRepository.deleteUnverifiedByEmail(email);
+    }
+
+    private String mapRoleToDepartment(String role) {
+        if (role == null) return "研究中心";
+        return switch (role.toUpperCase()) {
+            case "RESEARCH" -> "研究中心";
+            case "DEV" -> "开发中心";
+            case "BUSINESS", "BD" -> "商务中心";
+            case "ALGORITHM" -> "算法中心";
+            case "DATA", "DATA_ENGINEER" -> "数据中心";
+            case "ADMIN" -> "管理中心";
+            case "PROMOTION" -> "运营中心";
+            case "QA" -> "测试中心";
+            default -> "研究中心";
+        };
     }
 
     private String generateVerificationCode() {
