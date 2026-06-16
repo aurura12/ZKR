@@ -36,11 +36,6 @@
           </el-select>
         </div>
 
-        <div class="field-block full-width">
-          <label>部门</label>
-          <el-input v-model="form.department" disabled placeholder="根据角色自动映射" />
-        </div>
-
         <div class="field-block">
           <label>岗位</label>
           <el-input v-model="form.position" placeholder="例如：实习生、工程师" />
@@ -114,7 +109,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch } from 'vue'
+import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import request from '@/utils/request'
@@ -128,7 +123,6 @@ const form = reactive({
   name: '',
   role: '',
   domain: 'ERP',
-  department: '',
   position: '',
   ethnicity: '',
   phone: '',
@@ -139,23 +133,6 @@ const form = reactive({
   bankName: '',
   bankAccount: ''
 })
-
-const roleDepartmentMap = {
-  'RESEARCH': '研究中心',
-  'DEV': '开发中心',
-  'BUSINESS': '商务中心',
-  'BD': '商务中心',
-  'ALGORITHM': '算法中心',
-  'DATA': '数据中心',
-  'DATA_ENGINEER': '数据中心',
-  'ADMIN': '管理中心',
-  'PROMOTION': '运营中心',
-  'QA': '测试中心'
-}
-
-watch(() => form.role, (newRole) => {
-  form.department = roleDepartmentMap[newRole] || '研究中心'
-}, { immediate: true })
 
 const submitting = ref(false)
 
@@ -212,7 +189,6 @@ const handleSubmit = async () => {
       name: form.name.trim(),
       role: form.role,
       domain: form.domain,
-      department: form.department,
       position: form.position,
       ethnicity: form.ethnicity,
       phone: form.phone,
@@ -228,7 +204,6 @@ const handleSubmit = async () => {
     form.name = ''
     form.role = ''
     form.domain = 'ERP'
-    form.department = ''
     form.position = ''
     form.ethnicity = ''
     form.phone = ''

@@ -13,7 +13,9 @@
         <el-table-column prop="name" label="姓名" width="120" />
         <el-table-column prop="username" label="账号" width="120" />
         <el-table-column prop="role" label="角色" width="100" />
-        <el-table-column prop="department" label="部门" width="100" />
+        <el-table-column label="部门" width="100">
+          <template #default="{ row }">{{ roleToDepartment(row.role) }}</template>
+        </el-table-column>
         <el-table-column prop="position" label="岗位" width="100" />
         <el-table-column label="协议文件" width="160">
           <template #default="{ row }">
@@ -60,6 +62,11 @@ const DOCS_BASE = '/api/admin/users/users'
 
 const users = ref([])
 const loading = ref(false)
+
+const roleToDepartment = (role) => {
+  const map = { RESEARCH:'研究中心', DEV:'开发中心', BUSINESS:'商务中心', BD:'商务中心', ALGORITHM:'算法中心', DATA:'数据中心', DATA_ENGINEER:'数据中心', ADMIN:'管理中心', PROMOTION:'运营中心', QA:'测试中心' }
+  return map[role] || '研究中心'
+}
 
 const fetchUsers = async () => {
   loading.value = true

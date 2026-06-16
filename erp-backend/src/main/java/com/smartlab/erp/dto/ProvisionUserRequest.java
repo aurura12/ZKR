@@ -27,7 +27,6 @@ public class ProvisionUserRequest {
     private String bankName;
     private String bankAccount;
     private String ethnicity;
-    private String department;
     private String position;
     private Boolean partTime;
     private String paymentEntity;

@@ -169,7 +169,7 @@ public class UserService {
                     displayName = displayName + "（实习生）";
                 }
                 row.createCell(1).setCellValue(displayName != null ? displayName : "");
-                row.createCell(2).setCellValue(u.getDepartment() != null ? u.getDepartment() : "");
+                row.createCell(2).setCellValue(mapRoleToDepartment(u.getRole()));
                 row.createCell(3).setCellValue(u.getPosition() != null ? u.getPosition() : "");
                 row.createCell(4).setCellValue(u.getEthnicity() != null ? u.getEthnicity() : "");
                 row.createCell(5).setCellValue(u.getEntryDate() != null ? u.getEntryDate().toString() : "");
@@ -192,5 +192,20 @@ public class UserService {
         } catch (Exception e) {
             throw new RuntimeException("导出花名册失败", e);
         }
+    }
+
+    private String mapRoleToDepartment(String role) {
+        if (role == null) return "研究中心";
+        return switch (role.toUpperCase()) {
+            case "RESEARCH" -> "研究中心";
+            case "DEV" -> "开发中心";
+            case "BUSINESS", "BD" -> "商务中心";
+            case "ALGORITHM" -> "算法中心";
+            case "DATA", "DATA_ENGINEER" -> "数据中心";
+            case "ADMIN" -> "管理中心";
+            case "PROMOTION" -> "运营中心";
+            case "QA" -> "测试中心";
+            default -> "研究中心";
+        };
     }
 }

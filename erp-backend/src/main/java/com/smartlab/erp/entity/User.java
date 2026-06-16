@@ -89,9 +89,6 @@ public class User implements UserDetails {
     @Column(name = "ethnicity", length = 20)
     private String ethnicity;
 
-    @Column(name = "department", length = 50)
-    private String department;
-
     @Column(name = "position", length = 50)
     private String position;
 
