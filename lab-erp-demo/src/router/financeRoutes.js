@@ -134,6 +134,15 @@ export const financeNavigationItems = [
     title: '成本跑批日志',
     description: '每日成本跑批执行记录，每天仅执行一次。',
     highlights: ['执行状态', '产出记录', '失败原因']
+  },
+  {
+    path: '/finance/labor-relations',
+    routeName: 'finance-labor-relations',
+    label: '劳动关系',
+    eyebrow: 'HR',
+    title: '劳动关系资料',
+    description: '管理员工入职协议、身份证及学生证扫描件的上传与下载',
+    highlights: ['协议管理', '证件存档', '一键上传']
   }
 ]
 
@@ -228,6 +237,10 @@ export const financeRoutes = [
       withFinanceMeta({
         ...financeNavigationItems[12],
         component: () => import('@/views/finance/BatchLogView.vue')
+      }),
+      withFinanceMeta({
+        ...financeNavigationItems[13],
+        component: () => import('@/views/finance/LaborRelationsView.vue')
       })
     ]
   }
