@@ -56,7 +56,7 @@
               <el-dropdown-item v-if="userStore.isErpLoggedIn" command="personal-procurement">🛒 个人采购申请</el-dropdown-item>
               <el-dropdown-item command="profile">👤 个人中心</el-dropdown-item>
               <el-dropdown-item v-if="showProvisionUserAction" command="provision-user">🪪 创建账号</el-dropdown-item>
-              <el-dropdown-item v-if="showProvisionUserAction" command="wage-management">💰 工资管理</el-dropdown-item>
+              <el-dropdown-item v-if="showProvisionUserAction" command="wage-management">👥 员工管理</el-dropdown-item>
               <el-dropdown-item v-if="showServerManagementEntry" command="server-management">🖥️ 服务器管理</el-dropdown-item>
               <el-dropdown-item v-if="showExpenseReviewEntry" command="expense-review">
                 📋 费用审批

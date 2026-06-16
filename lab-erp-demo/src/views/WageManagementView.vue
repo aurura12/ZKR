@@ -4,10 +4,13 @@
       <div class="header-row">
         <div>
           <div class="eyebrow">ADMIN ONLY</div>
-          <h1>工资管理</h1>
-          <p class="subtitle">管理所有用户的日工资标准</p>
+          <h1>员工管理</h1>
+          <p class="subtitle">管理员工信息、日工资及花名册导出</p>
         </div>
-        <el-tag type="primary">仅授权账号可见</el-tag>
+        <div style="display:flex;gap:12px;align-items:center">
+          <el-tag type="primary">仅授权账号可见</el-tag>
+          <el-button type="success" :loading="exporting" @click="handleExport">📥 导出花名册</el-button>
+        </div>
       </div>
 
       <div class="table-wrapper">
@@ -74,11 +77,13 @@
 <script setup>
 import { ref, watch, shallowRef, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import axios from 'axios'
 import request from '@/utils/request'
 
 const users = ref([])
 const loading = ref(false)
 const savingIds = ref(new Set())
+const exporting = ref(false)
 
 const sortProp = ref(null)
 const sortOrder = ref(null)
@@ -182,6 +187,31 @@ const handleActivate = async (row) => {
 }
 
 onMounted(fetchUsers)
+
+const handleExport = async () => {
+  exporting.value = true
+  try {
+    const token = localStorage.getItem('erp_token')
+    const response = await axios.get('/api/admin/users/export', {
+      responseType: 'blob',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = '花名册.xlsx'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('花名册导出成功')
+  } catch (e) {
+    ElMessage.error('导出失败')
+  } finally {
+    exporting.value = false
+  }
+}
 </script>
 
 <style scoped>
