@@ -25,4 +25,6 @@ public interface UserRepository extends JpaRepository<User, String> { // 主键�
     Optional<String> findMaxUserId();
 
     List<User> findAllByOrderByUserIdAsc();
+
+    List<User> findByUsernameContainingIgnoreCase(String username);
 }
