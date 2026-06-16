@@ -72,6 +72,7 @@
         </div>
         <div class="expense-review-log">
           <span v-if="exp.jiaomiaoAction">焦淼: {{ exp.jiaomiaoAction === 'APPROVE' ? '✅ 通过' : '❌ 拒绝' }} {{ formatTime(exp.jiaomiaoAt) }}</span>
+          <span v-if="exp.financeAction">财务: {{ exp.financeAction === 'APPROVE' ? '✅ 通过' : '❌ 拒绝' }} {{ formatTime(exp.financeAt) }}</span>
           <span v-if="exp.chenleiAction">陈磊: {{ exp.chenleiAction === 'APPROVE' ? '✅ 通过' : '❌ 拒绝' }} {{ formatTime(exp.chenleiAt) }}</span>
           <span v-if="exp.rejectReason" class="reject-reason">原因: {{ exp.rejectReason }}</span>
         </div>
@@ -126,7 +127,7 @@ const previewingExpenseId = ref(null)
 
 const typeLabel = t => ({ HARDWARE: '硬件采购', EXTERNAL_SERVICE: '外部技术服务', REIMBURSEMENT: '报销', BUSINESS_MEAL: '商务餐费', NORMAL_TRAVEL: '正常差旅', PRICE_DIFF: '补差价' }[t] || t)
 const typeClass = t => `type-${t?.toLowerCase()}`
-const statusLabel = s => ({ PENDING_JIAOMIAO: '待焦淼审批', PENDING_CHENLEI: '待陈磊审批', APPROVED: '已通过', REJECTED: '已拒绝' }[s] || s)
+const statusLabel = s => ({ PENDING_JIAOMIAO: '待焦淼审批', PENDING_FINANCE: '待财务审批', PENDING_CHENLEI: '待陈磊审批', APPROVED: '已通过', REJECTED: '已拒绝' }[s] || s)
 const statusClass = s => `status-${s?.toLowerCase()}`
 
 const formatMoney = v => {
@@ -143,9 +144,11 @@ const formatTime = v => {
 
 const isJiaomiao = computed(() => String(userStore.activeUserInfo?.userId) === '000027')
 const isChenlei = computed(() => String(userStore.activeUserInfo?.userId) === '000044')
+const isFinance = computed(() => String(userStore.activeUserInfo?.userId) === '000099')
 
 const canRevoke = exp => {
-  if (isJiaomiao.value && exp.jiaomiaoAction && !exp.chenleiAction) return true
+  if (isJiaomiao.value && exp.jiaomiaoAction && !exp.financeAction) return true
+  if (isFinance.value && exp.financeAction && !exp.chenleiAction) return true
   if (isChenlei.value && exp.chenleiAction) return true
   return false
 }
@@ -250,7 +253,7 @@ const downloadInvoice = () => {
 }
 
 onMounted(() => {
-  if (isJiaomiao.value || isChenlei.value) {
+  if (isJiaomiao.value || isFinance.value || isChenlei.value) {
     loadData()
   }
 })
@@ -275,7 +278,7 @@ onMounted(() => {
 .type-normal_travel { background: #e8f5e9; color: #2e7d32; }
 .type-price_diff { background: #fce4ec; color: #c62828; }
 .type-reimbursement { background: #e8f5e9; color: #2e7d32; }
-.status-pending_jiaomiao, .status-pending_chenlei { background: #fff3e0; color: #e65100; }
+.status-pending_jiaomiao, .status-pending_finance, .status-pending_chenlei { background: #fff3e0; color: #e65100; }
 .status-approved { background: #e8f5e9; color: #2e7d32; }
 .status-rejected { background: #ffebee; color: #c62828; }
 .expense-body { margin-bottom: 8px; }

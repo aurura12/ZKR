@@ -87,6 +87,12 @@ public class ProjectExpense {
     @Column(name = "jiaomiao_at")
     private Instant jiaomiaoAt;
 
+    @Column(name = "finance_action", length = 20)
+    private String financeAction;
+
+    @Column(name = "finance_at")
+    private Instant financeAt;
+
     @Column(name = "chenlei_action", length = 20)
     private String chenleiAction;
 
