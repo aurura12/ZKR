@@ -36,9 +36,54 @@
           </el-select>
         </div>
 
+        <div class="field-block full-width">
+          <label>部门</label>
+          <el-input v-model="form.department" disabled placeholder="根据角色自动映射" />
+        </div>
+
+        <div class="field-block">
+          <label>岗位</label>
+          <el-input v-model="form.position" placeholder="例如：实习生、工程师" />
+        </div>
+
+        <div class="field-block">
+          <label>民族</label>
+          <el-input v-model="form.ethnicity" placeholder="例如：汉族" />
+        </div>
+
+        <div class="field-block">
+          <label>手机号</label>
+          <el-input v-model="form.phone" placeholder="联系电话" />
+        </div>
+
+        <div class="field-block full-width">
+          <label>身份证号</label>
+          <el-input v-model="form.idNumber" placeholder="18位身份证号码" maxlength="18" />
+        </div>
+
         <div class="field-block">
           <label>日工资 (元/天)</label>
           <el-input-number v-model="form.dailyWage" :min="0" :precision="2" :step="10" placeholder="默认 300.00" />
+        </div>
+
+        <div class="field-block">
+          <label>是否兼职</label>
+          <el-switch v-model="form.partTime" />
+        </div>
+
+        <div class="field-block">
+          <label>支付主体</label>
+          <el-input v-model="form.paymentEntity" disabled placeholder="国科九天" />
+        </div>
+
+        <div class="field-block">
+          <label>开户行</label>
+          <el-input v-model="form.bankName" placeholder="例如：中国工商银行xxx支行" />
+        </div>
+
+        <div class="field-block">
+          <label>银行卡号</label>
+          <el-input v-model="form.bankAccount" placeholder="银行卡号" />
         </div>
 
       </div>
@@ -52,7 +97,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import request from '@/utils/request'
@@ -66,8 +111,34 @@ const form = reactive({
   name: '',
   role: '',
   domain: 'ERP',
-  dailyWage: 300.00
+  department: '',
+  position: '',
+  ethnicity: '',
+  phone: '',
+  idNumber: '',
+  dailyWage: 300.00,
+  partTime: false,
+  paymentEntity: '国科九天',
+  bankName: '',
+  bankAccount: ''
 })
+
+const roleDepartmentMap = {
+  'RESEARCH': '研究中心',
+  'DEV': '开发中心',
+  'BUSINESS': '商务中心',
+  'BD': '商务中心',
+  'ALGORITHM': '算法中心',
+  'DATA': '数据中心',
+  'DATA_ENGINEER': '数据中心',
+  'ADMIN': '管理中心',
+  'PROMOTION': '运营中心',
+  'QA': '测试中心'
+}
+
+watch(() => form.role, (newRole) => {
+  form.department = roleDepartmentMap[newRole] || '研究中心'
+}, { immediate: true })
 
 const submitting = ref(false)
 
@@ -92,14 +163,32 @@ const handleSubmit = async () => {
       name: form.name.trim(),
       role: form.role,
       domain: form.domain,
-      dailyWage: form.dailyWage
+      department: form.department,
+      position: form.position,
+      ethnicity: form.ethnicity,
+      phone: form.phone,
+      idNumber: form.idNumber,
+      dailyWage: form.dailyWage,
+      partTime: form.partTime,
+      paymentEntity: form.paymentEntity,
+      bankName: form.bankName,
+      bankAccount: form.bankAccount
     })
     ElMessage.success(response?.message || `账号创建成功，初始密码为：${form.username.trim()}123`)
     form.username = ''
     form.name = ''
     form.role = ''
     form.domain = 'ERP'
+    form.department = ''
+    form.position = ''
+    form.ethnicity = ''
+    form.phone = ''
+    form.idNumber = ''
     form.dailyWage = 300.00
+    form.partTime = false
+    form.paymentEntity = '国科九天'
+    form.bankName = ''
+    form.bankAccount = ''
   } catch (error) {
     ElMessage.error(error.response?.data?.message || error.message || '账号创建失败')
   } finally {
