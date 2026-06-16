@@ -414,6 +414,7 @@
     </div>
 
     <div v-else class="product-flow-grid">
+      <div class="flow-column">
         <div class="panel smart-info-panel">
           <div class="panel-header-row">
             <h3 class="panel-title">🧠 动态信息面板</h3>
@@ -495,8 +496,8 @@
             </div>
         </div>
       </div>
-
-      <div class="panel action-engine-panel">
+      <div class="flow-column">
+        <div class="panel action-engine-panel">
         <div class="panel-header-row">
           <h3 class="panel-title">⚙️ 动作引擎</h3>
         </div>
@@ -512,6 +513,7 @@
           </el-button>
         </div>
         <div v-if="nextProjectStageDisabledReason" class="lock-reason">{{ nextProjectStageDisabledReason }}</div>
+      </div>
       </div>
     </div>
 
