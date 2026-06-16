@@ -1,28 +1,22 @@
 <template>
-  <section class="procurement-root">
+  <div class="procurement-page">
     <div class="hero-card">
-      <p class="eyebrow">ERP Personal Procurement</p>
+      <p class="eyebrow">NON-PROJECT PROCUREMENT</p>
       <h1>个人采购申请</h1>
-      <p class="hero-copy">提交采购物品、发票与用途说明，财务系统会自动汇总这笔申请。</p>
-      <div class="meta-row">
-        <span>申请人：{{ currentUser?.name || currentUser?.username || '未登录用户' }}</span>
-        <span>账号：{{ currentUser?.username || '-' }}</span>
-      </div>
+      <p class="hero-copy">提交非项目类的公司运营采购，由业务负责人审核后进入财务审批流程。</p>
     </div>
 
     <div class="form-card">
-      <ExpenseSubmissionForm submission-type="PERSONAL_PROCUREMENT" @submitted="handleSubmitted" />
+      <ExpenseSubmissionForm
+        submission-type="PERSONAL_PROCUREMENT"
+        @submitted="handleSubmitted"
+      />
     </div>
-  </section>
+  </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { useUserStore } from '@/stores/userStore'
 import ExpenseSubmissionForm from '@/components/finance/ExpenseSubmissionForm.vue'
-
-const userStore = useUserStore()
-const currentUser = computed(() => userStore.activeUserInfo || {})
 
 const handleSubmitted = () => {
   window.dispatchEvent(new Event('finance-global-refresh'))
@@ -30,7 +24,7 @@ const handleSubmitted = () => {
 </script>
 
 <style scoped>
-.procurement-root {
+.procurement-page {
   --procurement-card-bg: linear-gradient(150deg, rgba(255, 255, 255, 0.9), rgba(240, 249, 255, 0.82));
   --procurement-card-border: rgba(148, 163, 184, 0.18);
   --procurement-card-shadow: 0 18px 36px rgba(15, 23, 42, 0.08);
@@ -71,16 +65,7 @@ const handleSubmitted = () => {
   max-width: 680px;
 }
 
-.meta-row {
-  margin-top: 16px;
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  color: var(--text-sub);
-  font-size: 13px;
-}
-
-:global(.dark) .procurement-root {
+:global(.dark) .procurement-page {
   --procurement-card-bg: linear-gradient(150deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9));
   --procurement-card-border: rgba(148, 163, 184, 0.24);
   --procurement-card-shadow: 0 22px 42px rgba(2, 6, 23, 0.42);
