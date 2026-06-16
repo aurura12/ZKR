@@ -72,7 +72,8 @@ service.interceptors.response.use(
                     localStorage.removeItem('finance_token')
                 }
                 localStorage.removeItem('token')
-                window.location.href = scope === 'ERP' ? '/erp-login' : '/login'
+                const isErpPage = scope === 'ERP' || window.location.pathname.startsWith('/erp-login') || window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/manager') || window.location.pathname.startsWith('/workspace')
+                window.location.href = isErpPage ? '/erp-login' : '/login'
                 return Promise.reject(error)
             }
             if (status === 403) {

@@ -164,8 +164,8 @@ public class AdminUserController {
             String content = "员工入职协议\n\n"
                     + "姓名: " + (user.getName() != null ? user.getName() : "") + "\n"
                     + "账号: " + user.getUsername() + "\n"
+                    + "角色: " + (user.getRole() != null ? user.getRole() : "") + "\n"
                     + "岗位: " + (user.getPosition() != null ? user.getPosition() : "") + "\n"
-                    + "部门: " + (user.getDepartment() != null ? user.getDepartment() : "") + "\n"
                     + "入职日期: " + (user.getEntryDate() != null ? user.getEntryDate().toString() : "") + "\n"
                     + "身份证号: " + (user.getIdNumber() != null ? user.getIdNumber() : "") + "\n\n"
                     + "本协议一式两份，公司存档一份，本人持有一份。";
