@@ -61,7 +61,7 @@ auth:
     admin-user-id: ${AUTH_PROVISION_ADMIN_USER_ID:}
     admin-username: ${AUTH_PROVISION_ADMIN_USERNAME:Zhangqi}
     admin-temp-password: ${AUTH_PROVISION_ADMIN_TEMP_PASSWORD:}
-  finance-reviewer-user-id: ${AUTH_FINANCE_REVIEWER_USER_ID:000099}
+  finance-reviewer-user-id: ${AUTH_FINANCE_REVIEWER_USER_ID:000101}
 
 mail:
   from-name: ${MAIL_FROM_NAME:国科九天}

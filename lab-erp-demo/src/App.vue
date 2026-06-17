@@ -179,7 +179,7 @@ const showCreateProductAction = computed(() => userStore.isErpLoggedIn)
 const showProvisionUserAction = computed(() => userStore.isErpLoggedIn && canAccessProvisioning(userStore.activeUserInfo?.username))
 const showExpenseReviewEntry = computed(() => {
   const uid = String(userStore.activeUserInfo?.userId || '')
-  return uid === '000027' || uid === '000044'
+  return uid === '000027' || uid === '000101' || uid === '000044'
 })
 
 const showServerManagementEntry = computed(() => {
