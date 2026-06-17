@@ -144,7 +144,7 @@ const formatTime = v => {
 
 const isJiaomiao = computed(() => String(userStore.activeUserInfo?.userId) === '000027')
 const isChenlei = computed(() => String(userStore.activeUserInfo?.userId) === '000044')
-const isFinance = computed(() => String(userStore.activeUserInfo?.userId) === '000099')
+const isFinance = computed(() => String(userStore.activeUserInfo?.userId) === '000101')
 
 const canRevoke = exp => {
   if (isJiaomiao.value && exp.jiaomiaoAction && !exp.financeAction) return true
