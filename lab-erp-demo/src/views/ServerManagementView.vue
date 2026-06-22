@@ -13,12 +13,15 @@
       <el-tabs v-model="activeTab" class="mgmt-tabs">
         <!-- Tab 1: 服务器列表 -->
         <el-tab-pane label="服务器" name="servers">
+          <div class="server-toolbar">
+            <el-button :loading="statusLoading" @click="fetchServerStatuses" size="small">刷新状态</el-button>
+          </div>
           <div class="server-cards">
-            <div v-for="srv in servers" :key="srv.name" class="server-card" :class="{ 'server-card-ok': srv.status === 'ok' }">
+            <div v-for="srv in servers" :key="srv.name" class="server-card" :class="{ 'server-card-ok': serverStatuses[srv.name] === 'ok' }">
               <div class="srv-header">
                 <span class="srv-name">{{ srv.name }}</span>
-                <el-tag :type="srv.status === 'ok' ? 'success' : 'danger'" size="small">
-                  {{ srv.status === 'ok' ? '在线' : '离线' }}
+                <el-tag :type="getStatusType(srv.name)" size="small">
+                  {{ getStatusText(srv.name) }}
                 </el-tag>
               </div>
               <div class="srv-body">
@@ -105,7 +108,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 
@@ -115,6 +118,8 @@ const activeTab = ref('servers')
 
 const servers = ref([])
 const serversLoading = ref(false)
+const serverStatuses = ref({})
+const statusLoading = ref(false)
 
 const users = ref([])
 const usersLoading = ref(false)
@@ -140,7 +145,7 @@ const fetchServers = async () => {
   try {
     const res = await request.get(`${BASE}/servers`, { params: { mask_secrets: true } })
     const data = res?.data || []
-    servers.value = data.map(s => ({ ...s, status: 'ok' }))
+    servers.value = data
     serverOptions.value = data.map(s => s.name)
   } catch (e) {
     ElMessage.error('加载服务器列表失败')
@@ -159,6 +164,38 @@ const fetchUsers = async () => {
   } finally {
     usersLoading.value = false
   }
+}
+
+const fetchServerStatuses = async () => {
+  statusLoading.value = true
+  try {
+    const res = await request.get(`${BASE}/servers/status`)
+    const list = res?.data || []
+    const map = {}
+    list.forEach(s => { map[s.name] = s.status })
+    serverStatuses.value = map
+  } catch {
+    ElMessage.error('检测服务器状态失败')
+  } finally {
+    statusLoading.value = false
+  }
+}
+
+const getStatusType = (name) => {
+  const s = serverStatuses.value[name]
+  if (s === 'ok') return 'success'
+  if (s === 'auth_failed') return 'warning'
+  if (s === 'unreachable') return 'danger'
+  return 'info'
+}
+
+const getStatusText = (name) => {
+  const s = serverStatuses.value[name]
+  if (s === 'ok') return '在线'
+  if (s === 'auth_failed') return '认证失败'
+  if (s === 'unreachable') return '离线'
+  if (!s) return '检测中'
+  return '未知'
 }
 
 const handleDeleteUser = async (row) => {
@@ -216,7 +253,12 @@ const handleDeploy = async () => {
 
 onMounted(() => {
   fetchServers()
+  fetchServerStatuses()
   fetchUsers()
+})
+
+watch(activeTab, (tab) => {
+  if (tab === 'servers') fetchServerStatuses()
 })
 </script>
 
@@ -248,6 +290,12 @@ onMounted(() => {
 .subtitle { color: var(--text-secondary); margin: 4px 0 0; font-size: 0.875rem; }
 
 .mgmt-tabs { margin-top: 8px; }
+
+.server-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
 
 .server-cards {
   display: grid;

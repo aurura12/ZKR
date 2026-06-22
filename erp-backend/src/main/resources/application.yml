@@ -53,6 +53,12 @@ jwt:
 file:
   upload-dir: ${APP_UPLOADS_DIR:./uploads}
 
+llm:
+  base-url: ${ERP_LLM_BASE_URL:https://opencode.ai/zen/go/v1}
+  api-key: ${ERP_LLM_API_KEY:}
+  model: ${ERP_LLM_MODEL:deepseek-v4-pro}
+  timeout-seconds: ${ERP_LLM_TIMEOUT_SECONDS:60}
+
 auth:
   research-initiators: ${AUTH_RESEARCH_INITIATORS:焦淼,jiaomiao,胡军,hujun,任涛,rentao,余文清,yuwenqing}
   account-domain:

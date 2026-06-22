@@ -31,9 +31,9 @@ docker inspect zkr-lab-erp-demo --format '{{.Config.Image}}'
 
 ## 已知 Bug 记录
 
-### 2026-06-22：ERP 账号创建模块集成协议生成功能
+### 2026-06-22：ERP 账号创建模块集成协议生成功能并接入大模型自然语言识别
 
-**更新：** 在 ERP 账号创建流程中集成 outside 协议生成能力，创建账号后可直接生成三份实习协议 Word 文档并下载。
+**更新：** 在 ERP 账号创建流程中集成 outside 协议生成能力，创建账号后可直接生成三份实习协议 Word 文档并下载；同时接入 OpenCode AI DeepSeek V4 Pro，支持从自然语言文本中自动识别账号信息并填充表单。
 
 **涉及改动：**
 - 后端新增 `school_department`、`address` 字段，`agreement_template` 表存储三份协议模板。
@@ -42,12 +42,15 @@ docker inspect zkr-lab-erp-demo --format '{{.Config.Image}}'
   - `POST /api/admin/users/{userId}/agreement?type=...`（单份生成并保存）
   - `POST /api/admin/users/{userId}/agreements/batch`（勾选多份，打包 zip 下载）
   - `GET/PUT /api/admin/agreement-templates/{code}`（模板管理）
-- 前端 `AdminCreateUserView.vue` 新增「学校院系」「住址」字段；创建成功后弹出协议生成对话框。
-- 部署镜像版本：`zhangqi_backend:v1.135`、`zhangqi_frontend:v1.159`。
+  - `POST /api/admin/users/parse-natural-language`（自然语言解析为账号 JSON）
+- 新增 `LlmClient` / `NaturalLanguageParserService`，调用 OpenCode AI `/v1/chat/completions` 提取结构化账号信息。
+- 前端 `AdminCreateUserView.vue` 新增「学校院系」「住址」字段；新增自然语言输入框和「智能识别并填充」按钮；创建成功后弹出协议生成对话框。
+- 部署镜像版本：`zhangqi_backend:v1.136`、`zhangqi_frontend:v1.160`。
 
 **注意：**
-- 默认模板通过 `AgreementTemplateInitializer` 在启动时从 classpath 自动写入数据库；后续可通过管理接口替换。
+- 默认协议模板通过 `AgreementTemplateInitializer` 在启动时从 classpath 自动写入数据库；后续可通过管理接口替换。
 - 旧 `POST .../agreement` 生成 `.txt` 的行为已替换为生成 `.docx`。
+- `.env` 中 LLM 配置已切换为 OpenCode AI：`ERP_LLM_BASE_URL`、`ERP_LLM_API_KEY`、`ERP_LLM_MODEL`。
 
 ### 2026-05-09：项目流发起时 dataEngineerId 传递了 "userId-ROLE" 导致后端查不到用户
 

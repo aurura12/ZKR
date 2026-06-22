@@ -18,7 +18,7 @@ services:
 
   erp-backend:
     container_name: zkr-erp-backend
-    image: 127.0.0.1:5555/zhangqi_backend:v1.135
+    image: 127.0.0.1:5555/zhangqi_backend:v1.136
     restart: unless-stopped
     depends_on:
       postgres:
@@ -47,6 +47,9 @@ services:
       FINANCE_RAG_INDEX_NAME: ${FINANCE_RAG_INDEX_NAME:-finance-rag-index}
       FINANCE_RAG_CONNECT_TIMEOUT_SECONDS: ${FINANCE_RAG_CONNECT_TIMEOUT_SECONDS:-5}
       FINANCE_RAG_REQUEST_TIMEOUT_SECONDS: ${FINANCE_RAG_REQUEST_TIMEOUT_SECONDS:-120}
+      ERP_LLM_BASE_URL: ${ERP_LLM_BASE_URL:-https://opencode.ai/zen/go/v1}
+      ERP_LLM_API_KEY: ${ERP_LLM_API_KEY:-}
+      ERP_LLM_MODEL: ${ERP_LLM_MODEL:-deepseek-v4-pro}
       DINGTALK_APP_KEY: ${DINGTALK_APP_KEY}
       DINGTALK_APP_SECRET: ${DINGTALK_APP_SECRET}
     volumes:
@@ -113,7 +116,7 @@ services:
 
   lab-erp-demo:
     container_name: zkr-lab-erp-demo
-    image: 127.0.0.1:5555/zhangqi_frontend:v1.159
+    image: 127.0.0.1:5555/zhangqi_frontend:v1.160
     restart: unless-stopped
     ports:
       - "${FRONTEND_PUBLIC_PORT}:80"

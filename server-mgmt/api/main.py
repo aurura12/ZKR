@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 
@@ -113,6 +115,90 @@ def get_all_servers(
 def get_server_options(conn: sqlite3.Connection = Depends(get_db)) -> ApiResponse:
     """供前端下拉框：仅返回可选服务器名称列表。"""
     return ApiResponse(data=list_server_names(conn))
+
+
+# ---------------------------------------------------------------------------
+# 2.5. 检测服务器 SSH 连通状态
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/servers/status", response_model=ApiResponse)
+def get_servers_status(
+    server_name: str | None = Query(None, description="仅检查指定服务器；留空则检查全部"),
+    conn: sqlite3.Connection = Depends(get_db),
+) -> ApiResponse:
+    """通过 ansible-playbook playbook-ping.yml 检测服务器 SSH 连通性。"""
+    run_export(conn)
+    cmd = ["ansible-playbook", str(PROJECT_ROOT / "playbook-ping.yml")]
+    if server_name:
+        cmd.extend(["-l", server_name])
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        targets = _status_target_names(server_name, conn)
+        return ApiResponse(data=[{"name": n, "status": "unknown", "detail": "检测超时"} for n in targets])
+
+    output = proc.stdout + "\n" + proc.stderr
+    data = _parse_ping_recap(output, server_name, conn)
+    return ApiResponse(data=data)
+
+
+def _status_target_names(server_name: str | None, conn: sqlite3.Connection) -> list[str]:
+    if server_name:
+        return [server_name] if server_exists(conn, server_name) else []
+    return [s["name"] for s in list_servers(conn)]
+
+
+def _parse_ping_recap(output: str, server_name: str | None, conn: sqlite3.Connection) -> list[dict]:
+    servers = list_servers(conn)
+    target_names = [s["name"] for s in servers]
+    if server_name:
+        target_names = [server_name] if server_name in target_names else []
+
+    results: dict[str, dict] = {}
+    recap_re = re.compile(
+        r"^(\S+)\s+:\s+ok=(\d+).*?unreachable=(\d+).*?failed=(\d+)",
+        re.MULTILINE,
+    )
+
+    for m in recap_re.finditer(output):
+        name = m.group(1)
+        ok = int(m.group(2))
+        unreachable = int(m.group(3))
+        failed = int(m.group(4))
+
+        if unreachable > 0:
+            auth_match = re.search(
+                rf"{re.escape(name)}\s*\|\s*UNREACHABLE!.*?(Authentication failure|Invalid/incorrect password|Permission denied)",
+                output,
+                re.DOTALL,
+            )
+            if auth_match:
+                results[name] = {"name": name, "status": "auth_failed", "detail": auth_match.group(1)}
+            else:
+                results[name] = {"name": name, "status": "unreachable", "detail": ""}
+        elif failed > 0:
+            results[name] = {"name": name, "status": "auth_failed", "detail": "任务执行失败"}
+        elif ok >= 1:
+            results[name] = {"name": name, "status": "ok", "detail": ""}
+        else:
+            results[name] = {"name": name, "status": "unknown", "detail": ""}
+
+    for name in target_names:
+        if name not in results:
+            if re.search(rf"{re.escape(name)}\s*\|\s*UNREACHABLE!", output):
+                results[name] = {"name": name, "status": "unreachable", "detail": ""}
+            else:
+                results[name] = {"name": name, "status": "unknown", "detail": "未出现在 Ansible 输出中"}
+
+    return [results[n] for n in target_names]
 
 
 # ---------------------------------------------------------------------------

@@ -17,9 +17,10 @@
           <template #default="{ row }">{{ roleToDepartment(row.role) }}</template>
         </el-table-column>
         <el-table-column prop="position" label="岗位" width="100" />
-        <el-table-column label="协议文件" width="160">
+        <el-table-column label="协议文件" width="220">
           <template #default="{ row }">
             <div class="doc-cell">
+              <el-button size="small" type="warning" :loading="generating[row.userId]" @click="generateAgreement(row.userId)">生成</el-button>
               <el-button v-if="row.hasAgreement" size="small" type="primary" link @click="downloadDoc(row.userId, 'agreement')">下载</el-button>
               <el-upload :show-file-list="false" :before-upload="(f) => uploadDoc(row.userId, f, 'agreement')" accept=".txt,.pdf,.doc,.docx" style="display:inline-block">
                 <el-button size="small" type="success">上传</el-button>
@@ -53,15 +54,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 
-const USERS_BASE = '/api/admin/users'
-const DOCS_BASE = '/api/admin/users/users'
+const USERS_BASE = '/api/finance/labor-relations/users'
+const DOCS_BASE = '/api/finance/labor-relations/users'
 
 const users = ref([])
 const loading = ref(false)
+const generating = reactive({})
 
 const roleToDepartment = (role) => {
   const map = { RESEARCH:'研究中心', DEV:'开发中心', BUSINESS:'商务中心', BD:'商务中心', ALGORITHM:'算法中心', DATA:'数据中心', DATA_ENGINEER:'数据中心', ADMIN:'管理中心', PROMOTION:'运营中心', QA:'测试中心' }
@@ -73,20 +75,6 @@ const fetchUsers = async () => {
   try {
     const userList = await request.get(USERS_BASE)
     const list = Array.isArray(userList) ? userList : []
-
-    for (const u of list) {
-      try {
-        const docs = await request.get(`${DOCS_BASE}/${u.userId}/documents`)
-        const docList = Array.isArray(docs) ? docs : []
-        u.hasAgreement = docList.some(d => d.type === '协议' || d.filename?.startsWith('agreement'))
-        u.hasIdCard = docList.some(d => d.type === '身份证' || d.filename?.startsWith('id_card'))
-        u.hasStudentCard = docList.some(d => d.type === '学生证' || d.filename?.startsWith('student_card'))
-      } catch {
-        u.hasAgreement = false
-        u.hasIdCard = false
-        u.hasStudentCard = false
-      }
-    }
     users.value = list
   } catch {
     ElMessage.error('加载用户列表失败')
@@ -136,6 +124,19 @@ const downloadDoc = async (userId, docType) => {
     window.URL.revokeObjectURL(url)
   } catch {
     ElMessage.error('下载失败')
+  }
+}
+
+const generateAgreement = async (userId) => {
+  generating[userId] = true
+  try {
+    const res = await request.post(`${DOCS_BASE}/${userId}/agreement`)
+    ElMessage.success(res?.message || '协议生成成功')
+    fetchUsers()
+  } catch {
+    ElMessage.error('协议生成失败')
+  } finally {
+    generating[userId] = false
   }
 }
 

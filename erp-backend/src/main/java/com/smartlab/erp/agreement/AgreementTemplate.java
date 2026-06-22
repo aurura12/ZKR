@@ -1,6 +1,13 @@
 package com.smartlab.erp.agreement;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -26,8 +33,7 @@ public class AgreementTemplate {
     @Column(nullable = false, length = 10)
     private String fileType;
 
-    @Lob
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "bytea")
     private byte[] content;
 
     @CreationTimestamp

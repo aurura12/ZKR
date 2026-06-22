@@ -4,8 +4,10 @@ import com.smartlab.erp.agreement.AgreementBatchRequest;
 import com.smartlab.erp.agreement.AgreementGenerationService;
 import com.smartlab.erp.agreement.AgreementType;
 import com.smartlab.erp.agreement.AgreementZipService;
+import com.smartlab.erp.dto.NaturalLanguageParseRequest;
 import com.smartlab.erp.dto.ProvisionUserRequest;
 import com.smartlab.erp.dto.UpdateDailyWageRequest;
+import com.smartlab.erp.llm.NaturalLanguageParserService;
 import com.smartlab.erp.entity.User;
 import com.smartlab.erp.exception.BusinessException;
 import com.smartlab.erp.exception.PermissionDeniedException;
@@ -38,6 +40,7 @@ public class AdminUserController {
     private final UserRepository userRepository;
     private final AgreementGenerationService agreementGenerationService;
     private final AgreementZipService agreementZipService;
+    private final NaturalLanguageParserService naturalLanguageParserService;
 
     @Value("${app.uploads.dir:/app/uploads}")
     private String uploadsDir;
@@ -58,6 +61,14 @@ public class AdminUserController {
         return ResponseEntity.ok(Map.of(
                 "message", "账号创建成功，初始密码为：账号+123",
                 "userId", userId));
+    }
+
+    @PostMapping("/parse-natural-language")
+    public ResponseEntity<ProvisionUserRequest> parseNaturalLanguage(
+            @Valid @RequestBody NaturalLanguageParseRequest request) {
+        requireProvisionAdmin();
+        ProvisionUserRequest parsed = naturalLanguageParserService.parse(request.getText());
+        return ResponseEntity.ok(parsed);
     }
 
     @GetMapping
