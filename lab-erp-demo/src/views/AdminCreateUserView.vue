@@ -56,6 +56,16 @@
           <el-input v-model="form.idNumber" placeholder="18位身份证号码" maxlength="18" />
         </div>
 
+        <div class="field-block full-width">
+          <label>学校院系</label>
+          <el-input v-model="form.schoolDepartment" placeholder="例如：中国科学院大学 计算机软件与理论" />
+        </div>
+
+        <div class="field-block full-width">
+          <label>住址</label>
+          <el-input v-model="form.address" placeholder="例如：中国科学院大学雁栖湖校区" />
+        </div>
+
         <div class="field-block">
           <label>日工资 (元/天)</label>
           <el-input-number v-model="form.dailyWage" :min="0" :precision="2" :step="10" placeholder="默认 300.00" />
@@ -85,7 +95,6 @@
 
       <div class="footer-row">
         <el-button @click="router.push('/profile')">返回个人中心</el-button>
-        <el-button type="success" @click="handleGenerateAgreement">📄 生成协议</el-button>
         <el-upload
           :show-file-list="false"
           :before-upload="handleUploadIdCard"
@@ -105,6 +114,19 @@
         <el-button type="primary" :loading="submitting" @click="handleSubmit">创建账号</el-button>
       </div>
     </div>
+
+    <el-dialog v-model="showAgreementDialog" title="生成协议" width="420px" :close-on-click-modal="false">
+      <p style="margin: 0 0 12px; color: var(--text-sub);">账号创建成功，请选择需要生成的协议文件：</p>
+      <el-checkbox-group v-model="selectedAgreements" style="display: grid; gap: 10px;">
+        <el-checkbox v-for="opt in agreementOptions" :key="opt.value" :label="opt.value">
+          {{ opt.label }}
+        </el-checkbox>
+      </el-checkbox-group>
+      <template #footer>
+        <el-button @click="closeAgreementDialog">跳过</el-button>
+        <el-button type="primary" :loading="generating" @click="handleGenerateAgreements">生成并下载</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -117,6 +139,11 @@ import request from '@/utils/request'
 const router = useRouter()
 
 const roleOptions = ['RESEARCH', 'BUSINESS', 'PROMOTION', 'DATA', 'DEV', 'ALGORITHM']
+const agreementOptions = [
+  { label: '互联网实习生协议', value: 'INTERNET' },
+  { label: '实习生协议', value: 'GENERAL' },
+  { label: '实习证明', value: 'PROOF' }
+]
 
 const form = reactive({
   username: '',
@@ -127,6 +154,8 @@ const form = reactive({
   ethnicity: '',
   phone: '',
   idNumber: '',
+  schoolDepartment: '',
+  address: '',
   dailyWage: 300.00,
   partTime: false,
   paymentEntity: '国科九天',
@@ -135,6 +164,11 @@ const form = reactive({
 })
 
 const submitting = ref(false)
+const generating = ref(false)
+const showAgreementDialog = ref(false)
+const selectedAgreements = ref([])
+const createdUserId = ref('')
+const createdUserName = ref('')
 
 const handleUsernameBlur = async () => {
   const q = form.username?.trim()
@@ -154,10 +188,6 @@ const handleUsernameBlur = async () => {
   }
 }
 
-const handleGenerateAgreement = async () => {
-  ElMessage.info('请先创建账号，然后在劳动关系资料模块中生成协议')
-}
-
 const handleUploadIdCard = async (file) => {
   ElMessage.info('请先创建账号，然后在劳动关系资料模块中上传证件')
   return false
@@ -166,6 +196,30 @@ const handleUploadIdCard = async (file) => {
 const handleUploadStudentCard = async (file) => {
   ElMessage.info('请先创建账号，然后在劳动关系资料模块中上传证件')
   return false
+}
+
+const resetForm = () => {
+  form.username = ''
+  form.name = ''
+  form.role = ''
+  form.domain = 'ERP'
+  form.position = ''
+  form.ethnicity = ''
+  form.phone = ''
+  form.idNumber = ''
+  form.schoolDepartment = ''
+  form.address = ''
+  form.dailyWage = 300.00
+  form.partTime = false
+  form.paymentEntity = '国科九天'
+  form.bankName = ''
+  form.bankAccount = ''
+}
+
+const closeAgreementDialog = () => {
+  showAgreementDialog.value = false
+  selectedAgreements.value = []
+  resetForm()
 }
 
 const handleSubmit = async () => {
@@ -193,30 +247,57 @@ const handleSubmit = async () => {
       ethnicity: form.ethnicity,
       phone: form.phone,
       idNumber: form.idNumber,
+      schoolDepartment: form.schoolDepartment,
+      address: form.address,
       dailyWage: form.dailyWage,
       partTime: form.partTime,
       paymentEntity: form.paymentEntity,
       bankName: form.bankName,
       bankAccount: form.bankAccount
     })
+    createdUserId.value = response?.userId || ''
+    createdUserName.value = form.name.trim()
     ElMessage.success(response?.message || `账号创建成功，初始密码为：${form.username.trim()}123`)
-    form.username = ''
-    form.name = ''
-    form.role = ''
-    form.domain = 'ERP'
-    form.position = ''
-    form.ethnicity = ''
-    form.phone = ''
-    form.idNumber = ''
-    form.dailyWage = 300.00
-    form.partTime = false
-    form.paymentEntity = '国科九天'
-    form.bankName = ''
-    form.bankAccount = ''
+    showAgreementDialog.value = true
   } catch (error) {
     ElMessage.error(error.response?.data?.message || error.message || '账号创建失败')
   } finally {
     submitting.value = false
+  }
+}
+
+const handleGenerateAgreements = async () => {
+  if (selectedAgreements.value.length === 0) {
+    ElMessage.warning('请至少选择一份协议')
+    return
+  }
+  if (!createdUserId.value) {
+    ElMessage.warning('未获取到用户ID，请重新创建账号')
+    return
+  }
+
+  generating.value = true
+    try {
+      const blobData = await request.post(
+        `/api/admin/users/${createdUserId.value}/agreements/batch`,
+        { types: selectedAgreements.value },
+        { responseType: 'blob' }
+      )
+      const blob = new Blob([blobData], { type: 'application/zip' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${createdUserName.value}_实习文件.zip`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    ElMessage.success('协议生成成功')
+    closeAgreementDialog()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || error.message || '协议生成失败')
+  } finally {
+    generating.value = false
   }
 }
 </script>

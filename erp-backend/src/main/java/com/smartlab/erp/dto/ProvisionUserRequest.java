@@ -30,4 +30,6 @@ public class ProvisionUserRequest {
     private String position;
     private Boolean partTime;
     private String paymentEntity;
+    private String schoolDepartment;
+    private String address;
 }

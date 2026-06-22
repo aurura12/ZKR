@@ -103,6 +103,12 @@ public class User implements UserDetails {
     @Builder.Default
     private String paymentEntity = "国科九天";
 
+    @Column(name = "school_department", length = 200)
+    private String schoolDepartment;
+
+    @Column(name = "address", length = 300)
+    private String address;
+
     @Transient
     @Builder.Default
     private List<UserBadge> badges = new ArrayList<>();

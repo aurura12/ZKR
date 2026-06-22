@@ -109,7 +109,7 @@ public class AuthService {
     }
 
     @Transactional
-    public void provisionUser(ProvisionUserRequest request) {
+    public String provisionUser(ProvisionUserRequest request) {
         User operator = getCurrentUser();
         if (!canProvisionAccounts(operator)) {
             throw new PermissionDeniedException("仅指定管理员可创建账号");
@@ -143,12 +143,15 @@ public class AuthService {
                 .position(request.getPosition())
                 .partTime(request.getPartTime() != null ? request.getPartTime() : false)
                 .paymentEntity(request.getPaymentEntity() != null ? request.getPaymentEntity() : "国科九天")
+                .schoolDepartment(request.getSchoolDepartment())
+                .address(request.getAddress())
                 .build();
 
         userRepository.save(user);
         if (domain == AccountDomain.ERP) {
             financeReferenceService.getOrCreateWallet(user.getUserId());
         }
+        return user.getUserId();
     }
 
     @Transactional
