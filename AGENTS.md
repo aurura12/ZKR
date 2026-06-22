@@ -31,6 +31,24 @@ docker inspect zkr-lab-erp-demo --format '{{.Config.Image}}'
 
 ## 已知 Bug 记录
 
+### 2026-06-22：ERP 账号创建模块集成协议生成功能
+
+**更新：** 在 ERP 账号创建流程中集成 outside 协议生成能力，创建账号后可直接生成三份实习协议 Word 文档并下载。
+
+**涉及改动：**
+- 后端新增 `school_department`、`address` 字段，`agreement_template` 表存储三份协议模板。
+- 新增 `AgreementGenerationService` / `AgreementZipService`，使用 Apache POI 重写 outside Python 脚本逻辑，生成 `互联网实习生协议`、`实习生协议`、`实习证明` 三份 `.docx`。
+- 新增/扩展接口：
+  - `POST /api/admin/users/{userId}/agreement?type=...`（单份生成并保存）
+  - `POST /api/admin/users/{userId}/agreements/batch`（勾选多份，打包 zip 下载）
+  - `GET/PUT /api/admin/agreement-templates/{code}`（模板管理）
+- 前端 `AdminCreateUserView.vue` 新增「学校院系」「住址」字段；创建成功后弹出协议生成对话框。
+- 部署镜像版本：`zhangqi_backend:v1.135`、`zhangqi_frontend:v1.159`。
+
+**注意：**
+- 默认模板通过 `AgreementTemplateInitializer` 在启动时从 classpath 自动写入数据库；后续可通过管理接口替换。
+- 旧 `POST .../agreement` 生成 `.txt` 的行为已替换为生成 `.docx`。
+
 ### 2026-05-09：项目流发起时 dataEngineerId 传递了 "userId-ROLE" 导致后端查不到用户
 
 **问题：** `CreateDeliveryProjectView.vue` 中数据工程师下拉框的 option value 用了 `"${u.userId}-${u.role}"` 格式（如 `"000010-DATA_ENGINEER"`），提交给后端 `/api/projects/initiate` 时后端直接用这个值查数据库 `userRepository.findById()`，查不到，报 "指定的数据工程师不存在"。
@@ -67,3 +85,27 @@ docker inspect zkr-lab-erp-demo --format '{{.Config.Image}}'
 **问题：** `ProjectDetail.vue` 中 `canUploadProjectAsset` 计算属性（判断当前用户是否为被选中的数据工程师 + INITIATED 阶段）已正确实现，`triggerFileInput()` 函数和隐藏 `<input type="file">` 也已就绪，但模板中从未使用 `canUploadProjectAsset`，也从未调用 `triggerFileInput()`。导致数据工程师在 INITIATED 阶段看不到任何上传入口，无法通过 UI 上传可行性报告。
 
 **修复：** 在 PROJECT 流的智能信息面板（`product-flow-grid`）中，可行性报告状态行新增「上传可行性报告」按钮，绑定 `v-if="canUploadProjectAsset"` 和 `@click="triggerFileInput"`，并添加 `.execution-row` 样式使按钮与状态文本同行显示。
+
+### 2026-06-22：server-mgmt-api 容器网络隔离导致 ERP 后端无法访问
+
+**问题：** `server-mgmt-api` 容器实际运行在 `server-mgmt_default` 网络（由 `/home/iiiioooo/Workspace/服务器管理/docker-compose.yml` 单独启动），而 `erp-backend` 在 `zkr_erp-internal` 网络。两者不在同一 Docker 网络，`ServerMgmtProxyController` 配置的目标地址 `http://server-mgmt-api:17000` 不可解析，导致前端「服务器管理」页面加载服务器/用户列表均失败。
+
+**修复：** 停止旧独立实例，在 ZKR 项目根目录用 `docker compose up -d server-mgmt-api` 启动，使其自动加入 `zkr_erp-internal` 网络。迁移旧数据卷 `server-mgmt_server-mgmt-data` → `zkr_server-mgmt-data`。
+
+### 2026-06-22：劳动关系资料模块 Finance 域无法访问 ERP 域 API
+
+**问题：** `LaborRelationsView.vue` 前端页面注册在 Finance 路由 `/finance/labor-relations` 下，使用 `finance_token`，但它调用的 `/api/admin/users` 和 `/api/admin/users/users/{userId}/documents` 是 ERP 域接口（SecurityConfig 中 `/api/**` 要求 `requireErpDomain`），Finance token 被拦截返回 401。此外 `AdminUserController.getAllUsers()` 还要求 `requireProvisionAdmin()`（仅允许 guojianwen/jiaomiao/Zhangqi 等特定账号），普通 Finance 用户即使换 ERP token 也被拒绝。
+
+**修复：** 新增 Finance 域接口：
+- `erp-backend/src/main/java/com/smartlab/erp/finance/controller/FinanceLaborRelationsController.java` — `@RequestMapping("/api/finance/labor-relations")`，走 `requireFinanceDomain`，不要求 provision admin。
+- `erp-backend/src/main/java/com/smartlab/erp/finance/service/FinanceLaborRelationsService.java` — 复用原有文件存储逻辑，`GET /users` 直接返回带 `hasAgreement/hasIdCard/hasStudentCard` 标记的用户列表，消除前端 N+1 查询。
+- 前端 `LaborRelationsView.vue` 将 `USERS_BASE` 和 `DOCS_BASE` 从 `/api/admin/users` 改为 `/api/finance/labor-relations/users`。`fetchUsers` 移除逐用户拉取文档的循环，改用后端预计算标记。
+
+### 2026-06-22：服务器状态硬编码 'ok'，缺少真实 SSH 连通检测
+
+**问题：** `ServerManagementView.vue` 中服务器状态硬编码为 `'ok'`，无法反映真实的 SSH 连通性。原 `outside/服务器管理` 项目有 `playbook-ping.yml` 可测试 SSH，但未暴露为 API。
+
+**修复：**
+- `server-mgmt/api/main.py` 新增 `GET /api/servers/status` 端点，执行 `ansible-playbook playbook-ping.yml` 并解析 PLAY RECAP，返回每台服务器 `ok/unreachable/auth_failed/unknown`。
+- 新增 `server-mgmt/tests/test_status.py`（7 个单测）。
+- `ServerManagementView.vue` 新增真实状态标签、刷新按钮、每次切换到「服务器」Tab 自动检测。
