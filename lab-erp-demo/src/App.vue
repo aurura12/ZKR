@@ -21,6 +21,15 @@
         </div>
 
         <button
+          v-if="showProjectFileManagerEntry"
+          class="nav-shortcut"
+          :class="{ active: route.path.startsWith('/admin/project-files') }"
+          @click="router.push('/admin/project-files')"
+        >
+          📁 项目文件
+        </button>
+
+        <button
           v-if="showFinanceShortcut"
           class="nav-shortcut"
           :class="{ active: route.path.startsWith('/finance') }"
@@ -185,6 +194,7 @@ const showExpenseReviewEntry = computed(() => {
 const showServerManagementEntry = computed(() => {
   return userStore.isErpLoggedIn && Boolean(userStore.activeUserInfo?.serverOpsAdmin)
 })
+const showProjectFileManagerEntry = computed(() => userStore.isErpLoggedIn && canAccessProvisioning(userStore.activeUserInfo?.username))
 const showFullscreenCockpitEntry = computed(() => activeDomain.value === 'FINANCE' && canAccessFinance.value)
 const showMessageDrawer = ref(false)
 const showBadgeDialog = ref(false)

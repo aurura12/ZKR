@@ -112,3 +112,33 @@ docker inspect zkr-lab-erp-demo --format '{{.Config.Image}}'
 - `server-mgmt/api/main.py` 新增 `GET /api/servers/status` 端点，执行 `ansible-playbook playbook-ping.yml` 并解析 PLAY RECAP，返回每台服务器 `ok/unreachable/auth_failed/unknown`。
 - 新增 `server-mgmt/tests/test_status.py`（7 个单测）。
 - `ServerManagementView.vue` 新增真实状态标签、刷新按钮、每次切换到「服务器」Tab 自动检测。
+
+### 2026-06-23：项目文件管理器（Provision Admin 专用）
+
+**功能：** 跨项目文件统一管理视图，用虚拟目录（folder + mapping）而非物理移动来组织文件。支持自动扫描、手动创建文件夹、移动文件、下载。整理效果同步至各项目详情页。
+
+**设计方案：**
+- 虚拟目录模型：`project_file_folder`（树结构，`parent_id` 自关联）+ `project_file_mapping`（记录每个文件所属虚拟文件夹和来源表）
+- 数据来源覆盖 5 张表：`project_asset`、`execution_file`、`project_expense_file`、`finance_expense_submission`、`project_cost_adjustment`
+- 启动时自动扫描已有文件，按来源类型创建默认系统文件夹（`项目资料`、`执行文件`、`费用报销`、`财务报销`、`成本调整`）
+
+**涉及改动：**
+- 后端新增 `erp-backend/src/main/java/com/smartlab/erp/projectfile/`：
+  - `ProjectFileFolder` / `ProjectFileFolderRepository` — 虚拟文件夹实体
+  - `ProjectFileMapping` / `ProjectFileMappingRepository` — 文件到虚拟文件夹的映射
+  - `ProjectFileManagerController` — REST API（`/api/admin/project-files`）
+  - `ProjectFileManagerService` — 核心逻辑（scan、tree、createFolder、deleteFolder、moveFile、download）
+  - `ProjectFileMappingInitializer` — 启动时扫描已有文件并建立映射
+  - `ProjectFileSourceType` — 文件来源类型枚举
+- 前端新增：
+  - `ProjectFileManagerView.vue` — 全局文件管理页面，路由 `/admin/project-files`
+  - `ProjectFileTree.vue` — 可复用的只读文件树组件，用于 ProjectDetail 同步
+  - `App.vue` 导航栏新增「📁 项目文件」快捷按钮，仅 Provision Admin 可见
+  - `ProjectDetail.vue` 新增「项目文件目录」面板，读取虚拟树展示同步结果
+- 部署镜像版本：`zhangqi_backend:v1.137`、`zhangqi_frontend:v1.161`。
+
+**注意事项：**
+- 权限控制：仅 Provision Admin（`Zhangqi`、`guojianwen`、`jiaomiao`）可访问全局文件管理器
+- ProjectDetail 中的文件树面板同样仅管理员可见，普通成员不可见
+- 移动文件操作调用 `PATCH /files/{mappingId}/move`，修改 `folder_id` 即完成虚拟移动
+- `ProjectFileMapping` 不生成物理 ID（自增 Long id），由 `source_type` + `source_id` + `project_id` 唯一索引保证不重复映射

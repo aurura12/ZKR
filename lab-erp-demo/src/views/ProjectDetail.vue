@@ -945,6 +945,14 @@
         <input ref="executionFileInputRef" type="file" style="display: none" @change="handleExecutionFileChange">
         <input ref="executionFolderInputRef" type="file" webkitdirectory directory multiple style="display: none" @change="handleExecutionFolderChange">
       </div>
+
+      <div v-if="canAccessProjectFileTree" class="panel project-file-tree-panel">
+        <div class="panel-header-row">
+          <h3 class="panel-title">📂 项目文件目录</h3>
+          <span class="panel-hint">管理员在项目文件管理器中的整理结果</span>
+        </div>
+        <ProjectFileTree :project-id="projectId" />
+      </div>
     </div>
 
     <div v-if="canUseTeamChat" class="panel chat-panel">
@@ -1474,7 +1482,9 @@ import { useUserStore } from '@/stores/userStore'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ExpenseSubmissionForm from '@/components/finance/ExpenseSubmissionForm.vue'
+import ProjectFileTree from '@/components/ProjectFileTree.vue'
 import { getErpLandingRoute } from '@/router/domainAccess'
+import { canAccessProvisioning } from '@/constants/provisioning'
 import {
   getProjectWorkflowMemberRoles,
   getProductWorkflowMemberRoles,
@@ -2703,6 +2713,7 @@ const canSwapProjectManager = computed(() => {
 
 const ADMIN_USERNAMES = new Set(['Zhangqi', 'guojianwen', 'jiaomiao'])
 const activeUsername = computed(() => userStore.activeUserInfo?.username || '')
+const canAccessProjectFileTree = computed(() => userStore.isErpLoggedIn && canAccessProvisioning(activeUsername.value))
 const isAdminUser = computed(() => ADMIN_USERNAMES.has(activeUsername.value) || activeUserRole.value === 'ADMIN')
 
 const canUseTeamChat = computed(() => {
