@@ -233,8 +233,20 @@ const downloadSelected = () => {
   if (selectedFileId.value) downloadFile(selectedFileId.value)
 }
 
-const downloadFile = (fileId) => {
-  window.open(`/api/admin/project-files/files/${fileId}/download`)
+const downloadFile = async (fileId) => {
+  try {
+    const blob = await request.get(`/api/admin/project-files/files/${fileId}/download`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = ''
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    ElMessage.error('下载失败')
+  }
 }
 
 onMounted(fetchProjects)

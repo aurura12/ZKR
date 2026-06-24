@@ -103,13 +103,20 @@ const fetchTree = async () => {
   }
 }
 
-const download = (fileId, filename) => {
-  const link = document.createElement('a')
-  link.href = `/api/admin/project-files/files/${fileId}/download`
-  link.download = filename || 'download'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+const download = async (fileId, filename) => {
+  try {
+    const blob = await request.get(`/api/admin/project-files/files/${fileId}/download`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename || 'download'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    console.error('Download failed', e)
+  }
 }
 
 onMounted(fetchTree)
