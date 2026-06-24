@@ -142,3 +142,11 @@ docker inspect zkr-lab-erp-demo --format '{{.Config.Image}}'
 - ProjectDetail 中的文件树面板同样仅管理员可见，普通成员不可见
 - 移动文件操作调用 `PATCH /files/{mappingId}/move`，修改 `folder_id` 即完成虚拟移动
 - `ProjectFileMapping` 不生成物理 ID（自增 Long id），由 `source_type` + `source_id` + `project_id` 唯一索引保证不重复映射
+
+### 2026-06-24：项目文件管理器下载修复
+
+**问题：** `ProjectFileTree.vue` 和 `ProjectFileManagerView.vue` 中文件下载使用 `window.open()` / `<a href>` 直接发送 GET 请求，未携带 JWT token，导致后端返回「当前账号未登录或登录已过期」。
+
+**修复：** 改为 `request.get(url, { responseType: 'blob' })` 通过 axios 拦截器自动注入 Authorization header，获取 blob 后创建 ObjectURL 触发下载。
+
+**部署版本：** `zhangqi_frontend:v1.162`。

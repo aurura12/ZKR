@@ -69,3 +69,7 @@ tmp/
 ## Excel temp files
 *.xlsx~
 ~$*.xlsx
+
+## Outside projects / misc
+outside/
+__pycache__/
