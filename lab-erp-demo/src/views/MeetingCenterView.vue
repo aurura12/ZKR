@@ -2,9 +2,23 @@
   <div class="meeting-center">
     <div class="page-header">
       <h2>会议中心</h2>
-      <el-button type="primary" @click="showCreateDialog = true">
-        创建会议
-      </el-button>
+      <div class="header-actions">
+        <template v-if="myMapping">
+          <el-tag type="success" class="mapping-status">
+            ✅ 已绑定: {{ myMapping.tencentUsername || myMapping.tencentUserId }}
+          </el-tag>
+          <el-button type="primary" v-if="myMapping.canCreate" @click="showCreateDialog = true">
+            创建会议
+          </el-button>
+          <el-button link @click="handleUnbind">解绑</el-button>
+        </template>
+        <template v-else>
+          <el-tag type="warning" class="mapping-status">
+            ⚠ 未绑定腾讯会议
+          </el-tag>
+          <el-button @click="showBindDialog = true">立即绑定</el-button>
+        </template>
+      </div>
     </div>
 
     <!-- 筛选栏 -->
@@ -57,6 +71,22 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <!-- 绑定腾讯会议弹窗 -->
+    <el-dialog v-model="showBindDialog" title="绑定腾讯会议账号" width="480px">
+      <el-form :model="bindForm" label-width="140px">
+        <el-form-item label="腾讯会议 UserId" required>
+          <el-input v-model="bindForm.tencentUserId" placeholder="请输入腾讯会议 userid" />
+        </el-form-item>
+      </el-form>
+      <div style="font-size: 13px; color: #909399; padding: 0 20px 16px;">
+        💡 可以在腾讯会议客户端 → 个人资料中找到你的 userid
+      </div>
+      <template #footer>
+        <el-button @click="showBindDialog = false">取消</el-button>
+        <el-button type="primary" @click="submitBind" :loading="binding">绑定</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 创建会议弹窗 -->
     <el-dialog v-model="showCreateDialog" title="创建会议" width="600px">
@@ -157,17 +187,20 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getMeetingList, createMeeting, cancelMeeting, endMeeting } from '@/api/meeting'
+import { getMeetingList, createMeeting, cancelMeeting, endMeeting, getMyMapping, bindMapping, unbindMapping } from '@/api/meeting'
 import request from '@/utils/request'
 
 const loading = ref(false)
 const creating = ref(false)
+const binding = ref(false)
 const showCreateDialog = ref(false)
 const showDetailDialog = ref(false)
+const showBindDialog = ref(false)
 const currentMeeting = ref(null)
 const meetingList = ref([])
 const userList = ref([])
 const filterStatus = ref('')
+const myMapping = ref(null)
 
 const createForm = ref({
   topic: '',
@@ -177,6 +210,10 @@ const createForm = ref({
   password: '',
   description: '',
   participantIds: []
+})
+
+const bindForm = ref({
+  tencentUserId: ''
 })
 
 const fetchMeetings = async () => {
@@ -199,6 +236,48 @@ const fetchUsers = async () => {
     userList.value = res.data || []
   } catch (e) {
     console.error('获取用户列表失败', e)
+  }
+}
+
+const fetchMyMapping = async () => {
+  try {
+    const res = await getMyMapping()
+    const data = res.data
+    myMapping.value = data?.bound ? data : null
+  } catch (e) {
+    console.error('获取绑定状态失败', e)
+  }
+}
+
+const submitBind = async () => {
+  if (!bindForm.value.tencentUserId) {
+    ElMessage.warning('请输入腾讯会议 UserId')
+    return
+  }
+  binding.value = true
+  try {
+    await bindMapping({
+      tencentUserId: bindForm.value.tencentUserId
+    })
+    ElMessage.success('绑定成功')
+    showBindDialog.value = false
+    bindForm.value = { tencentUserId: '' }
+    fetchMyMapping()
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || '绑定失败')
+  } finally {
+    binding.value = false
+  }
+}
+
+const handleUnbind = async () => {
+  try {
+    await ElMessageBox.confirm('确定要解绑腾讯会议账号吗？', '确认解绑', { type: 'warning' })
+    await unbindMapping()
+    ElMessage.success('解绑成功')
+    myMapping.value = null
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('解绑失败')
   }
 }
 
@@ -314,6 +393,7 @@ const getStatusText = (status, row) => {
 onMounted(() => {
   fetchMeetings()
   fetchUsers()
+  fetchMyMapping()
 })
 </script>
 
@@ -331,6 +411,14 @@ onMounted(() => {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mapping-status {
+  font-size: 13px;
 }
 .filter-bar {
   margin-bottom: 16px;

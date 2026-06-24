@@ -32,6 +32,10 @@ public class TencentUserMapping {
     @Column(name = "remark", length = 200)
     private String remark;
 
+    @Column(name = "can_create", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
+    @Builder.Default
+    private Boolean canCreate = false;
+
     @Column(name = "created_at")
     @Builder.Default
     private Instant createdAt = Instant.now();

@@ -3,6 +3,8 @@ package com.smartlab.erp.meeting.controller;
 import com.smartlab.erp.meeting.dto.CreateMeetingRequest;
 import com.smartlab.erp.meeting.dto.MeetingResponse;
 import com.smartlab.erp.meeting.entity.MeetingRecord;
+import com.smartlab.erp.meeting.entity.TencentUserMapping;
+import com.smartlab.erp.meeting.repository.TencentUserMappingRepository;
 import com.smartlab.erp.meeting.service.TencentMeetingService;
 import com.smartlab.erp.meeting.service.TencentMeetingUserSyncService;
 import com.smartlab.erp.meeting.service.TencentMeetingWebhookService;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
@@ -25,11 +28,21 @@ public class MeetingController {
     private final TencentMeetingService meetingService;
     private final TencentMeetingWebhookService webhookService;
     private final TencentMeetingUserSyncService userSyncService;
+    private final TencentUserMappingRepository mappingRepository;
 
     @PostMapping
     public ResponseEntity<Map<String, Object>> createMeeting(
             @RequestBody CreateMeetingRequest request,
             @RequestAttribute("userId") String userId) {
+        // 权限校验：只有 can_create = true 的用户才能创建会议
+        Optional<TencentUserMapping> mappingOpt = mappingRepository.findByErpUserId(userId);
+        if (mappingOpt.isEmpty() || !Boolean.TRUE.equals(mappingOpt.get().getCanCreate())) {
+            log.warn("[TencentMeeting] 用户 {} 无创建会议权限", userId);
+            return ResponseEntity.status(403).body(Map.of(
+                    "success", false,
+                    "message", "当前用户没有创建会议的权限"
+            ));
+        }
         MeetingRecord record = meetingService.createMeeting(request, userId);
         MeetingResponse response = meetingService.convertToResponse(record);
         return ResponseEntity.ok(Map.of(
@@ -103,24 +116,6 @@ public class MeetingController {
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "data", users
-        ));
-    }
-
-    /**
-     * 手动触发腾讯会议用户同步：拉取腾讯会议用户列表，按手机号匹配钉钉目录，自动建立映射
-     */
-    @PostMapping("/sync-users")
-    public ResponseEntity<Map<String, Object>> syncUsers() {
-        TencentMeetingUserSyncService.SyncResult result = userSyncService.syncUsers();
-        return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "用户同步完成",
-                "data", Map.of(
-                        "matched", result.matched(),
-                        "unmatched", result.unmatched(),
-                        "totalTmUsers", result.totalTmUsers(),
-                        "errors", result.errors()
-                )
         ));
     }
 
