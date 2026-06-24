@@ -1,0 +1,343 @@
+package com.smartlab.erp.projectfile;
+
+import com.smartlab.erp.entity.*;
+import com.smartlab.erp.finance.entity.FinanceExpenseSubmission;
+import com.smartlab.erp.finance.repository.FinanceExpenseSubmissionRepository;
+import com.smartlab.erp.repository.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class ProjectFileManagerService {
+
+    private final SysProjectRepository projectRepository;
+    private final ProjectAssetRepository projectAssetRepository;
+    private final ExecutionFileRepository executionFileRepository;
+    private final ProjectExpenseFileRepository projectExpenseFileRepository;
+    private final FinanceExpenseSubmissionRepository financeExpenseSubmissionRepository;
+    private final ProjectCostAdjustmentRepository projectCostAdjustmentRepository;
+
+    private final ProjectFileFolderRepository folderRepository;
+    private final ProjectFileMappingRepository mappingRepository;
+
+    @Value("${app.uploads.dir:/app/uploads}")
+    private String uploadsDir;
+
+    public List<Map<String, Object>> listProjects() {
+        return projectRepository.findAll().stream().map(p -> {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("projectId", p.getProjectId());
+            map.put("name", p.getName());
+            map.put("flowType", p.getFlowType());
+            return map;
+        }).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getProjectTree(String projectId) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("projectId", projectId);
+        result.put("projectName", projectRepository.findById(projectId).map(SysProject::getName).orElse(""));
+
+        List<ProjectFileFolder> folders = folderRepository.findByProjectId(projectId);
+        List<ProjectFileMapping> mappings = mappingRepository.findByProjectId(projectId);
+
+        List<Map<String, Object>> folderNodes = folders.stream().map(f -> {
+            Map<String, Object> node = new LinkedHashMap<>();
+            node.put("id", f.getId());
+            node.put("parentId", f.getParentId());
+            node.put("name", f.getName());
+            node.put("path", f.getPath());
+            node.put("type", "folder");
+            return node;
+        }).toList();
+
+        List<Map<String, Object>> fileNodes = mappings.stream().map(m -> {
+            Map<String, Object> node = new LinkedHashMap<>();
+            node.put("id", m.getId());
+            node.put("folderId", m.getFolderId());
+            node.put("sourceType", m.getSourceType());
+            node.put("sourceId", m.getSourceId());
+            node.put("name", m.getDisplayName());
+            node.put("type", "file");
+            return node;
+        }).toList();
+
+        result.put("folders", folderNodes);
+        result.put("files", fileNodes);
+        return result;
+    }
+
+    @Transactional
+    public ProjectFileFolder createFolder(String projectId, Long parentId, String name) {
+        String trimmed = name == null ? "" : name.trim();
+        if (trimmed.isEmpty()) {
+            throw new IllegalArgumentException("目录名不能为空");
+        }
+        if (trimmed.contains("/") || trimmed.contains("\\")) {
+            throw new IllegalArgumentException("目录名不能包含斜杠");
+        }
+
+        List<ProjectFileFolder> folders = folderRepository.findByProjectId(projectId);
+        Map<Long, ProjectFileFolder> folderMap = new HashMap<>();
+        for (ProjectFileFolder f : folders) {
+            folderMap.put(f.getId(), f);
+        }
+
+        String parentPath = "/";
+        if (parentId != null) {
+            ProjectFileFolder parent = folderMap.get(parentId);
+            if (parent == null) {
+                throw new IllegalArgumentException("父目录不存在");
+            }
+            parentPath = parent.getPath();
+        }
+
+        String newPath = parentPath.endsWith("/") ? parentPath + trimmed : parentPath + "/" + trimmed;
+        if (!newPath.endsWith("/")) {
+            newPath = newPath + "/";
+        }
+
+        if (folderRepository.findByProjectIdAndPath(projectId, newPath).isPresent()) {
+            throw new IllegalArgumentException("目录已存在");
+        }
+
+        ProjectFileFolder folder = new ProjectFileFolder();
+        folder.setProjectId(projectId);
+        folder.setParentId(parentId);
+        folder.setName(trimmed);
+        folder.setPath(newPath);
+        return folderRepository.save(folder);
+    }
+
+    @Transactional
+    public void deleteFolder(String projectId, Long folderId) {
+        ProjectFileFolder folder = folderRepository.findById(folderId)
+                .orElseThrow(() -> new IllegalArgumentException("目录不存在"));
+        if (!folder.getProjectId().equals(projectId)) {
+            throw new IllegalArgumentException("目录不属于该项目");
+        }
+        List<ProjectFileMapping> files = mappingRepository.findByProjectIdAndFolderId(projectId, folderId);
+        if (!files.isEmpty()) {
+            throw new IllegalArgumentException("目录非空，无法删除");
+        }
+        List<ProjectFileFolder> children = folderRepository.findByProjectIdAndParentId(projectId, folderId);
+        if (!children.isEmpty()) {
+            throw new IllegalArgumentException("目录下存在子目录，无法删除");
+        }
+        folderRepository.delete(folder);
+    }
+
+    @Transactional
+    public void moveFile(Long mappingId, Long folderId) {
+        ProjectFileMapping mapping = mappingRepository.findById(mappingId)
+                .orElseThrow(() -> new IllegalArgumentException("文件不存在"));
+        if (folderId != null) {
+            ProjectFileFolder folder = folderRepository.findById(folderId)
+                    .orElseThrow(() -> new IllegalArgumentException("目标目录不存在"));
+            if (!folder.getProjectId().equals(mapping.getProjectId())) {
+                throw new IllegalArgumentException("不能跨项目移动文件");
+            }
+        }
+        mapping.setFolderId(folderId);
+        mappingRepository.save(mapping);
+    }
+
+    public ProjectFileMapping getMapping(Long mappingId) {
+        return mappingRepository.findById(mappingId)
+                .orElseThrow(() -> new IllegalArgumentException("文件不存在"));
+    }
+
+    public byte[] downloadFile(Long mappingId) {
+        ProjectFileMapping mapping = getMapping(mappingId);
+
+        return switch (mapping.getSourceType()) {
+            case PROJECT_ASSET -> downloadProjectAsset(mapping.getSourceId());
+            case EXECUTION_FILE -> downloadExecutionFile(mapping.getSourceId());
+            case PROJECT_EXPENSE_FILE -> downloadProjectExpenseFile(mapping.getSourceId());
+            case FINANCE_EXPENSE_SUBMISSION -> downloadFinanceExpenseSubmission(mapping.getSourceId());
+            case PROJECT_COST_ADJUSTMENT -> downloadProjectCostAdjustment(mapping.getSourceId());
+        };
+    }
+
+    private byte[] downloadProjectAsset(String sourceId) {
+        ProjectAsset asset = projectAssetRepository.findById(Long.parseLong(sourceId))
+                .orElseThrow(() -> new IllegalArgumentException("文件不存在"));
+        if (asset.getFileData() != null && asset.getFileData().length > 0) {
+            return asset.getFileData();
+        }
+        Path path = Path.of(uploadsDir, asset.getFilePath());
+        return readBytes(path);
+    }
+
+    private byte[] downloadExecutionFile(String sourceId) {
+        ExecutionFile file = executionFileRepository.findById(Long.parseLong(sourceId))
+                .orElseThrow(() -> new IllegalArgumentException("文件不存在"));
+        Path path = Path.of(uploadsDir, file.getFilePath());
+        return readBytes(path);
+    }
+
+    private byte[] downloadProjectExpenseFile(String sourceId) {
+        ProjectExpenseFile file = projectExpenseFileRepository.findById(Long.parseLong(sourceId))
+                .orElseThrow(() -> new IllegalArgumentException("文件不存在"));
+        Path path = Path.of(uploadsDir, file.getFilePath());
+        return readBytes(path);
+    }
+
+    private byte[] downloadFinanceExpenseSubmission(String sourceId) {
+        FinanceExpenseSubmission submission = financeExpenseSubmissionRepository.findById(Long.parseLong(sourceId))
+                .orElseThrow(() -> new IllegalArgumentException("文件不存在"));
+        Path path = Path.of(uploadsDir, submission.getInvoiceFilePath());
+        return readBytes(path);
+    }
+
+    private byte[] downloadProjectCostAdjustment(String sourceId) {
+        ProjectCostAdjustment adjustment = projectCostAdjustmentRepository.findById(Long.parseLong(sourceId))
+                .orElseThrow(() -> new IllegalArgumentException("文件不存在"));
+        Path path = Path.of(uploadsDir, adjustment.getInvoiceFilePath());
+        return readBytes(path);
+    }
+
+    private byte[] readBytes(Path path) {
+        try {
+            if (!Files.exists(path)) {
+                throw new IllegalArgumentException("物理文件不存在: " + path);
+            }
+            return Files.readAllBytes(path);
+        } catch (IOException e) {
+            throw new RuntimeException("读取文件失败: " + e.getMessage(), e);
+        }
+    }
+
+    @Transactional
+    public void scanAndInitializeMappings() {
+        log.info("开始扫描项目文件并初始化映射");
+        scanProjectAssets();
+        scanExecutionFiles();
+        scanProjectExpenseFiles();
+        scanFinanceExpenseSubmissions();
+        scanProjectCostAdjustments();
+        log.info("项目文件映射初始化完成");
+    }
+
+    private void scanProjectAssets() {
+        for (ProjectAsset asset : projectAssetRepository.findAll()) {
+            if (asset.getProject() == null) continue;
+            String projectId = asset.getProject().getProjectId();
+            if (mappingRepository.existsByProjectIdAndSourceTypeAndSourceId(
+                    projectId, ProjectFileSourceType.PROJECT_ASSET, String.valueOf(asset.getId()))) {
+                continue;
+            }
+            ensureDefaultFolder(projectId, ProjectFileSourceType.PROJECT_ASSET);
+            ProjectFileMapping mapping = new ProjectFileMapping();
+            mapping.setProjectId(projectId);
+            mapping.setFolderId(getDefaultFolderId(projectId, ProjectFileSourceType.PROJECT_ASSET));
+            mapping.setSourceType(ProjectFileSourceType.PROJECT_ASSET);
+            mapping.setSourceId(String.valueOf(asset.getId()));
+            mapping.setDisplayName(asset.getFileName());
+            mappingRepository.save(mapping);
+        }
+    }
+
+    private void scanExecutionFiles() {
+        for (ExecutionFile file : executionFileRepository.findAll()) {
+            if (file.getProjectId() == null) continue;
+            if (mappingRepository.existsByProjectIdAndSourceTypeAndSourceId(
+                    file.getProjectId(), ProjectFileSourceType.EXECUTION_FILE, String.valueOf(file.getId()))) {
+                continue;
+            }
+            ensureDefaultFolder(file.getProjectId(), ProjectFileSourceType.EXECUTION_FILE);
+            ProjectFileMapping mapping = new ProjectFileMapping();
+            mapping.setProjectId(file.getProjectId());
+            mapping.setFolderId(getDefaultFolderId(file.getProjectId(), ProjectFileSourceType.EXECUTION_FILE));
+            mapping.setSourceType(ProjectFileSourceType.EXECUTION_FILE);
+            mapping.setSourceId(String.valueOf(file.getId()));
+            mapping.setDisplayName(file.getFileName());
+            mappingRepository.save(mapping);
+        }
+    }
+
+    private void scanProjectExpenseFiles() {
+        for (ProjectExpenseFile file : projectExpenseFileRepository.findAll()) {
+            ProjectExpense expense = file.getExpense();
+            if (expense == null || expense.getProjectId() == null) continue;
+            if (mappingRepository.existsByProjectIdAndSourceTypeAndSourceId(
+                    expense.getProjectId(), ProjectFileSourceType.PROJECT_EXPENSE_FILE, String.valueOf(file.getId()))) {
+                continue;
+            }
+            ensureDefaultFolder(expense.getProjectId(), ProjectFileSourceType.PROJECT_EXPENSE_FILE);
+            ProjectFileMapping mapping = new ProjectFileMapping();
+            mapping.setProjectId(expense.getProjectId());
+            mapping.setFolderId(getDefaultFolderId(expense.getProjectId(), ProjectFileSourceType.PROJECT_EXPENSE_FILE));
+            mapping.setSourceType(ProjectFileSourceType.PROJECT_EXPENSE_FILE);
+            mapping.setSourceId(String.valueOf(file.getId()));
+            mapping.setDisplayName(file.getFileName());
+            mappingRepository.save(mapping);
+        }
+    }
+
+    private void scanFinanceExpenseSubmissions() {
+        for (FinanceExpenseSubmission submission : financeExpenseSubmissionRepository.findAll()) {
+            if (submission.getProjectId() == null || submission.getInvoiceFilePath() == null) continue;
+            if (mappingRepository.existsByProjectIdAndSourceTypeAndSourceId(
+                    submission.getProjectId(), ProjectFileSourceType.FINANCE_EXPENSE_SUBMISSION, String.valueOf(submission.getId()))) {
+                continue;
+            }
+            ensureDefaultFolder(submission.getProjectId(), ProjectFileSourceType.FINANCE_EXPENSE_SUBMISSION);
+            ProjectFileMapping mapping = new ProjectFileMapping();
+            mapping.setProjectId(submission.getProjectId());
+            mapping.setFolderId(getDefaultFolderId(submission.getProjectId(), ProjectFileSourceType.FINANCE_EXPENSE_SUBMISSION));
+            mapping.setSourceType(ProjectFileSourceType.FINANCE_EXPENSE_SUBMISSION);
+            mapping.setSourceId(String.valueOf(submission.getId()));
+            mapping.setDisplayName(submission.getInvoiceFileName());
+            mappingRepository.save(mapping);
+        }
+    }
+
+    private void scanProjectCostAdjustments() {
+        for (ProjectCostAdjustment adjustment : projectCostAdjustmentRepository.findAll()) {
+            if (adjustment.getProjectId() == null || adjustment.getInvoiceFilePath() == null) continue;
+            if (mappingRepository.existsByProjectIdAndSourceTypeAndSourceId(
+                    adjustment.getProjectId(), ProjectFileSourceType.PROJECT_COST_ADJUSTMENT, String.valueOf(adjustment.getId()))) {
+                continue;
+            }
+            ensureDefaultFolder(adjustment.getProjectId(), ProjectFileSourceType.PROJECT_COST_ADJUSTMENT);
+            ProjectFileMapping mapping = new ProjectFileMapping();
+            mapping.setProjectId(adjustment.getProjectId());
+            mapping.setFolderId(getDefaultFolderId(adjustment.getProjectId(), ProjectFileSourceType.PROJECT_COST_ADJUSTMENT));
+            mapping.setSourceType(ProjectFileSourceType.PROJECT_COST_ADJUSTMENT);
+            mapping.setSourceId(String.valueOf(adjustment.getId()));
+            mapping.setDisplayName(adjustment.getInvoiceFileName());
+            mappingRepository.save(mapping);
+        }
+    }
+
+    private void ensureDefaultFolder(String projectId, ProjectFileSourceType sourceType) {
+        String path = "/" + sourceType.getDefaultFolderName() + "/";
+        if (folderRepository.findByProjectIdAndPath(projectId, path).isEmpty()) {
+            ProjectFileFolder folder = new ProjectFileFolder();
+            folder.setProjectId(projectId);
+            folder.setParentId(null);
+            folder.setName(sourceType.getDefaultFolderName());
+            folder.setPath(path);
+            folderRepository.save(folder);
+        }
+    }
+
+    private Long getDefaultFolderId(String projectId, ProjectFileSourceType sourceType) {
+        String path = "/" + sourceType.getDefaultFolderName() + "/";
+        return folderRepository.findByProjectIdAndPath(projectId, path)
+                .map(ProjectFileFolder::getId)
+                .orElse(null);
+    }
+}

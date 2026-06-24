@@ -1,0 +1,140 @@
+---
+# 批量创建/更新/删除 Linux 用户并导入 SSH 公钥
+#
+# 用法:
+#   ansible-playbook playbook-users.yml
+#   ansible-playbook playbook-users.yml -l srv1
+#   ansible-playbook playbook-users.yml --check --diff
+#   ansible-playbook playbook-users.yml -e target_hosts=srv1
+
+- name: Manage employee accounts and SSH keys
+  hosts: "{{ target_hosts | default('servers') }}"
+  gather_facts: true
+  vars_files:
+    - users.yml
+  vars:
+    # 未写 hosts 的员工 → 三台都创建；写了 hosts 的 → 仅在列出的服务器上操作
+    host_active_employees: >-
+      {{
+        employees
+        | rejectattr('state', 'equalto', 'absent')
+        | selectattr('hosts', 'undefined')
+        | list
+        + employees
+        | rejectattr('state', 'equalto', 'absent')
+        | selectattr('hosts', 'defined')
+        | selectattr('hosts', 'contains', inventory_hostname)
+        | list
+      }}
+    host_inactive_employees: >-
+      {{
+        employees
+        | selectattr('state', 'equalto', 'absent')
+        | selectattr('hosts', 'undefined')
+        | list
+        + employees
+        | selectattr('state', 'equalto', 'absent')
+        | selectattr('hosts', 'defined')
+        | selectattr('hosts', 'contains', inventory_hostname)
+        | list
+      }}
+    all_groups: "{{ host_active_employees | map(attribute='groups', default=default_user_groups) | flatten | unique | list }}"
+
+  tasks:
+    - name: Fail when no employees defined globally
+      ansible.builtin.fail:
+        msg: "users.yml 中 employees 为空。请用 scripts/db_manage.py 维护 SQLite 后执行 export，或手动编辑 users.yml。"
+      when: employees | length == 0
+      run_once: true
+
+    - name: Skip host when no employees apply here
+      ansible.builtin.meta: end_host
+      when: host_active_employees | length == 0 and host_inactive_employees | length == 0
+
+    - name: Ensure supplementary groups exist
+      ansible.builtin.group:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ all_groups }}"
+      when: all_groups | length > 0
+
+    - name: Create or update employee accounts
+      ansible.builtin.user:
+        name: "{{ item.name }}"
+        groups: "{{ item.groups | default(default_user_groups) }}"
+        append: true
+        shell: "{{ item.shell | default(default_user_shell) }}"
+        create_home: true
+        state: present
+      loop: "{{ host_active_employees }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Lock password login (SSH key only)
+      ansible.builtin.user:
+        name: "{{ item.name }}"
+        password_lock: true
+      loop: "{{ host_active_employees }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: lock_user_password | bool
+
+    - name: Ensure .ssh directory permissions
+      ansible.builtin.file:
+        path: "/home/{{ item.name }}/.ssh"
+        state: directory
+        owner: "{{ item.name }}"
+        group: "{{ item.name }}"
+        mode: "0700"
+      loop: "{{ host_active_employees }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Install SSH public keys
+      ansible.posix.authorized_key:
+        user: "{{ item.0.name }}"
+        key: "{{ item.1 }}"
+        state: present
+        exclusive: false
+      loop: "{{ query('subelements', host_active_employees, 'ssh_keys', skip_missing=True) }}"
+      loop_control:
+        label: "{{ item.0.name }}"
+
+    - name: Grant passwordless sudo
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ item.name }}"
+        content: "{{ item.name }} ALL=(ALL) NOPASSWD:ALL\n"
+        owner: root
+        group: root
+        mode: "0440"
+        validate: "visudo -cf %s"
+      loop: "{{ host_active_employees | selectattr('sudo', 'defined') | selectattr('sudo') | list }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: item.sudo | bool
+
+    - name: Remove sudoers drop-in when sudo not granted
+      ansible.builtin.file:
+        path: "/etc/sudoers.d/{{ item.name }}"
+        state: absent
+      loop: "{{ host_active_employees }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: not (item.sudo | default(false) | bool)
+
+    - name: Remove employee accounts (offboarding)
+      ansible.builtin.user:
+        name: "{{ item.name }}"
+        state: absent
+        remove: true
+      loop: "{{ host_inactive_employees }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Remove sudoers drop-in for deleted users
+      ansible.builtin.file:
+        path: "/etc/sudoers.d/{{ item.name }}"
+        state: absent
+      loop: "{{ host_inactive_employees }}"
+      loop_control:
+        label: "{{ item.name }}"

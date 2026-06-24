@@ -905,9 +905,10 @@ public class ProductFlowService {
                 ProjectType.MILITARY,
                 ProjectType.MEDICAL,
                 ProjectType.AI_FOR_SCIENCE,
-                ProjectType.SWARM_INTEL
+                ProjectType.SWARM_INTEL,
+                ProjectType.SELF_USE
         ).contains(request.getProjectType())) {
-            throw new BusinessException("产品方向无效，仅支持：工业/军工/医药/AI for Science/群体智能");
+            throw new BusinessException("产品方向无效，仅支持：工业/军工/医药/AI for Science/群体智能/自用");
         }
         if (isBlank(request.getTargetUsers())) {
             throw new BusinessException("目标用户群不能为空");
@@ -968,7 +969,7 @@ public class ProductFlowService {
                 .productStatus(ProductStatus.IDEA)
                 // 可以沿用预算等信息，也可以重新评估；此处简单继承预算
                 .budget(sourceProductProject.getBudget())
-                .cost(sourceProductProject.getCost())
+                .cost(BigDecimal.ZERO)
                 .techStack(sourceProductProject.getTechStack())
                 .repoUrl(sourceProductProject.getRepoUrl())
                 .deployUrl(sourceProductProject.getDeployUrl())

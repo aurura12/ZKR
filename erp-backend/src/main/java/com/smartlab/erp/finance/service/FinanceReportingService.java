@@ -10,7 +10,10 @@ import com.smartlab.erp.entity.ProductStatus;
 import com.smartlab.erp.entity.ResearchStatus;
 import com.smartlab.erp.entity.ProductIdeaDetail;
 import com.smartlab.erp.entity.ResearchProjectProfile;
+import com.smartlab.erp.entity.CompanyExpense;
 import com.smartlab.erp.enums.AccountDomain;
+import com.smartlab.erp.enums.CompanyExpenseCategory;
+import com.smartlab.erp.enums.CompanyExpenseStatus;
 import com.smartlab.erp.finance.dto.*;
 import com.smartlab.erp.finance.entity.*;
 import com.smartlab.erp.finance.enums.FinanceAdjustmentDirection;
@@ -24,6 +27,7 @@ import com.smartlab.erp.repository.SysProjectMemberRepository;
 import com.smartlab.erp.repository.ProductIdeaDetailRepository;
 import com.smartlab.erp.repository.ResearchProjectProfileRepository;
 import com.smartlab.erp.repository.UserRepository;
+import com.smartlab.erp.repository.CompanyExpenseRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,6 +64,7 @@ public class FinanceReportingService {
     private final ProductIdeaDetailRepository productIdeaDetailRepository;
     private final ResearchProjectProfileRepository researchProjectProfileRepository;
     private final UserRepository userRepository;
+    private final CompanyExpenseRepository companyExpenseRepository;
 
     @Transactional(readOnly = true)
     public FinanceStatementsResponse getStatements() {
@@ -77,11 +82,10 @@ public class FinanceReportingService {
         StatementTotals statementTotals = buildStatementTotals(clearingSheets, costSummaries, walletAccounts);
         CashPosition cashPosition = buildCashPosition(transactions, adjustments, latestSnapshot);
         BigDecimal totalWalletBalance = statementTotals.totalWalletBalance();
-        List<FinanceStatementsResponse.ActiveProjectAccounting> activeProjectAccounting = buildActiveProjectAccounting();
+        List<FinanceStatementsResponse.ActiveProjectAccounting> activeProjectAccounting = buildActiveProjectAccounting(costSummaries);
         BigDecimal activeProjectAssets = sum(activeProjectAccounting, FinanceStatementsResponse.ActiveProjectAccounting::getEstimatedAsset);
         BigDecimal activeProjectLiabilities = sum(activeProjectAccounting, FinanceStatementsResponse.ActiveProjectAccounting::getEstimatedLiability);
         BigDecimal totalAssets = FinanceAmounts.add(cashPosition.actualBankBalance(), activeProjectAssets);
-        BigDecimal totalLiabilities = FinanceAmounts.add(totalWalletBalance, activeProjectLiabilities);
         List<FinanceStatementsResponse.IdleSubject> idleSubjects = buildIdleSubjects(
                 cashPosition,
                 walletAccounts,
@@ -89,6 +93,26 @@ public class FinanceReportingService {
                 activeProjectAssets,
                 activeProjectLiabilities
         );
+
+        // --- Company Expense Summary ---
+        List<CompanyExpense> approvedCompanyExpenses = companyExpenseRepository
+                .findByApprovalStatusAndChenleiAtBetween(
+                        CompanyExpenseStatus.APPROVED,
+                        Instant.EPOCH,
+                        Instant.now());
+        BigDecimal totalCompanyExpense = approvedCompanyExpenses.stream()
+                .map(CompanyExpense::getTotalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Map<String, BigDecimal> companyExpenseByCategory = approvedCompanyExpenses.stream()
+                .collect(Collectors.groupingBy(
+                        e -> e.getExpenseCategory() != null ? e.getExpenseCategory().name() : "OTHER",
+                        Collectors.reducing(BigDecimal.ZERO, CompanyExpense::getTotalAmount, BigDecimal::add)));
+
+        BigDecimal companyExpensePayables = FinanceAmounts.scale(totalCompanyExpense);
+        BigDecimal totalLiabilities = FinanceAmounts.add(
+                FinanceAmounts.add(totalWalletBalance, activeProjectLiabilities),
+                companyExpensePayables);
 
         String latestLedgerMonth = resolveLatestLedgerMonth(clearingSheets, costSummaries);
         List<FinanceStatementsResponse.TrendPoint> trend = buildTrend(clearingSheets);
@@ -103,12 +127,14 @@ public class FinanceReportingService {
                         kpi("total_middleware_fee", "Middleware Fee", statementTotals.totalMiddlewareFee(), "CNY"),
                         kpi("wallet_count", "Wallet Count", BigDecimal.valueOf(walletAccounts.size()), "COUNT"),
                         kpi("cleared_count", "Cleared Count", BigDecimal.valueOf(clearingSheets.stream().filter(sheet -> sheet.getStatus() == FinanceClearingStatus.CLEARED).count()), "COUNT"),
-                        kpi("wallet_balance", "Wallet Balance", totalWalletBalance, "CNY")
+                        kpi("wallet_balance", "Wallet Balance", totalWalletBalance, "CNY"),
+                        kpi("company_expense", "Company Expense", totalCompanyExpense, "CNY")
                 ))
                 .incomeStatement(FinanceStatementsResponse.IncomeStatement.builder()
                         .totalRevenue(statementTotals.totalRevenue())
                         .totalCost(statementTotals.totalCost())
                         .totalMiddlewareFee(statementTotals.totalMiddlewareFee())
+                        .companyOperatingExpense(totalCompanyExpense)
                         .totalProfit(statementTotals.totalProfit())
                         .totalLoss(statementTotals.totalLoss())
                         .profitRate(rate(statementTotals.totalProfit(), statementTotals.totalRevenue()))
@@ -119,6 +145,7 @@ public class FinanceReportingService {
                         .internalPayables(totalWalletBalance)
                         .activeProjectAssets(activeProjectAssets)
                         .activeProjectLiabilities(activeProjectLiabilities)
+                        .companyExpensePayables(companyExpensePayables)
                         .totalAssets(totalAssets)
                         .totalLiabilities(totalLiabilities)
                         .netAssets(FinanceAmounts.subtract(totalAssets, totalLiabilities))
@@ -133,14 +160,26 @@ public class FinanceReportingService {
                 .trend(trend)
                 .activeProjectAccounting(activeProjectAccounting)
                 .idleSubjects(idleSubjects)
+                .companyExpenseSummary(FinanceStatementsResponse.CompanyExpenseSummary.builder()
+                        .totalExpense(totalCompanyExpense)
+                        .expenseByCategory(companyExpenseByCategory)
+                        .build())
                 .build();
     }
 
-    private List<FinanceStatementsResponse.ActiveProjectAccounting> buildActiveProjectAccounting() {
+    private List<FinanceStatementsResponse.ActiveProjectAccounting> buildActiveProjectAccounting(List<FinanceCostSummary> costSummaries) {
         List<SysProject> projects = sysProjectRepository.findAll().stream()
                 .filter(this::isActiveProject)
                 .sorted(Comparator.comparing(SysProject::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
+
+        Map<String, BigDecimal> cumulativeCostByProject = costSummaries.stream()
+                .filter(cs -> cs.getProject() != null && cs.getProject().getProjectId() != null)
+                .collect(Collectors.groupingBy(
+                        cs -> cs.getProject().getProjectId(),
+                        Collectors.reducing(BigDecimal.ZERO,
+                                FinanceCostSummary::getTotalSettlementCost,
+                                BigDecimal::add)));
 
         List<String> projectIds = projects.stream().map(SysProject::getProjectId).filter(Objects::nonNull).toList();
         Map<String, List<SysProjectMember>> membersByProject = projectIds.isEmpty()
@@ -181,7 +220,7 @@ public class FinanceReportingService {
 
         return projects.stream().map(project -> {
             BigDecimal estimatedAsset = scaleOrZero(project.getBudget());
-            BigDecimal estimatedLiability = scaleOrZero(project.getCost());
+            BigDecimal estimatedLiability = scaleOrZero(cumulativeCostByProject.getOrDefault(project.getProjectId(), BigDecimal.ZERO));
             List<FinanceStatementsResponse.MemberInfo> members = membersByProject.getOrDefault(project.getProjectId(), List.of()).stream()
                     .map(member -> FinanceStatementsResponse.MemberInfo.builder()
                             .userId(member.getUser().getUserId())

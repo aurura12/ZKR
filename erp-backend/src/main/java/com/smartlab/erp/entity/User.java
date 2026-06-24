@@ -71,6 +71,45 @@ public class User implements UserDetails {
     @Builder.Default
     private BigDecimal dailyWage = new BigDecimal("300.00");
 
+    @Column(name = "is_server_ops_admin")
+    @Builder.Default
+    private Boolean serverOpsAdmin = false;
+
+    @Column(name = "id_number", length = 18)
+    private String idNumber;
+
+    @Column(name = "phone", length = 20)
+    private String phone;
+
+    @Column(name = "bank_name", length = 100)
+    private String bankName;
+
+    @Column(name = "bank_account", length = 30)
+    private String bankAccount;
+
+    @Column(name = "ethnicity", length = 20)
+    private String ethnicity;
+
+    @Column(name = "position", length = 50)
+    private String position;
+
+    @Column(name = "is_part_time")
+    @Builder.Default
+    private Boolean partTime = false;
+
+    @Column(name = "departure_date")
+    private LocalDate departureDate;
+
+    @Column(name = "payment_entity", length = 100)
+    @Builder.Default
+    private String paymentEntity = "国科九天";
+
+    @Column(name = "school_department", length = 200)
+    private String schoolDepartment;
+
+    @Column(name = "address", length = 300)
+    private String address;
+
     @Transient
     @Builder.Default
     private List<UserBadge> badges = new ArrayList<>();

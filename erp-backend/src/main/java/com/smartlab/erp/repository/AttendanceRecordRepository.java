@@ -16,4 +16,8 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
     List<AttendanceRecord> findByUserIdOrderByWorkDateDesc(String userId);
 
     boolean existsByUserIdAndUserCheckTimeAndCheckType(String userId, java.time.Instant userCheckTime, String checkType);
+
+    java.util.Optional<AttendanceRecord> findByUserIdAndUserCheckTimeAndCheckType(String userId, java.time.Instant userCheckTime, String checkType);
+
+    List<AttendanceRecord> findByWorkDateOrderByUserIdAsc(LocalDate workDate);
 }

@@ -1,5 +1,6 @@
 package com.smartlab.erp.controller;
 
+import com.smartlab.erp.dto.AdjustProjectCostRequest;
 import com.smartlab.erp.finance.dto.*;
 import com.smartlab.erp.finance.enums.FinanceCashFlowDirection;
 import com.smartlab.erp.finance.enums.FinanceWalletTransactionType;
@@ -10,13 +11,18 @@ import com.smartlab.erp.finance.entity.FinanceCostBatch;
 import com.smartlab.erp.service.ProjectService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -98,10 +104,40 @@ public class FinanceController {
         return ResponseEntity.ok(projectService.getCostAdjustmentLog());
     }
 
+    @PostMapping("/projects/{projectId}/cost-adjustments")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, String>> submitCostAdjustment(
+            @PathVariable String projectId,
+            @RequestParam("itemName") String itemName,
+            @RequestParam("type") String type,
+            @RequestParam("amount") String amount,
+            @RequestParam(value = "invoiceFile", required = false) MultipartFile invoiceFile) {
+        AdjustProjectCostRequest request = new AdjustProjectCostRequest();
+        request.setItemName(itemName);
+        request.setType(type);
+        request.setAmount(new BigDecimal(amount));
+        projectService.adjustProjectCost(projectId, request, invoiceFile);
+        return ResponseEntity.ok(Map.of("message", "成本调整已提交"));
+    }
+
     @GetMapping("/batch-log")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<FinanceCostBatch>> getBatchLog() {
         return ResponseEntity.ok(projectService.getBatchLog());
+    }
+
+    @GetMapping("/export/reimbursements")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ByteArrayResource> exportReimbursements(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        byte[] zipBytes = projectService.exportReimbursementsZip(from, to);
+        String fileName = "报销汇总_" + from + "_" + to + ".zip";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .contentLength(zipBytes.length)
+                .body(new ByteArrayResource(zipBytes));
     }
 
     private String traceId() {

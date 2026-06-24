@@ -1,0 +1,9 @@
+# 全局默认：新建用户未指定 shell 时使用
+default_user_shell: /bin/bash
+
+# 全局默认附加组（留空 [] 表示不加入任何额外组，仅保留与用户名同名的主组）
+# 若希望所有人默认进同一组，可改为: ["developers"]
+default_user_groups: []
+
+# 是否在创建用户后锁定密码（推荐 true，仅允许 SSH 公钥登录）
+lock_user_password: true

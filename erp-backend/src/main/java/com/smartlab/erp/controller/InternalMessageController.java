@@ -38,8 +38,15 @@ public class InternalMessageController {
     @PatchMapping("/{id}/read")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Object>> markRead(@PathVariable Long id,
-                                                        @AuthenticationPrincipal UserPrincipal currentUser) {
+                                                         @AuthenticationPrincipal UserPrincipal currentUser) {
         internalMessageService.markAsRead(id, currentUser.getId());
         return ResponseEntity.ok(Map.of("success", true));
+    }
+
+    @PatchMapping("/read-all")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> markAllRead(@AuthenticationPrincipal UserPrincipal currentUser) {
+        int count = internalMessageService.markAllAsRead(currentUser.getId());
+        return ResponseEntity.ok(Map.of("success", true, "count", count));
     }
 }

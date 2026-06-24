@@ -34,7 +34,9 @@ const typeLabel = t => ({
   HARDWARE: '硬件采购',
   SERVER_COMPUTE: '服务器算力',
   EXTERNAL_SERVICE: '外部技术服务',
-  REIMBURSEMENT: '报销'
+  BUSINESS_MEAL: '商务餐费',
+  NORMAL_TRAVEL: '正常差旅',
+  PRICE_DIFF: '补差价'
 }[t] || t)
 
 const typeClass = t => `type-${t?.toLowerCase()}`
@@ -73,8 +75,11 @@ onMounted(async () => {
 .log-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .log-type { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
 .type-hardware { background: #e3f2fd; color: #1565c0; }
-.type-server_compute { background: #fff3e0; color: #e65100; }
+.type-server_compute { background: #e8eaf6; color: #283593; }
 .type-external_service { background: #f3e5f5; color: #7b1fa2; }
+.type-business_meal { background: #fff8e1; color: #e65100; }
+.type-normal_travel { background: #e8f5e9; color: #2e7d32; }
+.type-price_diff { background: #fce4ec; color: #c62828; }
 .type-reimbursement { background: #e8f5e9; color: #2e7d32; }
 .log-time { font-size: 11px; color: #94a3b8; }
 .log-project { font-size: 13px; font-weight: 600; color: #334155; }

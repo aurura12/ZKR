@@ -112,13 +112,13 @@
 
     <div class="charts-row">
       <div class="chart-card">
-        <div class="card-title">资金投入趋势 (6 Months)</div>
+        <div class="card-header-row"><div class="card-title">资金投入趋势 (6 Months)</div></div>
         <div ref="lineChartRef" class="chart-canvas"></div>
       </div>
 
       <div class="chart-card">
         <div class="card-header-row">
-          <div class="card-title">领域分布 </div>
+          <div class="card-title">领域分布</div>
           <div v-if="currentIndustryFilter" class="filter-badge" @click="resetFilter">
             {{ formatIndustry(currentIndustryFilter) }} ×
           </div>
@@ -130,12 +130,12 @@
     <div class="projects-section">
       <div class="section-header">
         {{ currentIndustryFilter ? `${formatIndustry(currentIndustryFilter)} SECTOR` : 'ALL MISSIONS' }}
-        <span class="count-badge">{{ filteredProjects.length }}</span>
+        <span class="count-badge">{{ activeProjects.length }}</span>
       </div>
 
       <div class="project-grid-row">
         <div
-            v-for="p in filteredProjects"
+            v-for="p in activeProjects"
             :key="p.projectId"
             class="mission-card"
             :class="[p.projectType, getFlowTypeClass(p)]"
@@ -170,6 +170,48 @@
           <div class="hover-arrow">🔍</div>
         </div>
       </div>
+    </div>
+
+    <div v-if="archivedProjects.length" class="projects-section archived-section">
+      <el-collapse>
+        <el-collapse-item>
+          <template #title>
+            <div class="section-header">
+              📦 ARCHIVED
+              <span class="count-badge archived-count">{{ archivedProjects.length }}</span>
+            </div>
+          </template>
+          <div class="project-grid-row">
+            <div
+                v-for="p in archivedProjects"
+                :key="p.projectId"
+                class="mission-card archived-card"
+                :class="[p.projectType, getFlowTypeClass(p)]"
+                @click="openProjectModal(p)"
+            >
+              <div class="card-left-border"></div>
+              <div class="mission-content">
+                <div class="mission-top">
+                  <span class="mission-code">{{ getProjectCode(p) }}</span>
+                  <span class="flow-type-badge" :class="getFlowTypeClass(p)">{{ getFlowTypeLabel(p) }}</span>
+                  <span class="status-badge" :class="p.status">{{ p.status }}</span>
+                </div>
+                <h3 class="mission-name">{{ p.name }}</h3>
+                <p class="mission-desc">{{ p.description || '暂无描述' }}</p>
+                <div class="mission-footer">
+                  <div class="launch-pill">{{ getLaunchLabel(p) }}</div>
+                  <div class="pm-info">
+                    <img :src="p.managerAvatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + p.projectId" class="pm-avatar">
+                    <span>{{ p.managerName || 'PM' }}</span>
+                  </div>
+                  <div class="cost-pill">成本跑批已暂停</div>
+                </div>
+              </div>
+              <div class="hover-arrow">🔍</div>
+            </div>
+          </div>
+        </el-collapse-item>
+      </el-collapse>
     </div>
 
     <el-dialog
@@ -256,6 +298,7 @@ const industryMap = {
   'MEDICAL': '医药',
   'INDUSTRIAL': '工业',
   'SWARM_INTEL': '群体智能',
+  'SELF_USE': '自用',
   'OTHER': '未分类'
 }
 
@@ -267,6 +310,7 @@ const industryColors = {
   'MEDICAL': '#30B0C7',
   'INDUSTRIAL': '#34C759',
   'SWARM_INTEL': '#AF52DE',
+  'SELF_USE': '#FF9500',
   'OTHER': '#8E8E93'
 }
 
@@ -283,7 +327,10 @@ const filteredProjects = computed(() => {
   )
 })
 
-const activeProjectCount = computed(() => projects.value.filter(p => p.status !== 'ARCHIVED').length)
+const archivedProjects = computed(() => filteredProjects.value.filter(p => p.costControlEnabled === false))
+const activeProjects = computed(() => filteredProjects.value.filter(p => p.costControlEnabled !== false))
+
+const activeProjectCount = computed(() => activeProjects.value.length)
 const pendingSubtaskCount = computed(() => Number(summary.value?.pendingSubtaskCount || 0))
 const riskProjectCount = computed(() => Number(summary.value?.riskProjectCount || 0))
 const managementRadius = computed(() => Number(summary.value?.managementRadius || 0).toFixed(1))
@@ -344,7 +391,7 @@ const openProjectModal = (project) => {
 const getProjectCode = (p) => {
   const map = {
     'MILITARY': 'MIL', 'AI_FOR_SCIENCE': 'AI4S',
-    'MEDICAL': 'MED', 'INDUSTRIAL': 'IND', 'SWARM_INTEL': 'SWM'
+    'MEDICAL': 'MED', 'INDUSTRIAL': 'IND', 'SWARM_INTEL': 'SWM', 'SELF_USE': 'SLF'
   }
   const prefix = map[p.projectType] || 'GEN'
   return `${prefix}-${p.projectId ? p.projectId.substring(0,4).toUpperCase() : '000'}`
@@ -494,7 +541,7 @@ const initPieChart = () => {
 
   const option = {
     tooltip: { trigger: 'item' },
-    legend: { bottom: '0%', icon: 'circle', itemGap: 15 },
+    legend: { bottom: '0%', icon: 'circle', itemGap: 15, type: 'scroll', orient: 'horizontal' },
     series: [{
       type: 'pie',
       radius: ['45%', '70%'],
@@ -548,9 +595,13 @@ watch(projects, () => {
 .bg-green { background: #E8F5E9; color: #34C759; }
 .bg-red { background: #FFEBEE; color: #FF3B30; }
 .kpi-label { font-size: 12px; font-weight: 600; color: var(--text-sub); text-transform: uppercase; }
+.kpi-value-group { display: flex; align-items: baseline; }
 .big-num { font-size: 32px; font-weight: 700; letter-spacing: -1px; color: var(--text-main); }
 .unit { font-size: 14px; color: var(--text-sub); font-weight: 500; margin-left: 4px; }
 .kpi-sub { font-size: 13px; color: var(--text-sub); margin-top: auto; }
+.progress-box { margin: 8px 0; }
+.progress-track { width: 100%; height: 6px; background: var(--border-soft); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--science-blue); border-radius: 3px; transition: width 0.5s ease; min-width: 0; }
 
 /* 图表区 */
 .charts-row { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 40px; }
@@ -564,10 +615,18 @@ watch(projects, () => {
 /* 项目列表区 */
 .projects-section { margin-top: 10px; }
 .section-header { font-size: 19px; font-weight: 700; color: var(--text-main); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+.el-collapse-item .section-header { margin-bottom: 0; }
+.archived-section .el-collapse { border: 1px solid var(--border-soft); border-radius: 12px; overflow: hidden; background: var(--science-surface); }
+.archived-section .el-collapse-item__header { border: none; padding: 16px 20px; font-size: 15px; }
+.archived-section .el-collapse-item__wrap { border: none; background: var(--science-surface); }
+.archived-section .el-collapse-item__content { padding-bottom: 20px; }
+.archived-card { opacity: 0.65; }
+.archived-card:hover { opacity: 0.9; }
+.archived-count { background: rgba(0,0,0,0.06); color: var(--text-sub); }
 .count-badge { font-size: 14px; background: var(--science-surface-muted); padding: 2px 8px; border-radius: 10px; color: var(--text-sub); font-weight: 600; }
 .project-grid-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
 
-.mission-card { padding: 0; overflow: hidden; display: flex; cursor: pointer; background: var(--science-surface); border-radius: 8px; border: 1px solid var(--border-soft); transition: transform 0.2s; }
+.mission-card { padding: 0; overflow: hidden; display: flex; cursor: pointer; background: var(--science-surface); border-radius: 8px; border: 1px solid var(--border-soft); transition: transform 0.2s; position: relative; }
 .mission-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
 .card-left-border { width: 6px; }
 
@@ -577,6 +636,7 @@ watch(projects, () => {
 .mission-card.MEDICAL .card-left-border { background: #30B0C7; }        /* 医药: 青 */
 .mission-card.INDUSTRIAL .card-left-border { background: #34C759; }     /* 工业: 绿 */
 .mission-card.SWARM_INTEL .card-left-border { background: #AF52DE; }    /* 群智: 紫 */
+.mission-card.SELF_USE .card-left-border { background: #FF9500; }       /* 自用: 橙 */
 
 .mission-content { padding: 20px; flex: 1; }
 .mission-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 6px; }

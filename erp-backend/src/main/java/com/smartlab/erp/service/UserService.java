@@ -14,6 +14,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -137,5 +140,72 @@ public class UserService {
                 }
             }
         }
+    }
+
+    public byte[] exportRosterXlsx() {
+        List<User> allUsers = userRepository.findAllByOrderByUserIdAsc();
+        try (var workbook = new XSSFWorkbook();
+             var bos = new ByteArrayOutputStream()) {
+            var sheet = workbook.createSheet("日薪制");
+            var headerStyle = workbook.createCellStyle();
+            var headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerStyle.setFont(headerFont);
+
+            String[] headers = {"序号","姓名","部门","岗位","民族","入职日期","离职时间","联系电话","是否在职","是否兼职","月工资","身份证号码","支付主体","开户行","银行卡号"};
+            var headerRow = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) {
+                var cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+
+            int rowIdx = 1;
+            for (User u : allUsers) {
+                var row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(rowIdx - 1);
+                String displayName = u.getName();
+                if (displayName != null && (displayName.contains("实习") || (u.getPosition() != null && u.getPosition().contains("实习")))) {
+                    displayName = displayName + "（实习生）";
+                }
+                row.createCell(1).setCellValue(displayName != null ? displayName : "");
+                row.createCell(2).setCellValue(mapRoleToDepartment(u.getRole()));
+                row.createCell(3).setCellValue(u.getPosition() != null ? u.getPosition() : "");
+                row.createCell(4).setCellValue(u.getEthnicity() != null ? u.getEthnicity() : "");
+                row.createCell(5).setCellValue(u.getEntryDate() != null ? u.getEntryDate().toString() : "");
+                row.createCell(6).setCellValue(u.getDepartureDate() != null ? u.getDepartureDate().toString() : "");
+                row.createCell(7).setCellValue(u.getPhone() != null ? u.getPhone() : "");
+                row.createCell(8).setCellValue(Boolean.TRUE.equals(u.getActive()) ? "是" : "否");
+                row.createCell(9).setCellValue(Boolean.TRUE.equals(u.getPartTime()) ? "是" : "否");
+                row.createCell(10).setCellValue((u.getDailyWage() != null ? u.getDailyWage().toString() : "300.00") + "/天");
+                row.createCell(11).setCellValue(u.getIdNumber() != null ? u.getIdNumber() : "");
+                row.createCell(12).setCellValue(u.getPaymentEntity() != null ? u.getPaymentEntity() : "国科九天");
+                row.createCell(13).setCellValue(u.getBankName() != null ? u.getBankName() : "");
+                row.createCell(14).setCellValue(u.getBankAccount() != null ? u.getBankAccount() : "");
+            }
+
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+            workbook.write(bos);
+            return bos.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("导出花名册失败", e);
+        }
+    }
+
+    private String mapRoleToDepartment(String role) {
+        if (role == null) return "研究中心";
+        return switch (role.toUpperCase()) {
+            case "RESEARCH" -> "研究中心";
+            case "DEV" -> "开发中心";
+            case "BUSINESS", "BD" -> "商务中心";
+            case "ALGORITHM" -> "算法中心";
+            case "DATA", "DATA_ENGINEER" -> "数据中心";
+            case "ADMIN" -> "管理中心";
+            case "PROMOTION" -> "运营中心";
+            case "QA" -> "测试中心";
+            default -> "研究中心";
+        };
     }
 }

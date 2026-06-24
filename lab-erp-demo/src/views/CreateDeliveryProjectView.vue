@@ -22,6 +22,7 @@
           <el-option label="医药" value="MEDICAL" />
           <el-option label="AI For Science" value="AI_FOR_SCIENCE" />
           <el-option label="群体智能" value="SWARM_INTEL" />
+          <el-option label="自用" value="SELF_USE" />
         </el-select>
 
         <div class="field-label">指定数据工程师</div>

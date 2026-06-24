@@ -22,4 +22,14 @@ public class ProvisionUserRequest {
     private AccountDomain domain;
 
     private BigDecimal dailyWage;
+    private String idNumber;
+    private String phone;
+    private String bankName;
+    private String bankAccount;
+    private String ethnicity;
+    private String position;
+    private Boolean partTime;
+    private String paymentEntity;
+    private String schoolDepartment;
+    private String address;
 }

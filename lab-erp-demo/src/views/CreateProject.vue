@@ -78,7 +78,8 @@ const projectTypeOptions = [
   { label: '军工项目', value: 'MILITARY' },
   { label: '医药项目', value: 'MEDICAL' },
   { label: 'AI for Science', value: 'AI_FOR_SCIENCE' },
-  { label: '群体智能项目 (Swarm)', value: 'SWARM_INTEL' }
+  { label: '群体智能项目 (Swarm)', value: 'SWARM_INTEL' },
+  { label: '自用项目', value: 'SELF_USE' }
 ]
 
 const getValidationMessage = () => {

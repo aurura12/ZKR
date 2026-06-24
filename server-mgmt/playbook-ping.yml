@@ -1,0 +1,11 @@
+---
+# 测试能否 SSH 登录三台服务器
+# 用法: ansible-playbook playbook-ping.yml
+
+- name: Test SSH connectivity
+  hosts: servers
+  gather_facts: false
+
+  tasks:
+    - name: Ping servers
+      ansible.builtin.ping:

@@ -42,7 +42,7 @@ import java.util.Set;
 public class AuthService {
 
     private static final Set<String> REGISTER_ALLOWED_ROLES = Set.of("RESEARCH", "DATA", "DEV", "ALGORITHM", "BUSINESS", "PROMOTION");
-    private static final Set<String> EXTRA_PROVISION_USERNAMES = Set.of("guojianwen");
+    private static final Set<String> EXTRA_PROVISION_USERNAMES = Set.of("guojianwen", "jiaomiao");
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
@@ -109,7 +109,7 @@ public class AuthService {
     }
 
     @Transactional
-    public void provisionUser(ProvisionUserRequest request) {
+    public String provisionUser(ProvisionUserRequest request) {
         User operator = getCurrentUser();
         if (!canProvisionAccounts(operator)) {
             throw new PermissionDeniedException("仅指定管理员可创建账号");
@@ -135,12 +135,23 @@ public class AuthService {
                 .accountDomain(domain)
                 .active(true)
                 .dailyWage(wage)
+                .idNumber(request.getIdNumber())
+                .phone(request.getPhone())
+                .bankName(request.getBankName())
+                .bankAccount(request.getBankAccount())
+                .ethnicity(request.getEthnicity())
+                .position(request.getPosition())
+                .partTime(request.getPartTime() != null ? request.getPartTime() : false)
+                .paymentEntity(request.getPaymentEntity() != null ? request.getPaymentEntity() : "国科九天")
+                .schoolDepartment(request.getSchoolDepartment())
+                .address(request.getAddress())
                 .build();
 
         userRepository.save(user);
         if (domain == AccountDomain.ERP) {
             financeReferenceService.getOrCreateWallet(user.getUserId());
         }
+        return user.getUserId();
     }
 
     @Transactional

@@ -16,6 +16,7 @@ import PersonalProcurementView from '../views/PersonalProcurementView.vue'
 import LeaderDashboardView from '../views/LeaderDashboardView.vue'
 import LeaderManagementView from '../views/LeaderManagementView.vue'
 import WageManagementView from '../views/WageManagementView.vue'
+import ProjectFileManagerView from '../views/ProjectFileManagerView.vue'
 import ExpenseReviewView from '../views/finance/ExpenseReviewView.vue'
 import MeetingCenterView from '../views/MeetingCenterView.vue'
 
@@ -156,6 +157,16 @@ const router = createRouter({
       }
     },
     {
+      path: '/admin/project-files',
+      name: 'project-file-manager',
+      component: ProjectFileManagerView,
+      meta: {
+        requiresAuth: true,
+        requiresProvisionAdmin: true,
+        routeDomain: DOMAIN_ERP
+      }
+    },
+    {
       path: '/expense-review',
       name: 'expense-review',
       component: ExpenseReviewView,
@@ -181,6 +192,15 @@ const router = createRouter({
       meta: {
         requiresAuth: true,
         requiresProvisionAdmin: true,
+        routeDomain: DOMAIN_ERP
+      }
+    },
+    {
+      path: '/admin/server-management',
+      name: 'server-management',
+      component: () => import('@/views/ServerManagementView.vue'),
+      meta: {
+        requiresAuth: true,
         routeDomain: DOMAIN_ERP
       }
     },

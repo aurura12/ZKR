@@ -1,0 +1,15 @@
+# Python 虚拟环境
+.venv/
+
+# Ansible
+*.retry
+.ansible/
+.pytest_cache/
+
+# 本地覆盖
+inventory.local.ini
+users.local.yml
+
+# SQLite（含运维密码，勿提交）
+data/
+*.db

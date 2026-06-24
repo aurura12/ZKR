@@ -1,5 +1,8 @@
 server:
   port: 8101
+  mgmt:
+    api:
+      base-url: ${SERVER_MGMT_API_BASE_URL:http://server-mgmt-api:17000}
 
 spring:
   jackson:
@@ -50,6 +53,12 @@ jwt:
 file:
   upload-dir: ${APP_UPLOADS_DIR:./uploads}
 
+llm:
+  base-url: ${ERP_LLM_BASE_URL:https://opencode.ai/zen/go/v1}
+  api-key: ${ERP_LLM_API_KEY:}
+  model: ${ERP_LLM_MODEL:deepseek-v4-pro}
+  timeout-seconds: ${ERP_LLM_TIMEOUT_SECONDS:60}
+
 auth:
   research-initiators: ${AUTH_RESEARCH_INITIATORS:焦淼,jiaomiao,胡军,hujun,任涛,rentao,余文清,yuwenqing}
   account-domain:
@@ -58,6 +67,7 @@ auth:
     admin-user-id: ${AUTH_PROVISION_ADMIN_USER_ID:}
     admin-username: ${AUTH_PROVISION_ADMIN_USERNAME:Zhangqi}
     admin-temp-password: ${AUTH_PROVISION_ADMIN_TEMP_PASSWORD:}
+  finance-reviewer-user-id: ${AUTH_FINANCE_REVIEWER_USER_ID:000101}
 
 mail:
   from-name: ${MAIL_FROM_NAME:国科九天}
@@ -73,3 +83,4 @@ finance:
 dingtalk:
   app-key: ${DINGTALK_APP_KEY:}
   app-secret: ${DINGTALK_APP_SECRET:}
+

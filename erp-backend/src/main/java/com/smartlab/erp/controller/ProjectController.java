@@ -288,22 +288,6 @@ public class ProjectController {
         return ResponseEntity.ok().body(Map.of("success", true, "newStatus", status));
     }
 
-    @PostMapping("/{projectId}/adjust-cost")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Map<String, String>> adjustProjectCost(
-            @PathVariable String projectId,
-            @RequestParam("itemName") String itemName,
-            @RequestParam("type") String type,
-            @RequestParam("amount") String amount,
-            @RequestParam(value = "invoiceFile", required = false) MultipartFile invoiceFile) {
-        AdjustProjectCostRequest request = new AdjustProjectCostRequest();
-        request.setItemName(itemName);
-        request.setType(type);
-        request.setAmount(new java.math.BigDecimal(amount));
-        projectService.adjustProjectCost(projectId, request, invoiceFile);
-        return ResponseEntity.ok(Map.of("message", "成本调整成功"));
-    }
-
     @PostMapping("/{projectId}/expenses")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Object>> submitProjectExpense(
@@ -311,12 +295,12 @@ public class ProjectController {
             @RequestParam("expenseType") String expenseType,
             @RequestParam("itemName") String itemName,
             @RequestParam("amount") String amount,
-            @RequestParam(value = "invoiceFile", required = false) MultipartFile invoiceFile) {
+            @RequestParam(value = "invoiceFiles", required = false) List<MultipartFile> invoiceFiles) {
         SubmitProjectExpenseRequest request = new SubmitProjectExpenseRequest();
         request.setExpenseType(expenseType);
         request.setItemName(itemName);
         request.setAmount(amount);
-        return ResponseEntity.ok(projectService.submitProjectExpense(projectId, request, invoiceFile));
+        return ResponseEntity.ok(projectService.submitProjectExpense(projectId, request, invoiceFiles));
     }
 
     @PostMapping("/expenses/{expenseId}/review")
@@ -334,6 +318,42 @@ public class ProjectController {
                 "pending", projectService.getReviewableExpenses(),
                 "history", projectService.getReviewedHistory()
         ));
+    }
+
+    @GetMapping("/expenses/{expenseId}/invoice")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ByteArrayResource> downloadExpenseInvoice(@PathVariable Long expenseId) {
+        ProjectService.ExpenseInvoicePayload payload = projectService.loadExpenseInvoice(expenseId);
+        MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        if (payload.contentType() != null && !payload.contentType().isBlank()) {
+            mediaType = MediaType.parseMediaType(payload.contentType());
+        }
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + payload.fileName() + "\"")
+                .contentLength(payload.fileSize() == null ? payload.bytes().length : payload.fileSize())
+                .body(new ByteArrayResource(payload.bytes()));
+    }
+
+    @GetMapping("/expenses/pending-count")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> getPendingExpenseCount() {
+        return ResponseEntity.ok(Map.of("count", projectService.getPendingExpenseCount()));
+    }
+
+    @GetMapping("/expenses/files/{fileId}/download")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ByteArrayResource> downloadExpenseFile(@PathVariable Long fileId) {
+        ProjectService.ExpenseInvoicePayload payload = projectService.loadExpenseFile(fileId);
+        MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        if (payload.contentType() != null && !payload.contentType().isBlank()) {
+            mediaType = MediaType.parseMediaType(payload.contentType());
+        }
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + payload.fileName() + "\"")
+                .contentLength(payload.fileSize() == null ? payload.bytes().length : payload.fileSize())
+                .body(new ByteArrayResource(payload.bytes()));
     }
 
     @GetMapping("/cost-adjustments")

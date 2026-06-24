@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -25,6 +26,7 @@ public class FinanceStatementsResponse {
     private List<TrendPoint> trend;
     private List<ActiveProjectAccounting> activeProjectAccounting;
     private List<IdleSubject> idleSubjects;
+    private CompanyExpenseSummary companyExpenseSummary;
 
     @Data
     @Builder
@@ -45,6 +47,7 @@ public class FinanceStatementsResponse {
         private BigDecimal totalRevenue;
         private BigDecimal totalCost;
         private BigDecimal totalMiddlewareFee;
+        private BigDecimal companyOperatingExpense;
         private BigDecimal totalProfit;
         private BigDecimal totalLoss;
         private BigDecimal profitRate;
@@ -60,6 +63,7 @@ public class FinanceStatementsResponse {
         private BigDecimal internalPayables;
         private BigDecimal activeProjectAssets;
         private BigDecimal activeProjectLiabilities;
+        private BigDecimal companyExpensePayables;
         private BigDecimal totalAssets;
         private BigDecimal totalLiabilities;
         private BigDecimal netAssets;
@@ -155,5 +159,14 @@ public class FinanceStatementsResponse {
         private String subjectLabel;
         private BigDecimal balance;
         private String reason;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CompanyExpenseSummary {
+        private BigDecimal totalExpense;
+        private Map<String, BigDecimal> expenseByCategory;
     }
 }

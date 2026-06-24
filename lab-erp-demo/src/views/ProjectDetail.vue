@@ -46,7 +46,9 @@
         </button>
       </div>
       <div v-if="userStore.isErpLoggedIn" class="detail-cta-row">
-        <el-button type="primary" plain @click="openExpenseDialog">💰 费用</el-button>
+        <el-button type="primary" plain @click="openExpenseDialog('contract')">📄 合同</el-button>
+        <el-button type="warning" plain @click="openExpenseDialog('procurement')">🛒 采购</el-button>
+        <el-button type="danger" plain @click="openExpenseDialog('reimbursement')">🧾 报销</el-button>
         <el-button v-if="isAdminUser" type="warning" plain @click="openCostAdjustDialog">📊 调整项目成本</el-button>
         <el-button v-if="canDeleteCurrentProject" type="danger" plain @click="deleteCurrentProject">删除项目</el-button>
       </div>
@@ -416,9 +418,16 @@
           <div class="panel-header-row">
             <h3 class="panel-title">🧠 动态信息面板</h3>
             <span class="execution-tag">{{ currentProjectStepLabel }}</span>
+            <span v-if="dynamicInfoDraftSaved && canEditProjectDynamicInfo" class="draft-indicator">📝 暂存中</span>
           </div>
           <div class="smart-block-list">
-            <div class="smart-block"><div class="execution-label">可行性报告状态</div><div class="execution-text">{{ feasibilityReportStatusText }}</div></div>
+            <div class="smart-block">
+              <div class="execution-label">可行性报告状态</div>
+              <div class="execution-row">
+                <span class="execution-text">{{ feasibilityReportStatusText }}</span>
+                <el-button v-if="canUploadProjectAsset" size="small" type="primary" plain @click="triggerFileInput">上传可行性报告</el-button>
+              </div>
+            </div>
             <div class="smart-block">
               <div class="execution-label">项目评级</div>
               <template v-if="canEditProjectDynamicInfo">
@@ -503,6 +512,26 @@
           </el-button>
         </div>
         <div v-if="nextProjectStageDisabledReason" class="lock-reason">{{ nextProjectStageDisabledReason }}</div>
+      </div>
+    </div>
+
+    <div v-if="!isProductFlow" class="panel team-panel" style="margin-bottom:var(--card-gap)">
+      <div class="panel-header-row compact-header">
+        <h3 class="panel-title">👥 {{ squadTitle }}</h3>
+        <el-button v-if="canSwapProjectManager" type="warning" size="small" plain @click="swapProjectManager">🔄 摇摆 Manager</el-button>
+        <el-button v-if="canManageProductMembers" type="primary" size="small" plain @click="openProductMemberDialog">成员管理</el-button>
+        <el-button v-else-if="canManageProjectMembers" type="primary" size="small" plain @click="openProjectMemberDialog">成员管理</el-button>
+      </div>
+      <div class="avatar-group">
+        <div v-for="(m, idx) in sortedSquadMembers" :key="m.userId" class="member-item" :class="{ prioritized: idx === 0 && isLeadMember(m) }">
+          <img :src="m.hiddenAvatar ? hiddenAvatar : (m.avatar || defaultAvatar)" class="avatar" :title="m.name">
+          <div v-if="showResponsibilityRatio(m)" class="ratio-badge-group">
+            <span v-if="Number(m.managerResponsibilityRatio || 0) > 0" class="ratio-badge ratio-badge-manager">管理 {{ m.managerResponsibilityRatio }}</span>
+            <span v-if="Number(m.executionResponsibilityRatio || 0) > 0" class="ratio-badge ratio-badge-exec">执行 {{ m.executionResponsibilityRatio }}</span>
+          </div>
+          <span class="role-badge">{{ formatMemberIdentityTag(m) }}</span>
+        </div>
+        <div v-if="canBuildTeam" class="add-member-btn" @click="inviteMember">+</div>
       </div>
     </div>
 
@@ -625,29 +654,6 @@
       </div>
 
       <div class="right-col">
-        <div class="panel team-panel">
-          <div class="panel-header-row compact-header">
-            <h3 class="panel-title">👥 {{ squadTitle }}</h3>
-            <el-button v-if="canManageProductMembers" type="primary" size="small" plain @click="openProductMemberDialog">成员管理</el-button>
-            <el-button v-else-if="canManageProjectMembers" type="primary" size="small" plain @click="openProjectMemberDialog">成员管理</el-button>
-          </div>
-          <div class="avatar-group">
-            <div
-              v-for="(m, idx) in sortedSquadMembers"
-              :key="m.userId"
-              class="member-item"
-              :class="{ prioritized: idx === 0 && isLeadMember(m) }"
-            >
-              <img :src="m.hiddenAvatar ? hiddenAvatar : (m.avatar || defaultAvatar)" class="avatar" :title="m.name">
-              <div v-if="showResponsibilityRatio(m)" class="ratio-badge-group">
-                <span v-if="Number(m.managerResponsibilityRatio || 0) > 0" class="ratio-badge ratio-badge-manager">管理 {{ m.managerResponsibilityRatio }}</span>
-                <span v-if="Number(m.executionResponsibilityRatio || 0) > 0" class="ratio-badge ratio-badge-exec">执行 {{ m.executionResponsibilityRatio }}</span>
-              </div>
-              <span class="role-badge">{{ formatMemberIdentityTag(m) }}</span>
-            </div>
-            <div v-if="canBuildTeam" class="add-member-btn" @click="inviteMember">+</div>
-          </div>
-        </div>
 
         <div v-if="isProjectFlow" class="panel earnings-panel">
           <div class="panel-header-row compact-header earnings-header">
@@ -672,7 +678,7 @@
                 <div class="execution-text">¥{{ formatMoney(projectEarnings.estimatedRevenue) }}</div>
               </div>
               <div class="smart-block">
-                <div class="execution-label">最新人力成本</div>
+                <div class="execution-label">最新总成本</div>
                 <div class="execution-text">¥{{ formatMoney(projectEarnings.humanCost) }}</div>
               </div>
               <div class="smart-block">
@@ -694,6 +700,32 @@
               <div class="smart-block">
                 <div class="execution-label">项目成员数</div>
                 <div class="execution-text">{{ `${projectEarnings.projectMemberCount || 0} 人` }}</div>
+              </div>
+            </div>
+
+            <div v-if="projectEarnings.costBreakdown" class="cost-breakdown-section">
+              <div class="execution-label" style="margin-bottom:8px">成本分解</div>
+              <div class="cost-breakdown-rows">
+                <div class="cost-breakdown-row">
+                  <span class="cost-label">人力成本</span>
+                  <span class="cost-value">¥{{ formatMoney(projectEarnings.costBreakdown.humanCost) }}</span>
+                </div>
+                <div class="cost-breakdown-row">
+                  <span class="cost-label">采购成本</span>
+                  <span class="cost-value">¥{{ formatMoney(projectEarnings.costBreakdown.procurementCost) }}</span>
+                </div>
+                <div class="cost-breakdown-row">
+                  <span class="cost-label">外部服务</span>
+                  <span class="cost-value">¥{{ formatMoney(projectEarnings.costBreakdown.externalServiceCost) }}</span>
+                </div>
+                <div class="cost-breakdown-row">
+                  <span class="cost-label">商务差旅</span>
+                  <span class="cost-value">¥{{ formatMoney(projectEarnings.costBreakdown.businessTravelCost) }}</span>
+                </div>
+                <div class="cost-breakdown-row">
+                  <span class="cost-label">其他调整</span>
+                  <span class="cost-value">¥{{ formatMoney(projectEarnings.costBreakdown.adjustmentCost) }}</span>
+                </div>
               </div>
             </div>
 
@@ -913,6 +945,14 @@
         <input ref="executionFileInputRef" type="file" style="display: none" @change="handleExecutionFileChange">
         <input ref="executionFolderInputRef" type="file" webkitdirectory directory multiple style="display: none" @change="handleExecutionFolderChange">
       </div>
+
+      <div v-if="canAccessProjectFileTree" class="panel project-file-tree-panel">
+        <div class="panel-header-row">
+          <h3 class="panel-title">📂 项目文件目录</h3>
+          <span class="panel-hint">管理员在项目文件管理器中的整理结果</span>
+        </div>
+        <ProjectFileTree :project-id="projectId" />
+      </div>
     </div>
 
     <div v-if="canUseTeamChat" class="panel chat-panel">
@@ -1020,7 +1060,7 @@
         </el-form-item>
         <div v-if="selectedMemberDetails.length" class="ratio-editor-list">
           <div v-for="member in selectedMemberDetails" :key="member.id" class="ratio-editor-item">
-            <span>{{ member.name }} · {{ formatRole(member.role) }}<span v-if="String(member.id) === String(teamForm.managerUserId || '') && selectedManagerIsDataEngineer">（兼任 Manager）</span></span>
+            <span>{{ member.name }} · {{ formatRole(member.role) }}<span v-if="String(member.id).startsWith(String(teamForm.managerUserId || '') + '-') && selectedManagerIsDataEngineer">（兼任 Manager）</span></span>
             <el-input-number v-model="teamMemberWeights[member.id]" :min="0" :max="100" />
           </div>
         </div>
@@ -1377,16 +1417,16 @@
         <el-form-item label="金额 (元)" required>
           <el-input-number v-model="costAdjustForm.amount" :min="0.01" :precision="2" :step="100" style="width: 100%" placeholder="0.00" />
         </el-form-item>
-        <el-form-item label="发票/凭证">
+          <el-form-item label="发票/凭证">
           <el-upload
             v-model:file-list="costAdjustForm.invoiceFileList"
             :auto-upload="false"
             :limit="1"
             list-type="picture"
-            accept=".jpg,.jpeg,.png,.pdf"
+            accept=".jpg,.jpeg,.png,.gif,.bmp,.pdf,.ofd,.doc,.docx,.xls,.xlsx,.csv,.txt,.rar,.zip,.7z"
           >
             <el-button size="small" type="primary" plain>选择文件</el-button>
-            <template #tip><div class="el-upload__tip">支持 JPG/PNG/PDF，可选</div></template>
+            <template #tip><div class="el-upload__tip">支持常见图片/文档/压缩包格式，可选</div></template>
           </el-upload>
         </el-form-item>
       </el-form>
@@ -1396,14 +1436,14 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showExpenseDialog" title="提交费用" width="520px" custom-class="tech-dialog">
-      <div class="execution-text">选择费用类型并填写必要信息，提交后将进入审批流程。</div>
+    <el-dialog v-model="showExpenseDialog" :title="expenseDialogTitle" width="520px" custom-class="tech-dialog">
+      <div class="execution-text">{{ expenseDialogDesc }}</div>
       <el-form label-position="top" style="margin-top: 16px;">
-        <el-form-item label="费用类型" required>
-          <el-select v-model="expenseForm.type" placeholder="请选择费用类型" style="width: 100%">
-            <el-option label="硬件采购" value="HARDWARE" />
-            <el-option label="外部技术服务" value="EXTERNAL_SERVICE" />
-            <el-option label="报销" value="REIMBURSEMENT" />
+        <el-form-item v-if="expenseDialogMode === 'reimbursement'" label="报销类型" required>
+          <el-select v-model="expenseForm.type" placeholder="请选择报销类型" style="width: 100%">
+            <el-option label="商务餐费" value="BUSINESS_MEAL" />
+            <el-option label="正常差旅" value="NORMAL_TRAVEL" />
+            <el-option label="补差价" value="PRICE_DIFF" />
           </el-select>
         </el-form-item>
         <el-form-item label="名称" required>
@@ -1416,12 +1456,11 @@
           <el-upload
             v-model:file-list="expenseForm.invoiceFileList"
             :auto-upload="false"
-            :limit="1"
             list-type="picture"
-            accept=".jpg,.jpeg,.png,.pdf"
+            accept=".jpg,.jpeg,.png,.gif,.bmp,.pdf,.ofd,.doc,.docx,.xls,.xlsx,.csv,.txt,.rar,.zip,.7z"
           >
             <el-button size="small" type="primary" plain>选择文件</el-button>
-            <template #tip><div class="el-upload__tip">支持 JPG/PNG/PDF，可选</div></template>
+            <template #tip><div class="el-upload__tip">支持常见图片/文档/压缩包格式，可选</div></template>
           </el-upload>
         </el-form-item>
       </el-form>
@@ -1443,7 +1482,9 @@ import { useUserStore } from '@/stores/userStore'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ExpenseSubmissionForm from '@/components/finance/ExpenseSubmissionForm.vue'
+import ProjectFileTree from '@/components/ProjectFileTree.vue'
 import { getErpLandingRoute } from '@/router/domainAccess'
+import { canAccessProvisioning } from '@/constants/provisioning'
 import {
   getProjectWorkflowMemberRoles,
   getProductWorkflowMemberRoles,
@@ -1543,6 +1584,9 @@ const dynamicInfoForm = ref({
   implementationStatus: '',
   estimatedRevenue: ''
 })
+const dynamicInfoDraftSaved = ref(false)
+const isSyncingDynamicInfoForm = ref(false)
+let dynamicInfoDraftTimer = null
 const projectMemberLoading = ref(false)
 const gitRepoLoading = ref(false)
 const gitRepoSubmitting = ref(false)
@@ -1582,7 +1626,8 @@ const productIndustryOptions = [
   { label: 'AI FOR SCIENCE', value: 'AI_FOR_SCIENCE' },
   { label: '医药', value: 'MEDICAL' },
   { label: '工业', value: 'INDUSTRIAL' },
-  { label: '群体智能', value: 'SWARM_INTEL' }
+  { label: '群体智能', value: 'SWARM_INTEL' },
+  { label: '自用', value: 'SELF_USE' }
 ]
 const demoUploadForm = ref({
   ENGINEERING: null,
@@ -2396,11 +2441,12 @@ const selectedManagerIsDataEngineer = computed(() => Boolean(selectedManager.val
 const selectedMemberDetails = computed(() => memberCandidates.value.filter(user => teamForm.value.teamMembers.includes(user.id)))
 const selectedManagerExecutionWeight = computed(() => {
   if (!selectedManagerIsDataEngineer.value) return 0
-  return Number(teamMemberWeights.value[String(teamForm.value.managerUserId || '')] || 0)
+  const mgrId = String(teamForm.value.managerUserId || '')
+  return Number(teamMemberWeights.value[mgrId] || Object.entries(teamMemberWeights.value).find(([k]) => k.startsWith(mgrId + '-'))?.[1] || 0)
 })
 const teamResponsibilityTotal = computed(() => {
   const managerRatio = Number(teamForm.value.managerWeight || 0)
-  const membersRatio = selectedMemberDetails.value.reduce((sum, member) => sum + Number(teamMemberWeights.value[member.id] || 0), 0)
+  const membersRatio = Object.values(teamMemberWeights.value).reduce((sum, w) => sum + Number(w || 0), 0)
   return managerRatio + membersRatio
 })
 const memberTaskCards = computed(() => {
@@ -2602,6 +2648,7 @@ const saveProjectDynamicInfo = async () => {
       estimatedRevenue: dynamicInfoForm.value.estimatedRevenue ? Number(dynamicInfoForm.value.estimatedRevenue) : null
     })
     ElMessage.success('动态信息已更新')
+    clearDynamicInfoDraft()
     await fetchProject()
   } catch (error) {
     ElMessage.error(error.response?.data?.message || error.message || '动态信息更新失败')
@@ -2658,8 +2705,15 @@ const canUploadProjectAsset = computed(() => {
   return activeUserId.value === selectedDataEngineerMemberId.value
 })
 
+const canSwapProjectManager = computed(() => {
+  if (!isProjectFlow.value || !project.value) return false
+  if (String(project.value.projectStatus || '').toUpperCase() === 'COMPLETED') return false
+  return activeUserId.value === '000027'
+})
+
 const ADMIN_USERNAMES = new Set(['Zhangqi', 'guojianwen', 'jiaomiao'])
 const activeUsername = computed(() => userStore.activeUserInfo?.username || '')
+const canAccessProjectFileTree = computed(() => userStore.isErpLoggedIn && canAccessProvisioning(activeUsername.value))
 const isAdminUser = computed(() => ADMIN_USERNAMES.has(activeUsername.value) || activeUserRole.value === 'ADMIN')
 
 const canUseTeamChat = computed(() => {
@@ -2819,6 +2873,7 @@ const fetchWorkflowMemberRoles = async (targetId) => {
 }
 
 const syncProjectDynamicInfoForm = () => {
+  isSyncingDynamicInfoForm.value = true
   dynamicInfoForm.value = {
     goalDescription: executionOverview.value?.plan?.goalDescription || '',
     projectTier: String(executionOverview.value?.plan?.projectTier || project.value?.projectTier || ''),
@@ -2826,6 +2881,50 @@ const syncProjectDynamicInfoForm = () => {
     implementationStatus: readTaggedDescriptionValue(project.value?.description, '实施状态') || '',
     estimatedRevenue: project.value?.estimatedRevenue || ''
   }
+  isSyncingDynamicInfoForm.value = false
+
+  const draft = loadDynamicInfoDraft()
+  if (draft) {
+    dynamicInfoForm.value = { ...dynamicInfoForm.value, ...draft }
+    dynamicInfoDraftSaved.value = true
+  }
+}
+
+const getDynamicInfoDraftKey = () => {
+  const targetId = props.projectId || route.params.id
+  return `project-draft-${targetId}`
+}
+
+const getDynamicInfoSnapshot = () => JSON.stringify({
+  goalDescription: String(dynamicInfoForm.value.goalDescription || ''),
+  projectTier: String(dynamicInfoForm.value.projectTier || ''),
+  techStackDescription: String(dynamicInfoForm.value.techStackDescription || ''),
+  implementationStatus: String(dynamicInfoForm.value.implementationStatus || ''),
+  estimatedRevenue: String(dynamicInfoForm.value.estimatedRevenue || '')
+})
+
+const saveDynamicInfoDraft = () => {
+  const key = getDynamicInfoDraftKey()
+  localStorage.setItem(key, getDynamicInfoSnapshot())
+  dynamicInfoDraftSaved.value = true
+}
+
+const loadDynamicInfoDraft = () => {
+  const key = getDynamicInfoDraftKey()
+  const raw = localStorage.getItem(key)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch {
+    localStorage.removeItem(key)
+    return null
+  }
+}
+
+const clearDynamicInfoDraft = () => {
+  const key = getDynamicInfoDraftKey()
+  localStorage.removeItem(key)
+  dynamicInfoDraftSaved.value = false
 }
 
 // 5. 状态切换逻辑 (支持三流并行)
@@ -2881,7 +2980,7 @@ const submitCostAdjust = async () => {
     const file = invoiceFileList?.[0]?.raw
     if (file) form.append('invoiceFile', file)
 
-    await request.post(`/api/projects/${targetId}/adjust-cost`, form, {
+    await request.post(`/api/finance/projects/${targetId}/cost-adjustments`, form, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
     ElMessage.success('项目成本已调整')
@@ -2894,8 +2993,14 @@ const submitCostAdjust = async () => {
   }
 }
 
-const openExpenseDialog = () => {
-  expenseForm.value = { type: 'HARDWARE', itemName: '', amount: null, invoiceFileList: [] }
+const expenseDialogMode = ref('contract')
+const expenseDialogTitle = computed(() => ({ contract: '提交合同', procurement: '提交采购', reimbursement: '提交报销' }[expenseDialogMode.value] || '提交费用'))
+const expenseDialogDesc = computed(() => ({ contract: '提交合同信息，将进入审批流程。', procurement: '提交采购信息，将进入审批流程。', reimbursement: '选择报销类型并填写必要信息，提交后将进入审批流程。' }[expenseDialogMode.value] || ''))
+
+const openExpenseDialog = (mode) => {
+  expenseDialogMode.value = mode
+  const defaultType = mode === 'contract' ? 'EXTERNAL_SERVICE' : mode === 'procurement' ? 'HARDWARE' : 'BUSINESS_MEAL'
+  expenseForm.value = { type: defaultType, itemName: '', amount: null, invoiceFileList: [] }
   showExpenseDialog.value = true
 }
 
@@ -2911,8 +3016,9 @@ const submitExpense = async () => {
     form.append('expenseType', type)
     form.append('itemName', itemName.trim())
     form.append('amount', String(amount))
-    const file = invoiceFileList?.[0]?.raw
-    if (file) form.append('invoiceFile', file)
+    invoiceFileList?.forEach(entry => {
+      if (entry.raw) form.append('invoiceFiles', entry.raw)
+    })
 
     await request.post(`/api/projects/${targetId}/expenses`, form, {
       headers: { 'Content-Type': 'multipart/form-data' }
@@ -3246,7 +3352,17 @@ const handleDownload = async (file) => {
     window.open(blobUrl, '_blank', 'noopener')
     window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60000)
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || error.message || '打开文件失败')
+    let message = error.message
+    if (error.response?.data instanceof Blob && error.response.data.type !== 'application/octet-stream') {
+      try {
+        const errorText = await error.response.data.text()
+        const parsed = JSON.parse(errorText)
+        message = parsed.message || errorText
+      } catch { /* ignore parse failures, use fallback */ }
+    } else if (error.response?.data?.message) {
+      message = error.response.data.message
+    }
+    ElMessage.error(message || '打开文件失败')
   }
 }
 
@@ -3357,7 +3473,7 @@ const submitBuildTeam = async () => {
 
   // 将 teamMembers 的 userId 转换为 DTO 格式
   const memberDTOs = teamForm.value.teamMembers
-    .filter(userId => !(selectedManagerIsDataEngineer.value && String(userId) === String(teamForm.value.managerUserId || '')))
+    .filter(userId => !(selectedManagerIsDataEngineer.value && String(userId).startsWith(String(teamForm.value.managerUserId || '') + '-')))
     .map(userId => {
       const user = memberCandidates.value.find(candidate => String(candidate.id) === String(userId))
       const payloadRole = normalizeBuildTeamPayloadRole(user?.role)
@@ -3651,7 +3767,17 @@ const downloadExecutionFile = async (file) => {
     anchor.remove()
     window.URL.revokeObjectURL(blobUrl)
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || error.message || '下载文件失败')
+    let message = error.message
+    if (error.response?.data instanceof Blob && error.response.data.type !== 'application/octet-stream') {
+      try {
+        const errorText = await error.response.data.text()
+        const parsed = JSON.parse(errorText)
+        message = parsed.message || errorText
+      } catch { /* ignore parse failures, use fallback */ }
+    } else if (error.response?.data?.message) {
+      message = error.response.data.message
+    }
+    ElMessage.error(message || '下载文件失败')
   }
 }
 
@@ -4093,6 +4219,27 @@ const buildInitialTeamState = () => {
     managerWeight: Number(managerMember?.managerResponsibilityRatio || 0),
     teamMembers: initialTeamMembers,
     teamMemberWeights: nextWeights
+  }
+}
+
+const swapProjectManager = async () => {
+  const targetId = props.projectId || route.params.id
+  if (!targetId) return
+  try {
+    await ElMessageBox.confirm(
+      '确认将 Manager 摇摆变更为另一创始成员？管理权责比将自动跟随转移。',
+      'Manager 摇摆变更',
+      { confirmButtonText: '确认变更', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  try {
+    await request.post(`/api/projects/${targetId}/swap-manager`)
+    ElMessage.success('Manager 已摇摆变更')
+    await fetchProject()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || error.message || 'Manager 摇摆变更失败')
   }
 }
 
@@ -4542,8 +4689,10 @@ const submitTestingDecision = async isPassed => {
 onMounted(fetchProject)
 onMounted(startChatPolling)
 onMounted(startGitRepoPolling)
+onMounted(() => window.addEventListener('beforeunload', handleBeforeUnload))
 onBeforeUnmount(stopChatPolling)
 onBeforeUnmount(stopGitRepoPolling)
+onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnload))
 
 watch(() => route.params.id, (newId) => {
   if (newId) fetchProject()
@@ -4639,6 +4788,26 @@ watch(
   },
   { deep: true }
 )
+
+watch(
+  () => dynamicInfoForm.value,
+  () => {
+    if (isSyncingDynamicInfoForm.value) return
+    if (!canEditProjectDynamicInfo.value) return
+    clearTimeout(dynamicInfoDraftTimer)
+    dynamicInfoDraftTimer = setTimeout(() => {
+      saveDynamicInfoDraft()
+    }, 800)
+  },
+  { deep: true }
+)
+
+const handleBeforeUnload = (e) => {
+  if (dynamicInfoDraftSaved.value && canEditProjectDynamicInfo.value) {
+    e.preventDefault()
+    e.returnValue = ''
+  }
+}
 
 </script>
 
@@ -5035,6 +5204,35 @@ watch(
   gap: 10px;
 }
 
+.cost-breakdown-section {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.cost-breakdown-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cost-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.cost-label {
+  color: #64748b;
+}
+
+.cost-value {
+  color: #1e293b;
+  font-weight: 600;
+}
+
 .assignment-summary-block {
   margin-top: 10px;
 }
@@ -5243,12 +5441,34 @@ watch(
   font-weight: 700;
 }
 
+.draft-indicator {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 600;
+  animation: draftPulse 2s ease-in-out infinite;
+}
+
+@keyframes draftPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 .execution-label,
 .folder-desc,
 .schedule-dates,
 .schedule-role {
   color: var(--text-sub);
   font-size: 13px;
+}
+
+.execution-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .execution-text {

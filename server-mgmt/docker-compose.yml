@@ -1,0 +1,24 @@
+name: server-mgmt
+
+services:
+  api:
+    build: .
+    image: server-mgmt:latest
+    container_name: server-mgmt-api
+    ports:
+      - "${PORT:-17000}:17000"
+    environment:
+      SERVER_MGMT_DB_PATH: /app/data/server_mgmt.db
+      PORT: "17000"
+      # 首次启动：若数据库无服务器记录，自动从 inventory.ini + users.yml 导入
+      IMPORT_ON_START: "${IMPORT_ON_START:-1}"
+    volumes:
+      - server-mgmt-data:/app/data
+      - ./inventory.ini:/app/inventory.ini
+      - ./users.yml:/app/users.yml
+      # 若使用密钥登录运维账号，取消下一行注释并确保 id_ed25519 存在
+      # - ./id_ed25519:/app/id_ed25519:ro
+    restart: unless-stopped
+
+volumes:
+  server-mgmt-data:

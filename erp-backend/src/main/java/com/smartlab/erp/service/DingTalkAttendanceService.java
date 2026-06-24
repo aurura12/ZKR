@@ -65,9 +65,25 @@ public class DingTalkAttendanceService {
                 for (JsonNode r : records) {
                     try {
                         AttendanceRecord record = parseRecord(r);
-                        boolean exists = attendanceRecordRepository.existsByUserIdAndUserCheckTimeAndCheckType(
-                                record.getUserId(), record.getUserCheckTime(), record.getCheckType());
-                        if (!exists) {
+                        var existing = attendanceRecordRepository
+                                .findByUserIdAndUserCheckTimeAndCheckType(
+                                        record.getUserId(), record.getUserCheckTime(), record.getCheckType());
+                        if (existing.isPresent()) {
+                            AttendanceRecord old = existing.get();
+                            old.setTimeResult(record.getTimeResult());
+                            old.setLocationResult(record.getLocationResult());
+                            old.setIsLegal(record.getIsLegal());
+                            old.setUserAddress(record.getUserAddress());
+                            old.setSourceType(record.getSourceType());
+                            old.setPlanCheckTime(record.getPlanCheckTime());
+                            old.setCorpId(record.getCorpId());
+                            old.setGroupId(record.getGroupId());
+                            old.setClassId(record.getClassId());
+                            old.setInvalidRecordType(record.getInvalidRecordType());
+                            old.setInvalidRecordMsg(record.getInvalidRecordMsg());
+                            attendanceRecordRepository.save(old);
+                            saved++;
+                        } else {
                             attendanceRecordRepository.save(record);
                             saved++;
                         }
@@ -83,7 +99,7 @@ public class DingTalkAttendanceService {
                 offset += PAGE_SIZE;
             }
 
-            log.info("[DingTalk] pullAttendance saved {}/{} new records for {} DingTalk users, workDate {} ~ {}",
+            log.info("[DingTalk] pullAttendance processed {}/{} records for {} DingTalk users, workDate {} ~ {}",
                     saved, fetched, userIds.size(), workDateFrom, workDateTo);
         } catch (Exception e) {
             if (e instanceof DingTalkIntegrationException dingTalkIntegrationException) {

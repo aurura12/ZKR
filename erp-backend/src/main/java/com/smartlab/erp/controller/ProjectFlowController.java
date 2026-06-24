@@ -108,6 +108,26 @@ public class ProjectFlowController {
         return ResponseEntity.ok(updatedProject);
     }
 
+    /**
+     * jiaomiao 专属：摇摆变更项目 Manager
+     *
+     * 接口路径: POST /api/projects/{projectId}/swap-manager
+     * 权限: 仅 userId=000027 (jiaomiao) 可调用
+     *
+     * 业务流程:
+     * 1. 校验调用者为 jiaomiao
+     * 2. 现任 Manager 的管理权责比自动转移至另一创始成员
+     * 3. 更新 project.manager_id
+     *
+     * @param projectId 项目ID
+     */
+    @PostMapping("/{projectId}/swap-manager")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> swapManager(@PathVariable String projectId) {
+        projectService.swapProjectManager(projectId);
+        return ResponseEntity.ok(Map.of("success", true, "message", "Manager 已摇摆变更"));
+    }
+
     // ====================================================================
     // API 3: Manager 目标管控与进度设定 (Execution - Plan)
     // ====================================================================

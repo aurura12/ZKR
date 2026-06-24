@@ -3,8 +3,11 @@ package com.smartlab.erp.service;
 import com.smartlab.erp.dto.ProjectMemberEarningsResponse;
 import com.smartlab.erp.entity.FlowType;
 import com.smartlab.erp.entity.ProjectExecutionPlan;
+import com.smartlab.erp.entity.ProjectExpense;
+import com.smartlab.erp.entity.ProjectCostAdjustment;
 import com.smartlab.erp.entity.SysProject;
 import com.smartlab.erp.entity.SysProjectMember;
+import com.smartlab.erp.enums.ProjectExpenseStatus;
 import com.smartlab.erp.enums.ProjectTierEnum;
 import com.smartlab.erp.exception.BusinessException;
 import com.smartlab.erp.exception.PermissionDeniedException;
@@ -15,6 +18,8 @@ import com.smartlab.erp.finance.repository.FinanceCostBatchRepository;
 import com.smartlab.erp.finance.repository.FinanceCostSummaryRepository;
 import com.smartlab.erp.finance.support.FinanceAmounts;
 import com.smartlab.erp.repository.ProjectExecutionPlanRepository;
+import com.smartlab.erp.repository.ProjectExpenseRepository;
+import com.smartlab.erp.repository.ProjectCostAdjustmentRepository;
 import com.smartlab.erp.repository.SysProjectMemberRepository;
 import com.smartlab.erp.repository.SysProjectRepository;
 import com.smartlab.erp.security.UserPrincipal;
@@ -46,6 +51,8 @@ public class ProjectFinancialMetricsService {
     private final ProjectExecutionPlanRepository executionPlanRepository;
     private final FinanceCostSummaryRepository costSummaryRepository;
     private final FinanceCostBatchRepository costBatchRepository;
+    private final ProjectExpenseRepository expenseRepository;
+    private final ProjectCostAdjustmentRepository costAdjustmentRepository;
 
     @Value("${auth.admin-usernames:Zhangqi,guojianwen,jiaomiao}")
     private String adminUsernamesConfig;
@@ -63,6 +70,7 @@ public class ProjectFinancialMetricsService {
                 .toList();
 
         Map<String, FinanceCostSummary> latestSummaryByProject = new HashMap<>();
+        Map<String, BigDecimal> cumulativeCostByProject = new HashMap<>();
         costSummaryRepository.findByProject_ProjectIdIn(projectIds).forEach(summary -> {
             String projectId = summary.getProject() == null ? null : summary.getProject().getProjectId();
             if (projectId == null) {
@@ -72,13 +80,17 @@ public class ProjectFinancialMetricsService {
             if (existing == null || compareSummaryVersion(summary, existing) > 0) {
                 latestSummaryByProject.put(projectId, summary);
             }
+            cumulativeCostByProject.merge(projectId,
+                    summary.getTotalSettlementCost() != null ? summary.getTotalSettlementCost() : BigDecimal.ZERO,
+                    BigDecimal::add);
         });
 
         Map<String, ProjectFinancialSnapshot> snapshots = new HashMap<>();
         for (SysProject project : projects) {
             ProjectExecutionPlan plan = executionPlanByProject == null ? null : executionPlanByProject.get(project.getProjectId());
             FinanceCostSummary summary = latestSummaryByProject.get(project.getProjectId());
-            snapshots.put(project.getProjectId(), buildSnapshot(project, plan, summary));
+            BigDecimal cumulativeCost = cumulativeCostByProject.getOrDefault(project.getProjectId(), BigDecimal.ZERO);
+            snapshots.put(project.getProjectId(), buildSnapshot(project, plan, summary, cumulativeCost));
         }
         return snapshots;
     }
@@ -101,7 +113,10 @@ public class ProjectFinancialMetricsService {
 
         ProjectExecutionPlan executionPlan = executionPlanRepository.findByProjectId(projectId).orElse(null);
         FinanceCostSummary latestSummary = costSummaryRepository.findTopByProject_ProjectIdOrderByLedgerMonthDescIdDesc(projectId).orElse(null);
-        ProjectFinancialSnapshot snapshot = buildSnapshot(project, executionPlan, latestSummary);
+        BigDecimal cumulativeCost = costSummaryRepository.findByProject_ProjectIdIn(List.of(projectId)).stream()
+                .map(cs -> cs.getTotalSettlementCost() != null ? cs.getTotalSettlementCost() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        ProjectFinancialSnapshot snapshot = buildSnapshot(project, executionPlan, latestSummary, cumulativeCost);
         List<SysProjectMember> members = projectMemberRepository.findByProjectIdWithUser(projectId);
         int projectMemberCount = (int) members.stream()
                 .filter(member -> member.getUser() != null)
@@ -252,7 +267,7 @@ public class ProjectFinancialMetricsService {
     }
 
     private ProjectMemberEarningsResponse.ProjectMemberEarningsResponseBuilder baseResponse(SysProject project,
-                                                                                            ProjectFinancialSnapshot snapshot) {
+                                                                                             ProjectFinancialSnapshot snapshot) {
         return ProjectMemberEarningsResponse.builder()
                 .projectId(project.getProjectId())
                 .projectTier(snapshot.projectTier().name())
@@ -260,20 +275,65 @@ public class ProjectFinancialMetricsService {
                 .estimatedRevenue(snapshot.estimatedRevenue())
                 .humanCost(snapshot.humanCost())
                 .remainingProfit(snapshot.remainingProfit())
+                .costBreakdown(snapshot.costBreakdown())
                 .lastCostBatchAt(getLatestCompletedCostBatchAt());
     }
 
     public ProjectFinancialSnapshot buildSnapshot(SysProject project,
                                                   ProjectExecutionPlan executionPlan,
-                                                  FinanceCostSummary latestSummary) {
+                                                  FinanceCostSummary latestSummary,
+                                                  BigDecimal cumulativeCost) {
         ProjectTierEnum projectTier = resolveProjectTier(project, executionPlan);
         BigDecimal estimatedRevenue = resolveEstimatedRevenue(project);
-        BigDecimal humanCost = FinanceAmounts.scale(project == null ? null : project.getCost());
+        BigDecimal humanCost = FinanceAmounts.scale(cumulativeCost != null ? cumulativeCost : BigDecimal.ZERO);
+        CostBreakdown breakdown = computeCostBreakdown(project, latestSummary);
+
         BigDecimal remainingProfit = FinanceAmounts.subtract(estimatedRevenue, humanCost);
         if (remainingProfit.compareTo(BigDecimal.ZERO) < 0) {
             remainingProfit = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
-        return new ProjectFinancialSnapshot(projectTier, estimatedRevenue, humanCost, remainingProfit);
+        return new ProjectFinancialSnapshot(projectTier, estimatedRevenue, humanCost, remainingProfit, breakdown);
+    }
+
+    private CostBreakdown computeCostBreakdown(SysProject project, FinanceCostSummary latestSummary) {
+        String projectId = project != null ? project.getProjectId() : null;
+        if (projectId == null) {
+            return new CostBreakdown(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+        }
+
+        BigDecimal humanCost = costSummaryRepository.findByProject_ProjectIdIn(List.of(projectId)).stream()
+                .map(cs -> cs.getTotalLaborCost() != null ? cs.getTotalLaborCost() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        humanCost = FinanceAmounts.scale(humanCost);
+
+        List<ProjectExpense> expenses = expenseRepository.findByProjectIdOrderByCreatedAtDesc(projectId).stream()
+                .filter(e -> e.getStatus() == ProjectExpenseStatus.APPROVED)
+                .toList();
+
+        BigDecimal procurement = BigDecimal.ZERO;
+        BigDecimal external = BigDecimal.ZERO;
+        BigDecimal bizTravel = BigDecimal.ZERO;
+
+        for (ProjectExpense e : expenses) {
+            BigDecimal amt = e.getAmount() != null ? e.getAmount() : BigDecimal.ZERO;
+            switch (e.getExpenseType()) {
+                case HARDWARE -> procurement = procurement.add(amt);
+                case EXTERNAL_SERVICE -> external = external.add(amt);
+                case REIMBURSEMENT, BUSINESS_MEAL, NORMAL_TRAVEL, PRICE_DIFF -> bizTravel = bizTravel.add(amt);
+            }
+        }
+
+        BigDecimal adjustment = BigDecimal.ZERO;
+        for (ProjectCostAdjustment adj : costAdjustmentRepository.findByProjectIdOrderByCreatedAtDesc(projectId)) {
+            adjustment = adjustment.add(adj.getAmount() != null ? adj.getAmount() : BigDecimal.ZERO);
+        }
+
+        return new CostBreakdown(
+                humanCost,
+                FinanceAmounts.scale(procurement),
+                FinanceAmounts.scale(external),
+                FinanceAmounts.scale(bizTravel),
+                FinanceAmounts.scale(adjustment));
     }
 
     private BigDecimal resolveEstimatedRevenue(SysProject project) {
@@ -399,10 +459,16 @@ public class ProjectFinancialMetricsService {
         };
     }
 
+    public record CostBreakdown(BigDecimal humanCost, BigDecimal procurementCost,
+                                BigDecimal externalServiceCost, BigDecimal businessTravelCost,
+                                BigDecimal adjustmentCost) {
+    }
+
     public record ProjectFinancialSnapshot(ProjectTierEnum projectTier,
                                            BigDecimal estimatedRevenue,
                                            BigDecimal humanCost,
-                                           BigDecimal remainingProfit) {
+                                           BigDecimal remainingProfit,
+                                           CostBreakdown costBreakdown) {
     }
 
     private record PoolSplit(BigDecimal businessRatio, BigDecimal executionRatio) {

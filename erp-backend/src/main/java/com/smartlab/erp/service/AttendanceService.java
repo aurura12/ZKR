@@ -14,7 +14,15 @@ import com.smartlab.erp.util.AuthUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -100,5 +108,135 @@ public class AttendanceService {
 
     public List<AttendanceAdjustment> getAdjustments(String userId) {
         return adjustmentRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    }
+
+    private static final long OVERTIME_HOURS = 11;
+    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
+
+    public record AttendanceDayRow(String userName, String userId, LocalDate workDate,
+                                   LocalTime onTime, LocalTime offTime, boolean overtime,
+                                   boolean notSigned) {}
+
+    public record AttendanceUserSummary(String userName, String userId, int totalDays,
+                                        int overtimeDays, int notSignedDays, double equivalentDays) {}
+
+    public record AttendanceExportResult(byte[] csvBytes, String fileName) {}
+
+    private boolean isNotSigned(AttendanceRecord record) {
+        return record == null || "NotSigned".equals(record.getTimeResult());
+    }
+
+    public AttendanceExportResult generateAttendanceExport(LocalDate from, LocalDate to) {
+        List<AttendanceRecord> allRecords = recordRepository.findByWorkDateBetweenOrderByWorkDateAscUserIdAsc(from, to);
+
+        Map<String, Map<LocalDate, List<AttendanceRecord>>> grouped = new LinkedHashMap<>();
+        Map<String, String> userIdToName = new LinkedHashMap<>();
+
+        for (AttendanceRecord rec : allRecords) {
+            userIdToName.putIfAbsent(rec.getUserId(), rec.getUserName());
+            grouped.computeIfAbsent(rec.getUserId(), k -> new LinkedHashMap<>())
+                    .computeIfAbsent(rec.getWorkDate(), k -> new ArrayList<>())
+                    .add(rec);
+        }
+
+        List<AttendanceDayRow> rows = new ArrayList<>();
+        Map<String, AttendanceUserSummary> summaries = new LinkedHashMap<>();
+
+        for (Map.Entry<String, Map<LocalDate, List<AttendanceRecord>>> userEntry : grouped.entrySet()) {
+            String uid = userEntry.getKey();
+            String uname = userIdToName.getOrDefault(uid, uid);
+            int validDays = 0;
+            int overtimeCount = 0;
+            int notSignedCount = 0;
+
+            for (Map.Entry<LocalDate, List<AttendanceRecord>> dayEntry : userEntry.getValue().entrySet()) {
+                LocalDate date = dayEntry.getKey();
+                List<AttendanceRecord> dayRecords = dayEntry.getValue();
+
+                AttendanceRecord onDuty = dayRecords.stream().filter(r -> "OnDuty".equals(r.getCheckType())).findFirst().orElse(null);
+                AttendanceRecord offDuty = dayRecords.stream().filter(r -> "OffDuty".equals(r.getCheckType())).findFirst().orElse(null);
+
+                boolean dayNotSigned = isNotSigned(onDuty) || isNotSigned(offDuty);
+                LocalTime onTime = toLocalTime(onDuty);
+                LocalTime offTime = toLocalTime(offDuty);
+                boolean overtime = false;
+
+                if (!dayNotSigned) {
+                    validDays++;
+                    overtime = onTime != null && offTime != null && hoursBetween(onTime, offTime) > OVERTIME_HOURS;
+                    if (overtime) overtimeCount++;
+                } else {
+                    notSignedCount++;
+                }
+
+                rows.add(new AttendanceDayRow(uname, uid, date, onTime, offTime, overtime, dayNotSigned));
+            }
+
+            double equivalent = validDays + (overtimeCount * 4.0 / 3.0);
+            equivalent = Math.round(equivalent * 100.0) / 100.0;
+            summaries.put(uid, new AttendanceUserSummary(uname, uid, validDays, overtimeCount, notSignedCount, equivalent));
+        }
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (OutputStreamWriter w = new OutputStreamWriter(baos, StandardCharsets.UTF_8)) {
+            w.write('\uFEFF');
+            w.write("员工姓名,员工ID,日期,上班时间,下班时间,是否加班,打卡状态,备注\n");
+            for (AttendanceDayRow row : rows) {
+                String status = row.notSigned() ? "缺卡" : "正常";
+                String note = "";
+                if (row.notSigned()) {
+                    note = "不计入出勤";
+                } else if (row.overtime()) {
+                    note = "加班(1又1/3天)";
+                }
+                w.write(String.format("%s,%s,%s,%s,%s,%s,%s,%s\n",
+                        csvCell(row.userName()),
+                        csvIdCell(row.userId()),
+                        row.workDate().format(DATE_FMT),
+                        row.onTime() != null ? row.onTime().format(TIME_FMT) : "",
+                        row.offTime() != null ? row.offTime().format(TIME_FMT) : "",
+                        row.overtime() ? "是" : "否",
+                        status,
+                        note));
+            }
+            w.write("\n--- 月度汇总 ---\n");
+            w.write("员工姓名,员工ID,出勤天数,加班天数,缺卡天数,折算总工天\n");
+            for (AttendanceUserSummary s : summaries.values()) {
+                w.write(String.format("%s,%s,%d,%d,%d,%.2f\n",
+                        csvCell(s.userName()), csvIdCell(s.userId()),
+                        s.totalDays(), s.overtimeDays(), s.notSignedDays(), s.equivalentDays()));
+            }
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("导出CSV生成失败", e);
+        }
+
+        String fileName = "考勤记录_" + from.format(DATE_FMT) + "_" + to.format(DATE_FMT) + ".csv";
+        return new AttendanceExportResult(baos.toByteArray(), fileName);
+    }
+
+    private String csvCell(String value) {
+        if (value == null) return "";
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
+    }
+
+    private String csvIdCell(String value) {
+        if (value == null) return "";
+        return "=\"" + value + "\"";
+    }
+
+    private LocalTime toLocalTime(AttendanceRecord record) {
+        if (record == null || record.getUserCheckTime() == null) return null;
+        return record.getUserCheckTime().atZone(ZONE).toLocalTime();
+    }
+
+    private long hoursBetween(LocalTime start, LocalTime end) {
+        long minutes = Duration.between(start, end).toMinutes();
+        if (minutes < 0) minutes += 24 * 60;
+        return minutes / 60;
     }
 }

@@ -105,6 +105,8 @@ public class UserSchemaMigration {
             jdbcTemplate.execute("INSERT INTO batch_project_cost_control (project_id, enabled, priority, updated_at) SELECT p.project_id, true, 100, NOW() FROM sys_project p WHERE p.flow_type = 'PROJECT' AND NOT EXISTS (SELECT 1 FROM batch_project_cost_control c WHERE c.project_id = p.project_id)");
             jdbcTemplate.execute("DELETE FROM finance_wallet_account w USING sys_user u WHERE w.user_id = u.user_id AND COALESCE(u.account_domain, 'ERP') <> 'ERP' AND NOT EXISTS (SELECT 1 FROM finance_wallet_transaction t WHERE t.wallet_id = w.id)");
             jdbcTemplate.execute("INSERT INTO finance_wallet_account (user_id, balance, total_dividend_earned, total_royalty_earned, total_middleware_profit, total_promotion_expense, total_adjustment_amount, created_at, updated_at) SELECT u.user_id, 0, 0, 0, 0, 0, 0, NOW(), NOW() FROM sys_user u WHERE COALESCE(u.account_domain, 'ERP') = 'ERP' AND NOT EXISTS (SELECT 1 FROM finance_wallet_account w WHERE w.user_id = u.user_id)");
+            jdbcTemplate.execute("ALTER TABLE IF EXISTS project_expense DROP CONSTRAINT IF EXISTS project_expense_status_check");
+            jdbcTemplate.execute("ALTER TABLE IF EXISTS project_expense ADD CONSTRAINT project_expense_status_check CHECK (status IN ('PENDING_JIAOMIAO', 'PENDING_FINANCE', 'PENDING_CHENLEI', 'APPROVED', 'REJECTED'))");
         };
     }
 }

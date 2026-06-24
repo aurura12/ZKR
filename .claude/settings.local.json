@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker build:*)",
+      "Bash(docker push:*)",
+      "Bash(docker tag:*)",
+      "Bash(docker exec zkr-postgres-1:*)",
+      "Bash(npm:*)",
+      "Bash(mvn clean:*)",
+      "Bash(docker exec:*)"
+    ]
+  }
+}
