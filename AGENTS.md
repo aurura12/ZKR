@@ -150,3 +150,21 @@ docker inspect zkr-lab-erp-demo --format '{{.Config.Image}}'
 **修复：** 改为 `request.get(url, { responseType: 'blob' })` 通过 axios 拦截器自动注入 Authorization header，获取 blob 后创建 ObjectURL 触发下载。
 
 **部署版本：** `zhangqi_frontend:v1.162`。
+
+### 2026-06-24：合并腾讯会议API集成（PR #5 from aurura12）
+
+**内容：** 合并社区贡献者 `aurura12` 提交的腾讯会议企业自建应用集成代码。
+
+**主要改动：**
+- 后端新增 `meeting/` 模块（controller、service、entity、repository、webhook），包含腾讯会议签名/Token 服务、会议创建管理、用户映射
+- 新增 Flyway 迁移：`meeting_record`、`meeting_participant`、`tencent_user_mapping`，sys_user 新增 `phone` 列
+- 前端新增 `MeetingCenterView.vue`、路由 `/meetings`
+- ManagerDashboard、WorkspaceView、App.vue 新增「会议中心」入口
+
+**适配修复（本次）：**
+- `nginx.conf`：proxy_pass 从 `erp-backend:8101` 改回 `zkr-erp-backend:8101`（PR 的容器名不同）
+- `application.properties`：server.port 从 8080 改回 8101（与 application.yml 一致）
+- `vite.config.js`：dev proxy 从 8081 改回 8101
+- `docker-compose.yml`：移除 postgres 5432 端口直接暴露（安全考虑）
+
+**部署版本：** `zhangqi_backend:v1.138`、`zhangqi_frontend:v1.163`。
