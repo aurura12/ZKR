@@ -169,7 +169,7 @@ public class AttendanceService {
                     }
                 }
             }
-            double equivalent = validDays + (overtimeCount * 4.0 / 3.0);
+            double equivalent = validDays + (overtimeCount / 3.0);
             equivalent = Math.round(equivalent * 100.0) / 100.0;
             String uname = allRecords.stream().filter(r -> uid.equals(r.getUserId())).findFirst().map(AttendanceRecord::getUserName).orElse(uid);
             summaries.put(uid, new AttendanceUserSummary(uname, uid, validDays, overtimeCount, notSignedCount, equivalent));
@@ -236,7 +236,7 @@ public class AttendanceService {
                 rows.add(new AttendanceDayRow(uname, uid, date, onTime, offTime, overtime, dayNotSigned));
             }
 
-            double equivalent = validDays + (overtimeCount * 4.0 / 3.0);
+            double equivalent = validDays + (overtimeCount / 3.0);
             equivalent = Math.round(equivalent * 100.0) / 100.0;
             summaries.put(uid, new AttendanceUserSummary(uname, uid, validDays, overtimeCount, notSignedCount, equivalent));
         }
@@ -260,7 +260,7 @@ public class AttendanceService {
                 if (row.notSigned()) {
                     note = "不计入出勤";
                 } else if (row.overtime()) {
-                    note = "加班(1又1/3天)";
+                    note = "加班(+1/3天)";
                 }
                 w.write(String.format("%s,%s,%s,%s,%s,%s,%s,%s\n",
                         csvCell(row.userName()),
