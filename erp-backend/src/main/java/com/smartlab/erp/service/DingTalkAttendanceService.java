@@ -32,6 +32,7 @@ public class DingTalkAttendanceService {
     private final DingTalkUserDirectoryService dingTalkUserDirectoryService;
     private static final String LIST_RECORD_URL = "https://oapi.dingtalk.com/attendance/list";
     private static final String LIST_USER_URL = "https://oapi.dingtalk.com/topapi/v2/user/list";
+    private static final String LIST_DEPT_URL = "https://oapi.dingtalk.com/topapi/v2/department/listsub";
     private static final DateTimeFormatter DT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public void pullAttendance(List<String> userIds, LocalDate dateFrom, LocalDate dateTo) {
@@ -112,49 +113,14 @@ public class DingTalkAttendanceService {
     public List<String> fetchAllDingTalkUsers() {
         try {
             List<String> userIds = new ArrayList<>();
-            long cursor = 0L;
-            boolean hasMore = true;
+            Set<String> seen = new HashSet<>();
+            List<Long> allDeptIds = fetchAllDepartmentIds();
 
-            while (hasMore) {
-                Map<String, Object> payload = new LinkedHashMap<>();
-                payload.put("dept_id", 1);
-                payload.put("cursor", cursor);
-                payload.put("size", PAGE_SIZE);
-
-                JsonNode root = invokeDingTalkJson("拉取钉钉用户列表", LIST_USER_URL, payload);
-                JsonNode result = root.path("result");
-                JsonNode list = result.path("list");
-                if (list == null || !list.isArray()) {
-                    throw new DingTalkIntegrationException("拉取钉钉用户列表", "钉钉用户列表返回结构异常: 缺少 result.list", null, root.toString());
-                }
-
-                for (JsonNode user : list) {
-                    String userId = safeText(user, "userid");
-                    if (userId != null && !userId.isBlank()) {
-                        userIds.add(userId);
-                        dingTalkUserDirectoryRepository.save(DingTalkUserDirectory.builder()
-                                .userId(userId)
-                                .name(safeText(user, "name"))
-                                .mobile(safeText(user, "mobile"))
-                                .deptIdsJson(user.path("dept_id_list").isMissingNode() ? null : user.path("dept_id_list").toString())
-                                .active(user.has("active") ? user.get("active").asBoolean() : null)
-                                .admin(user.has("admin") ? user.get("admin").asBoolean() : null)
-                                .avatar(safeText(user, "avatar"))
-                                .title(safeText(user, "title"))
-                                .build());
-                    }
-                }
-
-                hasMore = result.path("has_more").asBoolean(false);
-                if (hasMore) {
-                    JsonNode nextCursorNode = result.get("next_cursor");
-                    if (nextCursorNode == null || nextCursorNode.isNull()) {
-                        throw new DingTalkIntegrationException("拉取钉钉用户列表", "钉钉用户列表返回了 has_more=true，但没有 next_cursor", null, root.toString());
-                    }
-                    cursor = nextCursorNode.isNumber() ? nextCursorNode.asLong() : Long.parseLong(nextCursorNode.asText());
-                }
+            for (Long deptId : allDeptIds) {
+                fetchUsersForDept(deptId, userIds, seen);
             }
-            log.info("[DingTalk] fetchAllDingTalkUsers: {} DingTalk users", userIds.size());
+
+            log.info("[DingTalk] fetchAllDingTalkUsers: {} DingTalk users from {} departments", userIds.size(), allDeptIds.size());
             int backfilled = dingTalkUserDirectoryService.backfillAttendanceNames();
             if (backfilled > 0) {
                 log.info("[DingTalk] Backfilled {} attendance records with cached names", backfilled);
@@ -165,6 +131,89 @@ public class DingTalkAttendanceService {
                 throw dingTalkIntegrationException;
             }
             throw new DingTalkIntegrationException("拉取钉钉用户列表", "拉取钉钉用户列表失败: " + e.getMessage(), null, null, e);
+        }
+    }
+
+    private void fetchUsersForDept(long deptId, List<String> userIds, Set<String> seen) {
+        long cursor = 0L;
+        boolean hasMore = true;
+        int deptUserCount = 0;
+
+        while (hasMore) {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("dept_id", deptId);
+            payload.put("cursor", cursor);
+            payload.put("size", PAGE_SIZE);
+
+            JsonNode root = invokeDingTalkJson("拉取钉钉用户列表(dept=" + deptId + ")", LIST_USER_URL, payload);
+            JsonNode result = root.path("result");
+            JsonNode list = result.path("list");
+            if (list == null || !list.isArray()) {
+                break;
+            }
+
+            for (JsonNode user : list) {
+                String userId = safeText(user, "userid");
+                if (userId != null && !userId.isBlank() && seen.add(userId)) {
+                    userIds.add(userId);
+                    deptUserCount++;
+                    dingTalkUserDirectoryRepository.save(DingTalkUserDirectory.builder()
+                            .userId(userId)
+                            .name(safeText(user, "name"))
+                            .mobile(safeText(user, "mobile"))
+                            .deptIdsJson(user.path("dept_id_list").isMissingNode() ? null : user.path("dept_id_list").toString())
+                            .active(user.has("active") ? user.get("active").asBoolean() : null)
+                            .admin(user.has("admin") ? user.get("admin").asBoolean() : null)
+                            .avatar(safeText(user, "avatar"))
+                            .title(safeText(user, "title"))
+                            .build());
+                }
+            }
+
+            hasMore = result.path("has_more").asBoolean(false);
+            if (hasMore) {
+                JsonNode nextCursorNode = result.get("next_cursor");
+                if (nextCursorNode == null || nextCursorNode.isNull()) {
+                    break;
+                }
+                cursor = nextCursorNode.isNumber() ? nextCursorNode.asLong() : Long.parseLong(nextCursorNode.asText());
+            }
+        }
+        if (deptUserCount > 0) {
+            log.info("[DingTalk] Dept {}: {} users", deptId, deptUserCount);
+        }
+    }
+
+    public List<Long> fetchAllDepartmentIds() {
+        List<Long> allDeptIds = new ArrayList<>();
+        collectSubDepartments(1L, allDeptIds);
+        allDeptIds.add(0, 1L);
+        log.info("[DingTalk] Found {} departments (including root)", allDeptIds.size());
+        return allDeptIds;
+    }
+
+    private void collectSubDepartments(long parentDeptId, List<Long> result) {
+        try {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("dept_id", parentDeptId);
+
+            JsonNode root = invokeDingTalkJson("拉取子部门列表(dept=" + parentDeptId + ")", LIST_DEPT_URL, payload);
+            JsonNode list = root.path("result");
+            if (list == null || !list.isArray()) {
+                return;
+            }
+
+            for (JsonNode dept : list) {
+                long deptId = dept.path("dept_id").asLong();
+                String deptName = dept.path("name").asText("?");
+                if (deptId > 0) {
+                    log.info("[DingTalk] Dept: id={}, name={}", deptId, deptName);
+                    result.add(deptId);
+                    collectSubDepartments(deptId, result);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[DingTalk] Failed to list sub-departments for dept_id={}: {}", parentDeptId, e.getMessage());
         }
     }
 

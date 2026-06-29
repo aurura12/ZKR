@@ -179,6 +179,15 @@ public class AttendanceService {
             summaries.put(uid, new AttendanceUserSummary(uname, uid, validDays, overtimeCount, notSignedCount, equivalent));
         }
 
+        List<DingTalkUserDirectory> allUsers = dingTalkUserDirectoryRepository.findAll();
+        for (DingTalkUserDirectory dtUser : allUsers) {
+            String uid = dtUser.getUserId();
+            if (!summaries.containsKey(uid)) {
+                String uname = dtUser.getName() != null ? dtUser.getName() : uid;
+                summaries.put(uid, new AttendanceUserSummary(uname, uid, 0, 0, 0, 0.0));
+            }
+        }
+
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (OutputStreamWriter w = new OutputStreamWriter(baos, StandardCharsets.UTF_8)) {
             w.write('\uFEFF');
