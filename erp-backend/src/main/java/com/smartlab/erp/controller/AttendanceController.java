@@ -36,6 +36,13 @@ public class AttendanceController {
         return ResponseEntity.ok(attendanceService.getAllAttendance(from, to));
     }
 
+    @GetMapping("/summary")
+    public ResponseEntity<List<AttendanceService.AttendanceUserSummary>> getSummary(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok(attendanceService.getAttendanceSummary(from, to));
+    }
+
     @PostMapping("/adjustments")
     public ResponseEntity<Map<String, Object>> submitAdjustment(
             @RequestBody Map<String, Object> payload) {

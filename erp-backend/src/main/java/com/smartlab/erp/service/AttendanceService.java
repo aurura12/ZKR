@@ -124,6 +124,68 @@ public class AttendanceService {
 
     public record AttendanceExportResult(byte[] csvBytes, String fileName) {}
 
+    public List<AttendanceUserSummary> getAttendanceSummary(LocalDate from, LocalDate to) {
+        List<AttendanceRecord> allRecords = recordRepository.findByWorkDateBetweenOrderByWorkDateAscUserIdAsc(from, to);
+        Map<String, AttendanceUserSummary> summaries = new LinkedHashMap<>();
+
+        for (AttendanceRecord rec : allRecords) {
+            summaries.computeIfAbsent(rec.getUserId(), k ->
+                    new AttendanceUserSummary(rec.getUserName(), rec.getUserId(), 0, 0, 0, 0.0));
+        }
+
+        for (AttendanceRecord rec : allRecords) {
+            AttendanceUserSummary s = summaries.get(rec.getUserId());
+            if (rec.getCheckType() == null) continue;
+            if ("OnDuty".equals(rec.getCheckType()) || "OffDuty".equals(rec.getCheckType())) {
+                if ("NotSigned".equals(rec.getTimeResult())) {
+                    // handled below
+                }
+            }
+        }
+
+        // Recalculate from grouped data
+        Map<String, Map<LocalDate, List<AttendanceRecord>>> grouped = new LinkedHashMap<>();
+        for (AttendanceRecord rec : allRecords) {
+            grouped.computeIfAbsent(rec.getUserId(), k -> new LinkedHashMap<>())
+                    .computeIfAbsent(rec.getWorkDate(), k -> new ArrayList<>())
+                    .add(rec);
+        }
+
+        for (var entry : grouped.entrySet()) {
+            String uid = entry.getKey();
+            int validDays = 0, overtimeCount = 0, notSignedCount = 0;
+            for (var dayEntry : entry.getValue().entrySet()) {
+                var dayRecords = dayEntry.getValue();
+                var onDuty = dayRecords.stream().filter(r -> "OnDuty".equals(r.getCheckType())).findFirst().orElse(null);
+                var offDuty = dayRecords.stream().filter(r -> "OffDuty".equals(r.getCheckType())).findFirst().orElse(null);
+                if (isNotSigned(onDuty) || isNotSigned(offDuty)) {
+                    notSignedCount++;
+                } else {
+                    validDays++;
+                    LocalTime onTime = toLocalTime(onDuty);
+                    LocalTime offTime = toLocalTime(offDuty);
+                    if (onTime != null && offTime != null && hoursBetween(onTime, offTime) > OVERTIME_HOURS) {
+                        overtimeCount++;
+                    }
+                }
+            }
+            double equivalent = validDays + (overtimeCount * 4.0 / 3.0);
+            equivalent = Math.round(equivalent * 100.0) / 100.0;
+            String uname = allRecords.stream().filter(r -> uid.equals(r.getUserId())).findFirst().map(AttendanceRecord::getUserName).orElse(uid);
+            summaries.put(uid, new AttendanceUserSummary(uname, uid, validDays, overtimeCount, notSignedCount, equivalent));
+        }
+
+        for (DingTalkUserDirectory dtUser : dingTalkUserDirectoryRepository.findAll()) {
+            String uid = dtUser.getUserId();
+            if (!summaries.containsKey(uid)) {
+                String uname = dtUser.getName() != null ? dtUser.getName() : uid;
+                summaries.put(uid, new AttendanceUserSummary(uname, uid, 0, 0, 0, 0.0));
+            }
+        }
+
+        return new ArrayList<>(summaries.values());
+    }
+
     private boolean isNotSigned(AttendanceRecord record) {
         return record == null || "NotSigned".equals(record.getTimeResult());
     }
