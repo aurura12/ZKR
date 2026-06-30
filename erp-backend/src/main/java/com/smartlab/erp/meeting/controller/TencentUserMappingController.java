@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -67,21 +66,17 @@ public class TencentUserMappingController {
             ));
         }
 
-        // 拉取腾讯会议用户列表（后续校验存在性、获取用户名和账号类型都用同一份数据）
-        List<Map<String, String>> tmUsers = userSyncService.listAllTmUsers();
-        var tmUserOpt = tmUsers.stream()
-                .filter(u -> tencentUserId.equals(u.get("userId")))
-                .findFirst();
+        // 直接查询该腾讯会议用户是否存在
+        Map<String, String> tmUser = userSyncService.findTmUserById(tencentUserId);
 
-        if (tmUserOpt.isEmpty()) {
-            log.warn("[TencentMeeting] 绑定失败，腾讯会议用户 {} 不存在", tencentUserId);
+        if (tmUser == null) {
+            log.warn("[TencentMeeting] 绑定失败，腾讯会议用户 {} 不存在或 API 查询失败", tencentUserId);
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
-                    "message", "该腾讯会议账号不存在，请检查输入的 userid 是否正确"
+                    "message", "该腾讯会议账号不存在或查询失败，请检查输入的 userid 是否正确"
             ));
         }
 
-        Map<String, String> tmUser = tmUserOpt.get();
         String tencentUsername = tmUser.getOrDefault("name", "");
         int accountType = Integer.parseInt(tmUser.getOrDefault("accountType", "0"));
         boolean isPremium = (accountType == 9);

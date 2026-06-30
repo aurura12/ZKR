@@ -2,7 +2,19 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.137` / `zhangqi_frontend:v1.162`
+**当前版本：** `zhangqi_backend:v1.142` / `zhangqi_frontend:v1.163`
+
+## 最近变更
+
+### 2026-06-30 16:05 — 修复腾讯会议绑定 userid 失败
+
+**原因：** 绑定校验调用 `listAllTmUsers()` 拉取全量腾讯会议用户列表，但 API 返回非2xx时静默返回空列表，导致验出"该腾讯会议账号不存在"，实际是 API 调用失败。
+
+**改动位置：**
+- `erp-backend/.../TencentMeetingUserSyncService.java:116,144` — 列表 API 失败时新增日志记录 HTTP 状态码和响应体；新增 `findTmUserById()` 方法直接调用 `GET /v1/users/{userid}` 查询单个用户
+- `erp-backend/.../TencentUserMappingController.java:70-81` — 绑定校验改用 `findTmUserById()` 替代 `listAllTmUsers()`，错误信息包含"查询失败"提示
+
+**效果：** 绑定校验直接查询指定 userid，更高效且错误信息明确；API 失败时日志可见具体 HTTP 状态码和响应体。
 
 ## 容器架构
 

@@ -113,7 +113,10 @@ public class TencentMeetingUserSyncService {
                 HttpResponse<String> response = client.send(requestBuilder.GET().build(),
                         HttpResponse.BodyHandlers.ofString());
 
-                if (response.statusCode() < 200 || response.statusCode() >= 300) break;
+                if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                    log.warn("[TencentMeetingSync] 拉取用户列表失败，HTTP {}: {}", response.statusCode(), response.body());
+                    break;
+                }
 
                 JsonNode root = MAPPER.readTree(response.body());
                 JsonNode usersNode = root.get("users");
@@ -133,6 +136,57 @@ public class TencentMeetingUserSyncService {
             log.warn("[TencentMeetingSync] 拉取腾讯会议用户列表异常", e);
         }
         return result;
+    }
+
+    /**
+     * 直接查询单个腾讯会议用户（用于绑定时校验 userid 存在性）
+     */
+    public Map<String, String> findTmUserById(String tencentUserId) {
+        String operatorId = resolveOperatorId();
+        String path = "/v1/users/" + urlEncode(tencentUserId)
+                + "?operator_id=" + urlEncode(operatorId)
+                + "&operator_id_type=1";
+
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+
+        try {
+            Map<String, String> headers = signatureService.generateCommonHeaders();
+            String signature = signatureService.calculateSignature("GET", path, "", headers);
+
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                    .uri(URI.create(config.getApiBaseUrl() + path))
+                    .timeout(Duration.ofSeconds(30))
+                    .header("Content-Type", "application/json")
+                    .header("AppId", headers.get("AppId"))
+                    .header("X-TC-Key", headers.get("X-TC-Key"))
+                    .header("X-TC-Timestamp", headers.get("X-TC-Timestamp"))
+                    .header("X-TC-Nonce", headers.get("X-TC-Nonce"))
+                    .header("X-TC-Signature", signature)
+                    .header("X-TC-Registered", "1");
+            if (headers.containsKey("SdkId")) {
+                requestBuilder.header("SdkId", headers.get("SdkId"));
+            }
+
+            HttpResponse<String> response = client.send(requestBuilder.GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn("[TencentMeetingSync] 查询用户 {} 失败，HTTP {}: {}", tencentUserId, response.statusCode(), response.body());
+                return null;
+            }
+
+            JsonNode root = MAPPER.readTree(response.body());
+            Map<String, String> item = new java.util.LinkedHashMap<>();
+            item.put("userId", root.path("userid").asText());
+            item.put("name", root.path("username").asText());
+            item.put("accountType", String.valueOf(root.path("user_account_type").asInt(0)));
+            return item;
+        } catch (Exception e) {
+            log.warn("[TencentMeetingSync] 查询用户 {} 异常", tencentUserId, e);
+            return null;
+        }
     }
 
     private String urlEncode(String value) {
