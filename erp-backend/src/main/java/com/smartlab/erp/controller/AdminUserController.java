@@ -9,9 +9,11 @@ import com.smartlab.erp.dto.ProvisionUserRequest;
 import com.smartlab.erp.dto.UpdateDailyWageRequest;
 import com.smartlab.erp.llm.NaturalLanguageParserService;
 import com.smartlab.erp.entity.User;
+import com.smartlab.erp.entity.UserStatusLog;
 import com.smartlab.erp.exception.BusinessException;
 import com.smartlab.erp.exception.PermissionDeniedException;
 import com.smartlab.erp.repository.UserRepository;
+import com.smartlab.erp.repository.UserStatusLogRepository;
 import com.smartlab.erp.service.AuthService;
 import com.smartlab.erp.service.UserService;
 import jakarta.validation.Valid;
@@ -21,6 +23,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -38,6 +41,7 @@ public class AdminUserController {
     private final AuthService authService;
     private final UserService userService;
     private final UserRepository userRepository;
+    private final UserStatusLogRepository userStatusLogRepository;
     private final AgreementGenerationService agreementGenerationService;
     private final AgreementZipService agreementZipService;
     private final NaturalLanguageParserService naturalLanguageParserService;
@@ -55,9 +59,18 @@ public class AdminUserController {
         }
     }
 
+    @Transactional
     @PostMapping("/provision")
     public ResponseEntity<Map<String, String>> provisionUser(@Valid @RequestBody ProvisionUserRequest request) {
         String userId = authService.provisionUser(request);
+
+        User operator = authService.getCurrentUser();
+        userStatusLogRepository.save(UserStatusLog.builder()
+                .userId(userId)
+                .action("CREATE")
+                .operatorId(operator != null ? operator.getUserId() : "SYSTEM")
+                .build());
+
         return ResponseEntity.ok(Map.of(
                 "message", "账号创建成功，初始密码为：账号+123",
                 "userId", userId));
@@ -86,17 +99,35 @@ public class AdminUserController {
         return ResponseEntity.ok(Map.of("message", "日工资更新成功"));
     }
 
+    @Transactional
     @PostMapping("/{userId}/deactivate")
     public ResponseEntity<Map<String, String>> deactivateUser(@PathVariable String userId) {
         requireProvisionAdmin();
         userService.deactivateUser(userId);
+
+        User operator = authService.getCurrentUser();
+        userStatusLogRepository.save(UserStatusLog.builder()
+                .userId(userId)
+                .action("DEACTIVATE")
+                .operatorId(operator != null ? operator.getUserId() : "SYSTEM")
+                .build());
+
         return ResponseEntity.ok(Map.of("message", "用户已离职"));
     }
 
+    @Transactional
     @PostMapping("/{userId}/activate")
     public ResponseEntity<Map<String, String>> activateUser(@PathVariable String userId) {
         requireProvisionAdmin();
         userService.activateUser(userId);
+
+        User operator = authService.getCurrentUser();
+        userStatusLogRepository.save(UserStatusLog.builder()
+                .userId(userId)
+                .action("ACTIVATE")
+                .operatorId(operator != null ? operator.getUserId() : "SYSTEM")
+                .build());
+
         return ResponseEntity.ok(Map.of("message", "用户已还原为在职"));
     }
 
@@ -228,6 +259,21 @@ public class AdminUserController {
                 || isBlank(user.getAddress())) {
             throw new BusinessException("生成协议前请完善用户的姓名、身份证号、学校院系、手机号和住址");
         }
+    }
+
+    @GetMapping("/{userId}/status-history")
+    public ResponseEntity<List<Map<String, Object>>> getUserStatusHistory(@PathVariable String userId) {
+        requireProvisionAdmin();
+        List<UserStatusLog> logs = userStatusLogRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        return ResponseEntity.ok(logs.stream().map(log -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", log.getId());
+            map.put("userId", log.getUserId());
+            map.put("action", log.getAction());
+            map.put("operatorId", log.getOperatorId());
+            map.put("createdAt", log.getCreatedAt() != null ? log.getCreatedAt().toString() : null);
+            return map;
+        }).toList());
     }
 
     private boolean isBlank(String s) {

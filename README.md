@@ -2,9 +2,22 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.142` / `zhangqi_frontend:v1.163`
+**当前版本：** `zhangqi_backend:v1.143` / `zhangqi_frontend:v1.163`
 
 ## 最近变更
+
+### 2026-07-02 10:43 — 员工管理模块新增离职/复职/创建操作日志
+
+**原因：** 员工离职和复职操作无审计记录，无法追溯操作历史；`User` 实体虽有 `departureDate` 字段但从未写入。
+
+**改动位置：**
+- `erp-backend/.../entity/UserStatusLog.java` — **新建** JPA 实体，映射 `user_status_log` 表（user_id, action, operator_id, created_at）
+- `erp-backend/.../repository/UserStatusLogRepository.java` — **新建** Repository
+- `erp-backend/.../db/migration/V20260702_001__create_user_status_log.sql` — **新建** Flyway 迁移脚本
+- `erp-backend/.../service/UserService.java:110-111,131-132` — `deactivateUser()` 写入 `departureDate = LocalDate.now()`；`activateUser()` 写入 `departureDate = null`
+- `erp-backend/.../controller/AdminUserController.java:65-70,100-113,121-125` — `provisionUser()` 写入 CREATE 日志；`deactivateUser()` 写入 DEACTIVATE 日志；`activateUser()` 写入 ACTIVE 日志；新增 `GET /{userId}/status-history` 查询接口
+
+**效果：** 每次创建账号、离职、复职均硬记录到 `user_status_log`，后端管理员可通过 API 或数据库直接查询任意用户的操作历史。
 
 ### 2026-06-30 16:05 — 修复腾讯会议绑定 userid 失败
 

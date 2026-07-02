@@ -19,6 +19,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -103,6 +104,7 @@ public class UserService {
             throw new RuntimeException("该用户已离职");
         }
         user.setActive(false);
+        user.setDepartureDate(LocalDate.now());
         userRepository.save(user);
     }
 
@@ -114,6 +116,7 @@ public class UserService {
             throw new RuntimeException("该用户未离职");
         }
         user.setActive(true);
+        user.setDepartureDate(null);
         userRepository.save(user);
 
         List<ProjectMemberParticipationHistory> histories = historyRepository.findByUser_UserId(userId);
