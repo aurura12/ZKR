@@ -6,6 +6,28 @@
 
 ## 最近变更
 
+### 2026-07-03 16:59 — 阶段2：PaddleOCR 引擎集成与异步发票识别入账
+
+**原因：** 审批通过的报销需自动 OCR 扫描发票图片，提取金额/发票号/日期/往来单位等字段回填发票台账，并进行 Excel 与 OCR 的金额交叉校验。
+
+**改动位置：**
+- `paddle-ocr/Dockerfile` — **新建** 基于 `paddlepaddle/paddleocr:2.8.1`，安装 FastAPI + uvicorn，内部端口 18952（不暴露宿主机）
+- `paddle-ocr/requirements.txt` — **新建** Python 依赖
+- `paddle-ocr/app.py` — **新建** FastAPI OCR 服务：`GET /health` 健康检查 + `POST /ocr/invoice` 发票识别，PaddleOCR 中文模型 + 正则提取发票号码/日期/金额/税额/税率/购销方/标的物
+- `docker-compose.yml:155-168` — 新增 `erp-paddle-ocr` 服务（`restart: unless-stopped`，仅加入 `erp-internal` 网络，无 host 端口映射，外部不可见）
+- `erp-backend/.../ocr/OcrClient.java` — **新建** RestTemplate HTTP 客户端，调用 `POST http://erp-paddle-ocr:18952/ocr/invoice`，返回 `OcrInvoiceResult`
+- `erp-backend/.../ocr/OcrProperties.java` — **新建** `@ConfigurationProperties("erp.ocr")`，默认 `baseUrl=http://erp-paddle-ocr:18952`
+- `erp-backend/.../ocr/OcrInvoiceResult.java` — **新建** OCR 结果 DTO（发票号/日期/金额/税额/税率/购销方/标的物/置信度）
+- `erp-backend/.../ocr/InvoiceOcrService.java` — **新建** `@Async @Transactional triggerOcr(expenseId)`：遍历 `invoice_ledger` PENDING 行 → 读图片 → 调 OCR → 回填字段 → 交叉校验 → `verified_status = MATCH/MISMATCH`
+- `erp-backend/.../service/ProjectService.java:131,2184-2187` — 注入 `InvoiceOcrService`；`reviewExpense()` 中 APPROVED 后调用 `invoiceOcrService.triggerOcr()` 异步触发 OCR
+
+**效果：**
+- 报销三级审批全部通过（状态变 APPROVED）→ 异步触发 PaddleOCR 扫描所有关联发票图片
+- OCR 提取的字段（发票号码/不含税金额/税额/税率/含税金额/日期/往来单位/购方抬头/摘要）自动回填 `invoice_ledger`
+- `data_source` 更新为 `EXCEL+OCR`，`ocr_status → DONE`，`ocr_raw_json` 保存完整 OCR 原始返回
+- Excel 金额与 OCR 金额交叉校验：不含税+税额 vs 含税 → `verified_status = MATCH/MISMATCH`
+- PaddleOCR 容器无宿主机端口映射，仅 `erp-internal` 网络内可见
+
 ### 2026-07-03 16:52 — 阶段1：报销 ZIP 解压与发票台账建表
 
 **原因：** 用户通过 ZIP 压缩包提交项目报销（命名规范 `姓名+项目+金额.zip`），内含发票图片和汇总 Excel。需要解包入库并写入发票台账流水表，为后续 OCR 入账做准备。
