@@ -6,6 +6,31 @@
 
 ## 最近变更
 
+### 2026-07-03 16:52 — 阶段1：报销 ZIP 解压与发票台账建表
+
+**原因：** 用户通过 ZIP 压缩包提交项目报销（命名规范 `姓名+项目+金额.zip`），内含发票图片和汇总 Excel。需要解包入库并写入发票台账流水表，为后续 OCR 入账做准备。
+
+**改动位置：**
+- `erp-backend/.../db/migration/V20260703_001__create_invoice_ledger.sql` — **新建** Flyway 迁移，创建 `invoice_ledger` 审计流水表（19 业务列 + 7 审计列 + 3 索引）
+- `erp-backend/.../entity/InvoiceLedger.java` — **新建** JPA 实体，`seq_no` BIGSERIAL 全局流水主键
+- `erp-backend/.../repository/InvoiceLedgerRepository.java` — **新建** Spring Data JPA 仓储
+- `erp-backend/.../service/ReimbursementZipService.java` — **新建** 核心服务：ZIP 解压、文件名解析 `姓名+项目+金额.zip`、POI 解析 Excel 汇总表（7 列模板）、发票图片 SHA256 哈希、写入 `invoice_ledger` 流水行、`generateTemplateExcel()` 生成 Excel 模板
+- `erp-backend/.../service/ProjectService.java:130` — 注入 `ReimbursementZipService`；`submitProjectExpense()` 先保存 expense 再处理文件；检测 `.zip` 后缀走解包流程写入 `invoice_ledger`；检测 `.rar` 暂作普通附件存储
+- `erp-backend/.../controller/ProjectController.java:50,359-369` — 注入 `ReimbursementZipService`；新增 `GET /api/projects/expenses/reimbursement-template` 端点，下载 7 列 Excel 模板
+- `lab-erp-demo/.../ExpenseSubmissionForm.vue:101-105,292-305,407-422` — 新增 ZIP 命名规范提示文案（`姓名+项目+金额.zip`）；新增「下载 Excel 模板」按钮及 `downloadTemplate()` 方法；新增 `.zip-hint` 样式
+
+**效果：**
+- ZIP 上传时自动解压，Excel 数据写入 `invoice_ledger`（`data_source=EXCEL, ocr_status=PENDING`）
+- 发票图片落盘并计算 SHA256 哈希
+- ZIP 文件名解析出提交人/项目名/总金额，写入发票行
+- 用户可通过前端下载模板填入后打包上传
+
+**已知占位（预留后续阶段）：**
+- `ocr_status` 始终 `PENDING`，审批通过后异步 OCR 机制待阶段 2 实现
+- `tracking_no` 自动生成格式待实现
+- `company`/`company_code` 由 OCR 从发票抬头提取，待阶段 2 填充
+- `contract_ledger` 合同台账表待阶段 3 建表
+
 ### 2026-07-02 10:43 — 员工管理模块新增离职/复职/创建操作日志
 
 **原因：** 员工离职和复职操作无审计记录，无法追溯操作历史；`User` 实体虽有 `departureDate` 字段但从未写入。

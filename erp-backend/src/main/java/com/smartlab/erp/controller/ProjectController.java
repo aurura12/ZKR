@@ -22,6 +22,7 @@ import com.smartlab.erp.finance.service.FinanceExpenseSubmissionService;
 import com.smartlab.erp.security.UserPrincipal;
 import com.smartlab.erp.service.ProjectFinancialMetricsService;
 import com.smartlab.erp.service.ProjectService;
+import com.smartlab.erp.service.ReimbursementZipService;
 import com.smartlab.erp.service.WorkflowMemberRoleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +50,7 @@ public class ProjectController {
     private final FinanceExpenseSubmissionService financeExpenseSubmissionService;
     private final ProjectFinancialMetricsService projectFinancialMetricsService;
     private final WorkflowMemberRoleService workflowMemberRoleService;
+    private final ReimbursementZipService reimbursementZipService;
 
     // ================== 🟢 核心修复：列表查询接口 ==================
 
@@ -354,6 +356,17 @@ public class ProjectController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + payload.fileName() + "\"")
                 .contentLength(payload.fileSize() == null ? payload.bytes().length : payload.fileSize())
                 .body(new ByteArrayResource(payload.bytes()));
+    }
+
+    @GetMapping("/expenses/reimbursement-template")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ByteArrayResource> downloadReimbursementTemplate() {
+        byte[] bytes = reimbursementZipService.generateTemplateExcel();
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"reimbursement_template.xlsx\"")
+                .contentLength(bytes.length)
+                .body(new ByteArrayResource(bytes));
     }
 
     @GetMapping("/cost-adjustments")

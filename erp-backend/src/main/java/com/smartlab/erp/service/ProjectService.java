@@ -129,6 +129,7 @@ public class ProjectService {
     private final ProjectExpenseFileRepository expenseFileRepository;
     private final BatchProjectCostControlRepository batchProjectCostControlRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final ReimbursementZipService reimbursementZipService;
 
     @Value("${file.upload-dir:./uploads}")
     private String uploadDir;
@@ -2055,11 +2056,15 @@ public class ProjectService {
                 .status(ProjectExpenseStatus.PENDING_JIAOMIAO)
                 .build();
 
+        expenseRepository.save(expense);
+
         if (invoiceFiles != null && !invoiceFiles.isEmpty()) {
             List<ProjectExpenseFile> files = new ArrayList<>();
             try {
                 Path uploadPath = Paths.get(uploadDir, "project-expenses");
                 Files.createDirectories(uploadPath);
+
+                boolean firstFileSet = false;
                 for (int i = 0; i < invoiceFiles.size(); i++) {
                     MultipartFile file = invoiceFiles.get(i);
                     if (file == null || file.isEmpty()) continue;
@@ -2067,22 +2072,56 @@ public class ProjectService {
                     String ext = originalFilename != null && originalFilename.contains(".")
                             ? originalFilename.substring(originalFilename.lastIndexOf("."))
                             : "";
-                    String storedName = UUID.randomUUID() + ext;
-                    Path targetFile = uploadPath.resolve(storedName);
-                    file.transferTo(targetFile.toFile());
-                    ProjectExpenseFile expenseFile = ProjectExpenseFile.builder()
-                            .expense(expense)
-                            .fileName(originalFilename)
-                            .filePath(targetFile.toString())
-                            .contentType(file.getContentType())
-                            .fileSize(file.getSize())
-                            .build();
-                    files.add(expenseFile);
-                    if (i == 0) {
-                        expense.setInvoiceFileName(originalFilename);
-                        expense.setInvoiceFilePath(targetFile.toString());
-                        expense.setInvoiceContentType(file.getContentType());
-                        expense.setInvoiceFileSize(file.getSize());
+
+                    if (ext.equalsIgnoreCase(".zip") || ext.equalsIgnoreCase(".rar")) {
+                        String storedName = UUID.randomUUID() + ext;
+                        Path targetFile = uploadPath.resolve(storedName);
+                        file.transferTo(targetFile.toFile());
+                        ProjectExpenseFile expenseFile = ProjectExpenseFile.builder()
+                                .expense(expense)
+                                .fileName(originalFilename)
+                                .filePath(targetFile.toString())
+                                .contentType(file.getContentType())
+                                .fileSize(file.getSize())
+                                .build();
+                        files.add(expenseFile);
+
+                        if (ext.equalsIgnoreCase(".zip")) {
+                            try {
+                                reimbursementZipService.process(file, expense);
+                            } catch (BusinessException e) {
+                                throw new BusinessException("ZIP 处理失败: " + e.getMessage());
+                            }
+                        }
+
+                        if (!firstFileSet) {
+                            expense.setInvoiceFileName(originalFilename);
+                            expense.setInvoiceFilePath(targetFile.toString());
+                            expense.setInvoiceContentType(file.getContentType());
+                            expense.setInvoiceFileSize(file.getSize());
+                            firstFileSet = true;
+                            expenseRepository.save(expense);
+                        }
+                    } else {
+                        String storedName = UUID.randomUUID() + ext;
+                        Path targetFile = uploadPath.resolve(storedName);
+                        file.transferTo(targetFile.toFile());
+                        ProjectExpenseFile expenseFile = ProjectExpenseFile.builder()
+                                .expense(expense)
+                                .fileName(originalFilename)
+                                .filePath(targetFile.toString())
+                                .contentType(file.getContentType())
+                                .fileSize(file.getSize())
+                                .build();
+                        files.add(expenseFile);
+                        if (!firstFileSet) {
+                            expense.setInvoiceFileName(originalFilename);
+                            expense.setInvoiceFilePath(targetFile.toString());
+                            expense.setInvoiceContentType(file.getContentType());
+                            expense.setInvoiceFileSize(file.getSize());
+                            firstFileSet = true;
+                            expenseRepository.save(expense);
+                        }
                     }
                 }
                 expense.setFiles(files);
@@ -2090,8 +2129,6 @@ public class ProjectService {
                 throw new BusinessException("发票文件上传失败: " + e.getMessage());
             }
         }
-
-        expenseRepository.save(expense);
 
         String typeLabel = switch (type) {
             case HARDWARE -> "硬件采购";

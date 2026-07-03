@@ -97,6 +97,10 @@
         <el-button v-if="selectedInvoiceName" text type="danger" @click="clearInvoice">移除</el-button>
       </div>
     </div>
+    <div class="zip-hint">
+      <p>上传 .zip 压缩包时，请按规范命名：<strong>姓名+项目名+金额.zip</strong>，压缩包内包含发票图片和汇总 Excel 模板。</p>
+      <p><el-button type="primary" link size="small" @click="downloadTemplate">下载 Excel 模板</el-button></p>
+    </div>
 
     <div class="footer-row">
       <div class="hint-text">提交后会自动同步到财务系统汇总列表。</div>
@@ -285,6 +289,22 @@ const submitForm = async () => {
     submitting.value = false
   }
 }
+
+const downloadTemplate = async () => {
+  try {
+    const response = await request.get('/api/projects/expenses/reimbursement-template', {
+      responseType: 'blob'
+    })
+    const url = window.URL.createObjectURL(new Blob([response]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'reimbursement_template.xlsx'
+    link.click()
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    ElMessage.error('下载模板失败')
+  }
+}
 </script>
 
 <style scoped>
@@ -375,6 +395,20 @@ const submitForm = async () => {
   --expense-card-bg: linear-gradient(145deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.9));
   --expense-card-border: rgba(148, 163, 184, 0.24);
   --expense-eyebrow: #5eead4;
+}
+
+.zip-hint {
+  padding: 12px 16px;
+  background: rgba(14, 165, 233, 0.06);
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-sub);
+  line-height: 1.8;
+}
+
+.zip-hint p {
+  margin: 0;
 }
 
 @media (max-width: 760px) {
