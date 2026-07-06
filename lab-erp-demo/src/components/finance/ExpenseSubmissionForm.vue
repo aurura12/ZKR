@@ -99,10 +99,10 @@
     </div>
     <div class="zip-hint">
       <p>上传 .zip 压缩包时，请按规范命名：<strong>姓名+项目名+金额.zip</strong>，压缩包内包含发票图片和汇总 Excel 模板。</p>
-      <p><el-button type="primary" link size="small" @click="downloadTemplate">下载 Excel 模板</el-button></p>
     </div>
 
     <div class="footer-row">
+      <el-button @click="downloadTemplate">下载报销模板</el-button>
       <div class="hint-text">提交后会自动同步到财务系统汇总列表。</div>
       <el-button type="primary" :loading="submitting" @click="submitForm">{{ submitButtonLabel }}</el-button>
     </div>
