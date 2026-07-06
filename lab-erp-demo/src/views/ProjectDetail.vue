@@ -1468,8 +1468,12 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showExpenseDialog = false">取消</el-button>
-        <el-button type="primary" :loading="expenseSubmitting" @click="submitExpense">提交审批</el-button>
+        <div class="dialog-footer-row">
+          <el-button @click="downloadTemplate">下载报销模板</el-button>
+          <div class="footer-spacer"></div>
+          <el-button @click="showExpenseDialog = false">取消</el-button>
+          <el-button type="primary" :loading="expenseSubmitting" @click="submitExpense">提交审批</el-button>
+        </div>
       </template>
     </el-dialog>
 
@@ -3033,6 +3037,20 @@ const submitExpense = async () => {
     ElMessage.error(e.response?.data?.message || e.message || '提交失败')
   } finally {
     expenseSubmitting.value = false
+  }
+}
+
+const downloadTemplate = async () => {
+  try {
+    const response = await request.get('/api/projects/expenses/reimbursement-template', { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([response]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'reimbursement_template.xlsx'
+    link.click()
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    ElMessage.error('下载模板失败')
   }
 }
 
@@ -6119,5 +6137,15 @@ const handleBeforeUnload = (e) => {
   margin-left: auto;
   width: auto;
   max-width: 100%;
+}
+
+.dialog-footer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-spacer {
+  flex: 1;
 }
 </style>
