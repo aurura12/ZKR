@@ -1,5 +1,6 @@
 import io
 import re
+import os
 import logging
 from datetime import datetime
 from typing import Optional
@@ -218,3 +219,184 @@ def _extract_items(lines: list) -> Optional[str]:
             return text
 
     return None
+
+
+@app.post("/ocr/contract")
+async def ocr_contract(file: UploadFile = File(...)):
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    image_exts = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif"}
+
+    try:
+        file_bytes = await file.read()
+        all_text = ""
+
+        if ext in image_exts:
+            all_text = _ocr_image(file_bytes)
+
+        elif ext == ".pdf":
+            all_text = _ocr_pdf(file_bytes)
+
+        elif ext in {".docx", ".doc"}:
+            all_text = _extract_docx_text(file_bytes)
+
+        elif ext in {".txt", ".csv", ".md"}:
+            all_text = file_bytes.decode("utf-8", errors="ignore")
+
+        else:
+            all_text = _ocr_image(file_bytes)
+
+        fields = _parse_contract_fields(all_text)
+
+        return {
+            "success": True,
+            "text": all_text[:5000],
+            "fields": fields,
+            "confidence": 0.95,
+        }
+
+    except Exception as e:
+        logger.error(f"Contract OCR failed: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+def _ocr_image(image_bytes: bytes) -> str:
+    results = ocr.ocr(image_bytes, cls=True)
+    if not results or not results[0]:
+        return ""
+    return "\n".join(line[1][0] for line in results[0])
+
+
+def _ocr_pdf(pdf_bytes: bytes) -> str:
+    all_text = ""
+
+    try:
+        from PyPDF2 import PdfReader
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        for page in reader.pages[:10]:
+            text = page.extract_text()
+            if text and text.strip():
+                all_text += text + "\n"
+        if len(all_text.strip()) > 200:
+            return all_text
+    except Exception as e:
+        logger.warning(f"PyPDF2 extraction failed: {e}")
+
+    try:
+        from pdf2image import convert_from_bytes
+        images = convert_from_bytes(pdf_bytes, first_page=1, last_page=3, dpi=200)
+        for img in images:
+            img_bytes = io.BytesIO()
+            img.save(img_bytes, format="PNG")
+            all_text += _ocr_image(img_bytes.getvalue()) + "\n"
+    except Exception as e:
+        logger.warning(f"pdf2image OCR fallback failed: {e}")
+
+    return all_text
+
+
+def _extract_docx_text(docx_bytes: bytes) -> str:
+    try:
+        from docx import Document
+        doc = Document(io.BytesIO(docx_bytes))
+        paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+        return "\n".join(paragraphs)
+    except Exception as e:
+        logger.warning(f"python-docx extraction failed: {e}")
+        return ""
+
+
+def _parse_contract_fields(text: str) -> dict:
+    fields = {
+        "contract_no": None,
+        "company": None,
+        "signing_entity": None,
+        "counterparty": None,
+        "description": None,
+        "sign_type": None,
+        "sign_date": None,
+        "contract_amount": None,
+        "currency": None,
+        "payment_method": None,
+        "start_date": None,
+        "end_date": None,
+        "collection_date": None,
+        "status": None,
+        "collected_amount": None,
+        "uncollected_amount": None,
+        "invoice_status": None,
+        "invoice_amount": None,
+        "responsible_person": None,
+        "archive_no": None,
+        "remarks": None,
+    }
+
+    fields["contract_no"] = _re_first(text, [r"合同编号[:：]\s*(\S+)", r"合同号[:：]\s*(\S+)", r"编号[:：]\s*([A-Za-z0-9\-]+)"])
+    fields["company"] = _re_first(text, [r"甲方[:：]\s*(\S{2,30}(?:有限公司|有限责任公司|（集团）有限公司|公司|企业|工厂|事务所|中心))"])
+    fields["signing_entity"] = fields.get("company")
+    fields["counterparty"] = _re_first(text, [r"乙方[:：]\s*(\S{2,30}(?:有限公司|有限责任公司|（集团）有限公司|公司|企业|工厂|事务所|中心))", r"对方[:：]\s*(\S{2,30}(?:有限公司|有限责任公司|公司))"])
+    fields["description"] = _re_first(text, [r"合同名称[:：]\s*(.+)", r"项目名称[:：]\s*(.+)", r"标的[:：]\s*(.+)"])
+    fields["sign_type"] = _re_first(text, [r"签署类型[:：]\s*(\S+)", r"签署方式[:：]\s*(\S+)"])
+    fields["sign_date"] = _extract_contract_date(text)
+    fields["contract_amount"] = _re_first_amount(text, [r"合同金额[:：]\s*[¥￥]?\s*(\d+\.?\d*)", r"总金额[:：]\s*[¥￥]?\s*(\d+\.?\d*)", r"金额[:：]\s*[¥￥]?\s*(\d+\.?\d*)"])
+    fields["currency"] = _re_first(text, [r"币种[:：]\s*(\S+)", r"货币[:：]\s*(\S+)"])
+    fields["payment_method"] = _re_first(text, [r"支付方式[:：]\s*(.+)", r"付款方式[:：]\s*(.+)"])
+    fields["start_date"] = _extract_contract_date_second(text)
+    fields["end_date"] = _re_first(text, [r"结束日期[:：]\s*(\d{4}-\d{1,2}-\d{1,2})", r"截止日期[:：]\s*(\d{4}-\d{1,2}-\d{1,2})", r"终止日期[:：]\s*(\d{4}-\d{1,2}-\d{1,2})"])
+    fields["collection_date"] = _re_first(text, [r"回款时间[:：]\s*(\d{4}-\d{1,2}-\d{1,2})", r"回款日期[:：]\s*(\d{4}-\d{1,2}-\d{1,2})"])
+    fields["status"] = _re_first(text, [r"合同状态[:：]\s*(\S+)", r"状态[:：]\s*(\S+)"])
+    fields["collected_amount"] = _re_first_amount(text, [r"累计回款[:：]\s*[¥￥]?\s*(\d+\.?\d*)", r"已回款[:：]\s*[¥￥]?\s*(\d+\.?\d*)"])
+    fields["uncollected_amount"] = _re_first_amount(text, [r"未回款[:：]\s*[¥￥]?\s*(\d+\.?\d*)", r"待回款[:：]\s*[¥￥]?\s*(\d+\.?\d*)"])
+    fields["invoice_status"] = _re_first(text, [r"开票情况[:：]\s*(.+)", r"发票情况[:：]\s*(.+)"])
+    fields["invoice_amount"] = _re_first_amount(text, [r"发票金额[:：]\s*[¥￥]?\s*(\d+\.?\d*)"])
+    fields["responsible_person"] = _re_first(text, [r"负责人[:：]\s*(\S+)", r"业务负责人[:：]\s*(\S+)", r"经办人[:：]\s*(\S+)"])
+    fields["archive_no"] = _re_first(text, [r"归档编号[:：]\s*(\S+)", r"档案号[:：]\s*(\S+)"])
+    fields["remarks"] = _re_first(text, [r"备注[:：]\s*(.+)"])
+    if not fields["currency"]:
+        fields["currency"] = "CNY"
+
+    return fields
+
+
+def _re_first(text: str, patterns: list) -> Optional[str]:
+    for pat in patterns:
+        m = re.search(pat, text)
+        if m:
+            return m.group(1).strip().rstrip(";；,，")
+    return None
+
+
+def _re_first_amount(text: str, patterns: list) -> Optional[float]:
+    for pat in patterns:
+        m = re.search(pat, text)
+        if m:
+            try:
+                return float(m.group(1))
+            except ValueError:
+                pass
+    return None
+
+
+def _extract_contract_date(text: str) -> Optional[str]:
+    patterns = [
+        r"签署日期[:：]\s*(\d{4}-\d{1,2}-\d{1,2})",
+        r"签订日期[:：]\s*(\d{4}-\d{1,2}-\d{1,2})",
+        r"签约日期[:：]\s*(\d{4}-\d{1,2}-\d{1,2})",
+        r"(\d{4})年(\d{1,2})月(\d{1,2})日",
+    ]
+    for pat in patterns:
+        m = re.search(pat, text)
+        if m:
+            if m.lastindex and m.lastindex >= 3:
+                return f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
+            return m.group(1)
+    return None
+
+
+def _extract_contract_date_second(text: str) -> Optional[str]:
+    pats = [
+        r"开始日期[:：]\s*(\d{4}-\d{1,2}-\d{1,2})",
+        r"起始日期[:：]\s*(\d{4}-\d{1,2}-\d{1,2})",
+        r"生效日期[:：]\s*(\d{4}-\d{1,2}-\d{1,2})",
+        r"开始时间[:：]\s*(\d{4}-\d{1,2}-\d{1,2})",
+    ]
+    return _re_first(text, pats)

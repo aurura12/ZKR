@@ -6,6 +6,32 @@
 
 ## 最近变更
 
+### 2026-07-06 10:24 — 阶段3：合同台账建表与合同 OCR 识别入账
+
+**原因：** 合同（`ProjectExpense` 类型 `EXTERNAL_SERVICE`）审批通过后需 OCR 扫描合同文件（PDF/DOCX/图片），提取 23 个结构化字段写入合同台账，并与发票台账通过 `contract_no` 关联。
+
+**改动位置：**
+- `erp-backend/.../db/migration/V20260703_002__create_contract_ledger.sql` — **新建** Flyway 迁移，创建 `contract_ledger` 表（23 业务列 + OCR 审计列 + 3 索引）
+- `erp-backend/.../entity/ContractLedger.java` — **新建** JPA 实体
+- `erp-backend/.../repository/ContractLedgerRepository.java` — **新建** JPA 仓储
+- `erp-backend/.../ocr/ContractOcrService.java` — **新建** `@Async @Transactional`：读取合同文件 → 调 `OcrClient.recognizeContract()` → 回填 23 字段 → 写 `contract_ledger`
+- `erp-backend/.../ocr/ContractOcrResult.java` — **新建** 合同 OCR 结果 DTO（23 业务字段 + 置信度 + 错误信息）
+- `erp-backend/.../ocr/OcrClient.java:88-149` — 新增 `recognizeContract()` 方法，`POST /ocr/contract`；重构 `buildRestTemplate()` 公共方法
+- `erp-backend/.../service/ProjectService.java:133,2187-2192` — 注入 `ContractOcrService`；`reviewExpense()` 中 APPROVED 时按类型分流：`EXTERNAL_SERVICE` → 合同 OCR，其他 → 发票 OCR
+- `erp-backend/.../controller/ProjectController.java:300` — `submitProjectExpense()` 新增 `counterparty` 可选参数
+- `erp-backend/.../dto/SubmitProjectExpenseRequest.java` — 新增 `counterparty` 字段
+- `paddle-ocr/Dockerfile` — 新增 `poppler-utils` 系统包 + `pdf2image python-docx PyPDF2` Python 包
+- `paddle-ocr/requirements.txt` — 新增 `pdf2image python-docx PyPDF2`
+- `paddle-ocr/app.py:220-360` — 新增 `POST /ocr/contract` 端点；文件类型自动分流（图片→PaddleOCR，PDF→PyPDF2/pdf2image，DOCX→python-docx）；`_parse_contract_fields()` 正则提取 23 字段
+- `lab-erp-demo/.../ProjectDetail.vue:1442-1444,1562,3002,3011` — 合同对话框新增「合同对方名称」字段；`expenseForm` 新增 `counterparty`；提交 FormData 携带 `counterparty`
+
+**效果：**
+- 审批通过时按 `expenseType` 自动分流：合同（`EXTERNAL_SERVICE`）触发 `ContractOcrService` 写入 `contract_ledger`，其他类型触发 `InvoiceOcrService` 写入 `invoice_ledger`
+- 合同 OCR 支持 PDF（含扫描件 OCR 回退）、DOCX（文本直提）、图片格式
+- 23 字段由正则提取 + PaddleOCR 文字识别自动填入
+- 发票台账通过 `contract_no` 与合同台账关联（1:N）
+- 合同对话框新增「合同对方名称」字段供用户手动补充
+
 ### 2026-07-03 16:59 — 阶段2：PaddleOCR 引擎集成与异步发票识别入账
 
 **原因：** 审批通过的报销需自动 OCR 扫描发票图片，提取金额/发票号/日期/往来单位等字段回填发票台账，并进行 Excel 与 OCR 的金额交叉校验。

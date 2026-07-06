@@ -1,6 +1,10 @@
 FROM paddlepaddle/paddleocr:2.8.1
 
-RUN pip install --no-cache-dir fastapi uvicorn python-multipart
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir fastapi uvicorn python-multipart pdf2image python-docx PyPDF2
 
 WORKDIR /app
 COPY app.py /app/

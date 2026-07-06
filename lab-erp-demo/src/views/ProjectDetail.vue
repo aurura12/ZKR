@@ -1436,9 +1436,12 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showExpenseDialog" :title="expenseDialogTitle" width="520px" custom-class="tech-dialog">
+    <el-dialog v-model="showExpenseDialog" :title="expenseDialogTitle" width="560px" custom-class="tech-dialog">
       <div class="execution-text">{{ expenseDialogDesc }}</div>
       <el-form label-position="top" style="margin-top: 16px;">
+        <el-form-item v-if="expenseDialogMode === 'contract'" label="合同对方名称">
+          <el-input v-model="expenseForm.counterparty" placeholder="例如：XX科技有限公司" maxlength="200" />
+        </el-form-item>
         <el-form-item v-if="expenseDialogMode === 'reimbursement'" label="报销类型" required>
           <el-select v-model="expenseForm.type" placeholder="请选择报销类型" style="width: 100%">
             <el-option label="商务餐费" value="BUSINESS_MEAL" />
@@ -1558,7 +1561,7 @@ const showCostAdjustDialog = ref(false)
 const costAdjustForm = ref({ type: 'HARDWARE', itemName: '', amount: null, invoiceFileList: [] })
 const costAdjustSubmitting = ref(false)
 const showExpenseDialog = ref(false)
-const expenseForm = ref({ type: 'HARDWARE', itemName: '', amount: null, invoiceFileList: [] })
+const expenseForm = ref({ type: 'HARDWARE', itemName: '', amount: null, counterparty: '', invoiceFileList: [] })
 const expenseSubmitting = ref(false)
 const productActionLoading = ref(false)
 const productMemberLoading = ref(false)
@@ -3000,12 +3003,12 @@ const expenseDialogDesc = computed(() => ({ contract: '提交合同信息，将�
 const openExpenseDialog = (mode) => {
   expenseDialogMode.value = mode
   const defaultType = mode === 'contract' ? 'EXTERNAL_SERVICE' : mode === 'procurement' ? 'HARDWARE' : 'BUSINESS_MEAL'
-  expenseForm.value = { type: defaultType, itemName: '', amount: null, invoiceFileList: [] }
+  expenseForm.value = { type: defaultType, itemName: '', amount: null, counterparty: '', invoiceFileList: [] }
   showExpenseDialog.value = true
 }
 
 const submitExpense = async () => {
-  const { type, itemName, amount, invoiceFileList } = expenseForm.value
+  const { type, itemName, amount, counterparty, invoiceFileList } = expenseForm.value
   if (!itemName || !itemName.trim()) return ElMessage.warning('请输入名称')
   if (!amount || amount <= 0) return ElMessage.warning('请输入有效金额')
 
@@ -3016,6 +3019,7 @@ const submitExpense = async () => {
     form.append('expenseType', type)
     form.append('itemName', itemName.trim())
     form.append('amount', String(amount))
+    if (counterparty) form.append('counterparty', counterparty.trim())
     invoiceFileList?.forEach(entry => {
       if (entry.raw) form.append('invoiceFiles', entry.raw)
     })

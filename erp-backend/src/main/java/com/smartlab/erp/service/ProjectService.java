@@ -22,6 +22,7 @@ import com.smartlab.erp.enums.ProjectTierEnum;
 import com.smartlab.erp.exception.BusinessException;
 import com.smartlab.erp.exception.PermissionDeniedException;
 import com.smartlab.erp.util.AuthUtils;
+import com.smartlab.erp.ocr.ContractOcrService;
 import com.smartlab.erp.ocr.InvoiceOcrService;
 import com.smartlab.erp.repository.*;
 import com.smartlab.erp.finance.repository.FinanceCostSummaryRepository;
@@ -132,6 +133,7 @@ public class ProjectService {
     private final JdbcTemplate jdbcTemplate;
     private final ReimbursementZipService reimbursementZipService;
     private final InvoiceOcrService invoiceOcrService;
+    private final ContractOcrService contractOcrService;
 
     @Value("${file.upload-dir:./uploads}")
     private String uploadDir;
@@ -2185,7 +2187,11 @@ public class ProjectService {
         expenseRepository.save(expense);
 
         if (expense.getStatus() == ProjectExpenseStatus.APPROVED) {
-            invoiceOcrService.triggerOcr(expense.getId());
+            if (expense.getExpenseType() == ProjectExpenseType.EXTERNAL_SERVICE) {
+                contractOcrService.triggerOcr(expense.getId());
+            } else {
+                invoiceOcrService.triggerOcr(expense.getId());
+            }
         }
 
         return Map.of("id", expense.getId(), "status", expense.getStatus().name(), "message", "操作成功");

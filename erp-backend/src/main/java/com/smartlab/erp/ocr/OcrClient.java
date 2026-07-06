@@ -44,13 +44,7 @@ public class OcrClient {
             }
         });
 
-        RestTemplate restTemplate = new RestTemplate();
-        restTemplate.getMessageConverters().add(new org.springframework.http.converter.StringHttpMessageConverter());
-        ((org.springframework.http.client.SimpleClientHttpRequestFactory) restTemplate.getRequestFactory())
-                .setConnectTimeout(Duration.ofSeconds(properties.getConnectTimeoutSeconds()));
-        ((org.springframework.http.client.SimpleClientHttpRequestFactory) restTemplate.getRequestFactory())
-                .setReadTimeout(Duration.ofSeconds(properties.getReadTimeoutSeconds()));
-
+        RestTemplate restTemplate = buildRestTemplate();
         HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
         try {
             ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
@@ -84,6 +78,77 @@ public class OcrClient {
             log.error("OCR request failed for {}: {}", fileName, e.getMessage(), e);
             return OcrInvoiceResult.failed(e.getMessage());
         }
+    }
+
+    public ContractOcrResult recognizeContract(byte[] fileBytes, String fileName) {
+        String url = properties.getBaseUrl() + "/ocr/contract";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", new ByteArrayResource(fileBytes) {
+            @Override
+            public String getFilename() {
+                return fileName;
+            }
+        });
+
+        RestTemplate restTemplate = buildRestTemplate();
+        HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+
+            if (!root.path("success").asBoolean()) {
+                String error = root.path("error").asText("OCR service returned failure");
+                log.warn("Contract OCR failed for {}: {}", fileName, error);
+                return ContractOcrResult.failed(error);
+            }
+
+            JsonNode fields = root.path("fields");
+            double confidence = root.path("confidence").asDouble(0.0);
+
+            return ContractOcrResult.builder()
+                    .success(true)
+                    .contractNo(fields.path("contract_no").asText(null))
+                    .company(fields.path("company").asText(null))
+                    .signingEntity(fields.path("signing_entity").asText(null))
+                    .counterparty(fields.path("counterparty").asText(null))
+                    .description(fields.path("description").asText(null))
+                    .signType(fields.path("sign_type").asText(null))
+                    .signDate(parseDate(fields.path("sign_date").asText(null)))
+                    .contractAmount(parseBigDecimal(fields.path("contract_amount")))
+                    .currency(fields.path("currency").asText(null))
+                    .paymentMethod(fields.path("payment_method").asText(null))
+                    .startDate(parseDate(fields.path("start_date").asText(null)))
+                    .endDate(parseDate(fields.path("end_date").asText(null)))
+                    .collectionDate(parseDate(fields.path("collection_date").asText(null)))
+                    .status(fields.path("status").asText(null))
+                    .collectedAmount(parseBigDecimal(fields.path("collected_amount")))
+                    .uncollectedAmount(parseBigDecimal(fields.path("uncollected_amount")))
+                    .invoiceStatus(fields.path("invoice_status").asText(null))
+                    .invoiceAmount(parseBigDecimal(fields.path("invoice_amount")))
+                    .responsiblePerson(fields.path("responsible_person").asText(null))
+                    .archiveNo(fields.path("archive_no").asText(null))
+                    .remarks(fields.path("remarks").asText(null))
+                    .confidence(BigDecimal.valueOf(confidence))
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Contract OCR request failed for {}: {}", fileName, e.getMessage(), e);
+            return ContractOcrResult.failed(e.getMessage());
+        }
+    }
+
+    private RestTemplate buildRestTemplate() {
+        RestTemplate restTemplate = new RestTemplate();
+        restTemplate.getMessageConverters().add(new org.springframework.http.converter.StringHttpMessageConverter());
+        ((org.springframework.http.client.SimpleClientHttpRequestFactory) restTemplate.getRequestFactory())
+                .setConnectTimeout(Duration.ofSeconds(properties.getConnectTimeoutSeconds()));
+        ((org.springframework.http.client.SimpleClientHttpRequestFactory) restTemplate.getRequestFactory())
+                .setReadTimeout(Duration.ofSeconds(properties.getReadTimeoutSeconds()));
+        return restTemplate;
     }
 
     private LocalDate parseDate(String dateStr) {

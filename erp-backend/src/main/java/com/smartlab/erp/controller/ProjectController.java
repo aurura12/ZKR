@@ -297,11 +297,13 @@ public class ProjectController {
             @RequestParam("expenseType") String expenseType,
             @RequestParam("itemName") String itemName,
             @RequestParam("amount") String amount,
+            @RequestParam(value = "counterparty", required = false) String counterparty,
             @RequestParam(value = "invoiceFiles", required = false) List<MultipartFile> invoiceFiles) {
         SubmitProjectExpenseRequest request = new SubmitProjectExpenseRequest();
         request.setExpenseType(expenseType);
         request.setItemName(itemName);
         request.setAmount(amount);
+        request.setCounterparty(counterparty);
         return ResponseEntity.ok(projectService.submitProjectExpense(projectId, request, invoiceFiles));
     }
 
