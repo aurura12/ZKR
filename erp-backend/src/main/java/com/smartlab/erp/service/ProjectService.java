@@ -2093,8 +2093,8 @@ public class ProjectService {
                         if (ext.equalsIgnoreCase(".zip")) {
                             try {
                                 reimbursementZipService.process(file, expense);
-                            } catch (BusinessException e) {
-                                throw new BusinessException("ZIP 处理失败: " + e.getMessage());
+                            } catch (Exception e) {
+                                throw new BusinessException("ZIP 压缩包处理失败，" + e.getMessage());
                             }
                         }
 

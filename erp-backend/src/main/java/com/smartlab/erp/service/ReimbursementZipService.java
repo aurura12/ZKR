@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,6 +29,8 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -90,8 +93,42 @@ public class ReimbursementZipService {
         List<InvoiceLedger> ledgers = new ArrayList<>();
         Path excelFile = null;
 
-        try (InputStream is = zipFile.getInputStream();
-             ZipInputStream zis = new ZipInputStream(is)) {
+        try {
+            byte[] zipBytes = zipFile.getInputStream().readAllBytes();
+            excelFile = extractZipWithFallback(zipBytes, extractionDir);
+        } catch (IOException e) {
+            throw new BusinessException("ZIP 文件解压失败: " + e.getMessage());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("ZIP 文件编码不兼容，请使用 UTF-8 格式压缩文件（推荐 7-Zip 重新打包）。详情: " + e.getMessage());
+        }
+
+        if (excelFile == null) {
+            throw new BusinessException("ZIP 压缩包中未找到 Excel 汇总表（.xlsx/.xls）");
+        }
+
+        List<ImageEntry> imageEntries = scanImageFiles(extractionDir);
+
+        ledgers = parseExcelAndCreateLedgers(excelFile, expense, imageEntries, parsed);
+
+        invoiceLedgerRepository.saveAll(ledgers);
+        log.info("报销 ZIP 处理完成: expenseId={}, ledgerRows={}", expense.getId(), ledgers.size());
+
+        return ledgers;
+    }
+
+    private Path extractZipWithFallback(byte[] zipBytes, Path extractionDir) throws IOException {
+        try {
+            return extractZip(zipBytes, extractionDir, StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            log.warn("ZIP UTF-8 解码失败，回退 GBK 编码重试: {}", e.getMessage());
+            return extractZip(zipBytes, extractionDir, Charset.forName("GBK"));
+        }
+    }
+
+    private Path extractZip(byte[] zipBytes, Path extractionDir, Charset charset) throws IOException {
+        Path excelFile = null;
+        try (ByteArrayInputStream bis = new ByteArrayInputStream(zipBytes);
+             ZipInputStream zis = new ZipInputStream(bis, charset)) {
 
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
@@ -110,22 +147,8 @@ public class ReimbursementZipService {
                     excelFile = targetFile;
                 }
             }
-        } catch (IOException e) {
-            throw new BusinessException("ZIP 文件解压失败: " + e.getMessage());
         }
-
-        if (excelFile == null) {
-            throw new BusinessException("ZIP 压缩包中未找到 Excel 汇总表（.xlsx/.xls）");
-        }
-
-        List<ImageEntry> imageEntries = scanImageFiles(extractionDir);
-
-        ledgers = parseExcelAndCreateLedgers(excelFile, expense, imageEntries, parsed);
-
-        invoiceLedgerRepository.saveAll(ledgers);
-        log.info("报销 ZIP 处理完成: expenseId={}, ledgerRows={}", expense.getId(), ledgers.size());
-
-        return ledgers;
+        return excelFile;
     }
 
     ParsedZipName parseZipFilename(String filename) {

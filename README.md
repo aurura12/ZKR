@@ -2,11 +2,19 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.145` / `zhangqi_frontend:v1.164`
+**当前版本：** `zhangqi_backend:v1.146` / `zhangqi_frontend:v1.164`
 
 ## 最近变更
 
-### 2026-07-06 14:51 — 部署后端 v1.145：报销模板下载端点上线
+### 2026-07-07 09:57 — 修复 ZIP 编码报错 + 错误提示清晰化
+
+**原因：** Windows 创建的 ZIP 文件名使用 GBK 编码，`ZipInputStream` 默认 UTF-8 解码失败抛 `MalformedInputException` → 全局异常处理器返回「系统内部错误」，用户无法定位问题。
+
+**改动位置：**
+- `erp-backend/.../service/ReimbursementZipService.java:95-135` — `process()` 新增 `extractZipWithFallback()`：UTF-8 解压失败自动回退 GBK 编码重试；GBK 也失败时抛「请使用 UTF-8 格式压缩文件（推荐 7-Zip 重新打包）」的明确提示
+- `erp-backend/.../service/ProjectService.java:2093-2099` — ZIP 处理异常捕获从 `BusinessException` 扩展为 `Exception`，确保所有错误都包装为中文提示
+
+**效果：** UTF-8/GBK 双编码自动兼容；编码问题有明确修复指引而非「系统内部错误」。
 
 **原因：** 报销 Excel 模板下载入口隐藏在 `.zip-hint` 提示区，不够醒目。将模板下载按钮提升到底部操作栏，永远可见。
 
