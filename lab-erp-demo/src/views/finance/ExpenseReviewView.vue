@@ -125,7 +125,7 @@ const previewingType = ref('')
 const invoicePreviewUrl = ref('')
 const previewingExpenseId = ref(null)
 
-const typeLabel = t => ({ HARDWARE: '硬件采购', EXTERNAL_SERVICE: '外部技术服务', REIMBURSEMENT: '报销', BUSINESS_MEAL: '商务餐费', NORMAL_TRAVEL: '正常差旅', PRICE_DIFF: '补差价' }[t] || t)
+const typeLabel = t => ({ HARDWARE: '硬件采购', EXTERNAL_SERVICE: '合同上传', REIMBURSEMENT: '报销', BUSINESS_MEAL: '商务餐费', NORMAL_TRAVEL: '正常差旅', PRICE_DIFF: '补差价' }[t] || t)
 const typeClass = t => `type-${t?.toLowerCase()}`
 const statusLabel = s => ({ PENDING_JIAOMIAO: '待焦淼审批', PENDING_FINANCE: '待财务审批', PENDING_CHENLEI: '待陈磊审批', APPROVED: '已通过', REJECTED: '已拒绝' }[s] || s)
 const statusClass = s => `status-${s?.toLowerCase()}`

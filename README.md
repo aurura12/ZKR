@@ -2,9 +2,18 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.147` / `zhangqi_frontend:v1.165`
+**当前版本：** `zhangqi_backend:v1.147` / `zhangqi_frontend:v1.166`
 
 ## 最近变更
+
+### 2026-07-08 15:45 — 修复发起弹窗确认按钮无响应
+
+**原因：** `App.vue` 中发起弹窗的「确认发起」按钮 `submitLaunchForm` 仅关闭弹窗、重置 Tab，未调用任一子组件的 submit 方法，导致用户填表后点击无任何 API 请求，数据丢失。
+
+**改动位置：**
+- `lab-erp-demo/src/App.vue:164-171,238-250` — 给三个子组件添加模板 ref (`createProductRef` / `createProjectRef` / `createResearchRef`)；`submitLaunchForm` 根据 `activeLaunchTab` 委托给对应子组件的 submit 方法
+
+**效果：** 发起弹窗点击确认后正确调用对应 API（产品→`/api/products/idea`，项目→`/api/projects/initiate`，科研→`/api/research/initiate`），提交成功后弹窗自动关闭。
 
 ### 2026-07-08 10:37 — 统一发起按钮 + 会议自动定时强提醒
 

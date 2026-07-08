@@ -162,13 +162,13 @@
     <el-dialog v-model="showLaunchDialog" title="发起" width="680px" :close-on-click-modal="false" @closed="activeLaunchTab = 'product'">
       <el-tabs v-model="activeLaunchTab" type="border-card">
         <el-tab-pane v-if="canLaunchProduct" label="发起产品" name="product">
-          <CreateProject :embedded="true" @submitted="onLaunchSubmitted" />
+          <CreateProject ref="createProductRef" :embedded="true" @submitted="onLaunchSubmitted" />
         </el-tab-pane>
         <el-tab-pane v-if="canLaunchProject" label="发起项目" name="project">
-          <CreateDeliveryProjectView :embedded="true" @submitted="onLaunchSubmitted" />
+          <CreateDeliveryProjectView ref="createProjectRef" :embedded="true" @submitted="onLaunchSubmitted" />
         </el-tab-pane>
         <el-tab-pane v-if="canLaunchResearch" label="发起科研" name="research">
-          <CreateResearchView :embedded="true" @submitted="onLaunchSubmitted" />
+          <CreateResearchView ref="createResearchRef" :embedded="true" @submitted="onLaunchSubmitted" />
         </el-tab-pane>
       </el-tabs>
       <template #footer>
@@ -235,9 +235,18 @@ const onLaunchSubmitted = () => {
   activeLaunchTab.value = 'product'
 }
 
+const createProductRef = ref(null)
+const createProjectRef = ref(null)
+const createResearchRef = ref(null)
+
 const submitLaunchForm = () => {
-  showLaunchDialog.value = false
-  activeLaunchTab.value = 'product'
+  if (activeLaunchTab.value === 'product') {
+    createProductRef.value?.confirmCreate()
+  } else if (activeLaunchTab.value === 'project') {
+    createProjectRef.value?.submit()
+  } else if (activeLaunchTab.value === 'research') {
+    createResearchRef.value?.submit()
+  }
 }
 
 const showMessageDrawer = ref(false)
