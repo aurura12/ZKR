@@ -133,6 +133,8 @@ const confirmCreate = async () => {
     submitting.value = false
   }
 }
+
+defineExpose({ confirmCreate })
 </script>
 
 <style scoped>

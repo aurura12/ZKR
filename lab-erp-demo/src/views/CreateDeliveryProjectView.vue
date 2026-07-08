@@ -195,6 +195,8 @@ const submit = async () => {
     submitting.value = false
   }
 }
+
+defineExpose({ submit })
 </script>
 
 <style scoped>

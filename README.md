@@ -2,18 +2,23 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.147` / `zhangqi_frontend:v1.166`
+**当前版本：** `zhangqi_backend:v1.147` / `zhangqi_frontend:v1.167`
 
 ## 最近变更
 
-### 2026-07-08 15:45 — 修复发起弹窗确认按钮无响应
+### 2026-07-08 15:49 — 修复发起弹窗确认按钮无响应（第二版）
 
-**原因：** `App.vue` 中发起弹窗的「确认发起」按钮 `submitLaunchForm` 仅关闭弹窗、重置 Tab，未调用任一子组件的 submit 方法，导致用户填表后点击无任何 API 请求，数据丢失。
+**原因：** `App.vue` 通过 ref 调用子组件 submit 方法，但三个子组件均使用 `<script setup>` 默认闭包，未 `defineExpose`，父组件调用时 `confirmCreate`/`submit` 为 `undefined`，静默跳过无效果。
 
 **改动位置：**
-- `lab-erp-demo/src/App.vue:164-171,238-250` — 给三个子组件添加模板 ref (`createProductRef` / `createProjectRef` / `createResearchRef`)；`submitLaunchForm` 根据 `activeLaunchTab` 委托给对应子组件的 submit 方法
+- `lab-erp-demo/src/App.vue:164-171,238-250` — 添加模板 ref + `submitLaunchForm` 委托逻辑
+- `lab-erp-demo/src/views/CreateProject.vue:136` — `defineExpose({ confirmCreate })`
+- `lab-erp-demo/src/views/CreateDeliveryProjectView.vue:197` — `defineExpose({ submit })`
+- `lab-erp-demo/src/views/CreateResearchView.vue:146` — `defineExpose({ submit })`
 
-**效果：** 发起弹窗点击确认后正确调用对应 API（产品→`/api/products/idea`，项目→`/api/projects/initiate`，科研→`/api/research/initiate`），提交成功后弹窗自动关闭。
+**效果：** 发起弹窗点击确认后正确调用对应 API，提交成功后弹窗自动关闭。
+
+### 2026-07-08 15:45 — 修复发起弹窗确认按钮无响应（第一版）
 
 ### 2026-07-08 10:37 — 统一发起按钮 + 会议自动定时强提醒
 
