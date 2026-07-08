@@ -2,11 +2,30 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.146` / `zhangqi_frontend:v1.164`
+**当前版本：** `zhangqi_backend:v1.147` / `zhangqi_frontend:v1.165`
 
 ## 最近变更
 
-### 2026-07-07 09:57 — 修复 ZIP 编码报错 + 错误提示清晰化
+### 2026-07-08 10:37 — 统一发起按钮 + 会议自动定时强提醒
+
+**原因：** 三个独立发起按钮（产品/项目/科研）分散在不同位置，入口不统一；会议系统缺少参会提醒。
+
+**改动位置：**
+- `erp-backend/.../db/migration/V20260707_001__add_meeting_reminder.sql` — **新建** meeting_record 加 last_reminded_at
+- `erp-backend/.../meeting/entity/MeetingRecord.java:62-63` — 新增 lastRemindedAt 字段
+- `erp-backend/.../meeting/repository/MeetingRecordRepository.java:27-29` — 新增查询：SCHEDULED + 15分钟内 + 未提醒
+- `erp-backend/.../meeting/scheduler/MeetingReminderScheduler.java` — **新建** @Scheduled(cron="0 * * * * *") 每分钟扫描即将开始的会议，通过 InternalMessageService 向所有参会人发送 MEETING_REMINDER 强提醒
+- `lab-erp-demo/.../App.vue:43-44,162-180,188-220,290-306,635-654` — 替换「发起产品」为统一样式「发起」按钮（圆角矩形，#0066cc）；新增发起弹窗 + el-tabs（产品/项目/科研三个 tab 按权限显示）；新增会议提醒 toast
+- `lab-erp-demo/.../CreateProject.vue` — 新增 embedded prop + submitted emit，嵌入式表单跳过外层遮罩
+- `lab-erp-demo/.../CreateDeliveryProjectView.vue` — 同上
+- `lab-erp-demo/.../CreateResearchView.vue` — 同上
+- `lab-erp-demo/.../ManagerDashboard.vue:38-59` — 移除独立的「发起项目」「发起科研」按钮
+
+**效果：**
+- 导航栏统一「发起」按钮代替分散的三个按钮，点击弹窗按权限显示 tab（产品→所有人，项目→BUSINESS，科研→RESEARCH/白名单）
+- 三个 tab 直接嵌入创建表单，提交后自动关闭弹窗
+- 会议开始前 15 分钟自动向所有参会人发送站内消息（MEETING_REMINDER），前端 toast 提示「⏰ 会议即将开始」
+- ManagerDashboard 按钮精简为会议中心/队长管理/队长工作台
 
 **原因：** Windows 创建的 ZIP 文件名使用 GBK 编码，`ZipInputStream` 默认 UTF-8 解码失败抛 `MalformedInputException` → 全局异常处理器返回「系统内部错误」，用户无法定位问题。
 

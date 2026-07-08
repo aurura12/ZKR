@@ -1,53 +1,55 @@
 <template>
-  <div class="modal-overlay animate-fade-in">
+  <div v-if="embedded" class="embedded-form">
+    <div class="form-section">
+      <el-input v-model="form.projectName" placeholder="产品名称" size="large" class="mb-3">
+        <template #prefix>📂</template>
+      </el-input>
+      <el-input v-model="form.expectedBudget" type="number" placeholder="预计项目投入 (CNY)" class="mb-3" size="large">
+        <template #prefix>💰</template>
+      </el-input>
+      <el-input v-model="form.targetUsers" type="textarea" :rows="2" placeholder="目标用户群（必填）" class="mb-3" />
+      <el-input v-model="form.coreFeatures" type="textarea" :rows="2" placeholder="主打功能点（必填）" class="mb-3" />
+      <el-input v-model="form.useCase" type="textarea" :rows="2" placeholder="用途（必填）" class="mb-3" />
+      <el-input v-model="form.problemStatement" type="textarea" :rows="2" placeholder="针对的问题（必填）" class="mb-3" />
+      <el-input v-model="form.techStackDesc" type="textarea" :rows="2" placeholder="可能涉及的技术栈和深度（必填）" class="mb-3" />
+      <div class="form-grid mb-3">
+        <el-select v-model="form.projectType" placeholder="产品方向" class="flex-1" size="large">
+          <el-option v-for="item in projectTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+        </el-select>
+        <div class="flex-1" />
+      </div>
+    </div>
+  </div>
+  <div v-else class="modal-overlay animate-fade-in">
     <div class="modal-card">
-
       <div class="modal-header">
         <h2>✨ 发起产品</h2>
         <span class="close-btn" @click="$router.back()">×</span>
       </div>
-
       <div class="modal-body">
         <div class="form-section">
           <el-input v-model="form.projectName" placeholder="产品名称" size="large" class="mb-3">
             <template #prefix>📂</template>
           </el-input>
-
-          <el-input
-              v-model="form.expectedBudget"
-              type="number"
-              placeholder="预计项目投入 (CNY)"
-              class="mb-3"
-              size="large"
-          >
+          <el-input v-model="form.expectedBudget" type="number" placeholder="预计项目投入 (CNY)" class="mb-3" size="large">
             <template #prefix>💰</template>
           </el-input>
-
           <el-input v-model="form.targetUsers" type="textarea" :rows="2" placeholder="目标用户群（必填）" class="mb-3" />
           <el-input v-model="form.coreFeatures" type="textarea" :rows="2" placeholder="主打功能点（必填）" class="mb-3" />
           <el-input v-model="form.useCase" type="textarea" :rows="2" placeholder="用途（必填）" class="mb-3" />
           <el-input v-model="form.problemStatement" type="textarea" :rows="2" placeholder="针对的问题（必填）" class="mb-3" />
           <el-input v-model="form.techStackDesc" type="textarea" :rows="2" placeholder="可能涉及的技术栈和深度（必填）" class="mb-3" />
-
           <div class="form-grid mb-3">
             <el-select v-model="form.projectType" placeholder="产品方向" class="flex-1" size="large">
               <el-option v-for="item in projectTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
-
             <div class="flex-1" />
           </div>
         </div>
       </div>
-
       <div class="modal-footer">
         <el-button @click="$router.back()">取消</el-button>
-        <el-button
-            type="primary"
-            :loading="submitting"
-            @click="confirmCreate"
-        >
-          ✅ 确认发起
-        </el-button>
+        <el-button type="primary" :loading="submitting" @click="confirmCreate">✅ 确认发起</el-button>
       </div>
     </div>
   </div>
@@ -59,6 +61,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 
+const props = defineProps({ embedded: { type: Boolean, default: false } })
+const emit = defineEmits(['submitted', 'cancel'])
 const router = useRouter()
 const submitting = ref(false)
 
@@ -118,7 +122,11 @@ const confirmCreate = async () => {
 
     await request.post('/api/products/idea', payload)
     ElMessage.success('🚀 产品发起成功！')
-    router.push('/manager/dashboard')
+    if (props.embedded) {
+      emit('submitted')
+    } else {
+      router.push('/manager/dashboard')
+    }
   } catch (e) {
     ElMessage.error(e.response?.data?.message || e.response?.data || e.message || '产品发起失败')
   } finally {
@@ -141,4 +149,5 @@ const confirmCreate = async () => {
 .flex-1 { flex: 1; }
 .option-row { display: flex; align-items: center; }
 .avatar-small { width: 24px; height: 24px; border-radius: 50%; margin-right: 8px; }
+.embedded-form { padding: 0; }
 </style>

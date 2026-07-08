@@ -40,8 +40,8 @@
       </div>
 
       <div class="nav-right">
-        <button v-if="showCreateProductAction" class="tech-btn primary" @click="$router.push('/manager/product/create')">
-          <span class="icon">+</span> 发起产品
+        <button v-if="showLaunchAction" class="tech-btn launch-btn" @click="showLaunchDialog = true">
+          <span class="icon">+</span> 发起
         </button>
 
         <button v-if="showAuthenticatedNavbar" class="mail-trigger" @click="openMessageDrawer">
@@ -158,6 +158,24 @@
         <el-button type="primary" @click="submitBadgeAward">确认发放</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="showLaunchDialog" title="发起" width="680px" :close-on-click-modal="false" @closed="activeLaunchTab = 'product'">
+      <el-tabs v-model="activeLaunchTab" type="border-card">
+        <el-tab-pane v-if="canLaunchProduct" label="发起产品" name="product">
+          <CreateProject :embedded="true" @submitted="onLaunchSubmitted" />
+        </el-tab-pane>
+        <el-tab-pane v-if="canLaunchProject" label="发起项目" name="project">
+          <CreateDeliveryProjectView :embedded="true" @submitted="onLaunchSubmitted" />
+        </el-tab-pane>
+        <el-tab-pane v-if="canLaunchResearch" label="发起科研" name="research">
+          <CreateResearchView :embedded="true" @submitted="onLaunchSubmitted" />
+        </el-tab-pane>
+      </el-tabs>
+      <template #footer>
+        <el-button @click="showLaunchDialog = false">取消</el-button>
+        <el-button type="primary" @click="submitLaunchForm">确认发起</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -169,6 +187,9 @@ import { FINANCE_ALLOWED_ROLES } from '@/router/financeRoutes'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import AiCommandLauncher from '@/components/AiCommandLauncher.vue'
+import CreateProject from '@/views/CreateProject.vue'
+import CreateDeliveryProjectView from '@/views/CreateDeliveryProjectView.vue'
+import CreateResearchView from '@/views/CreateResearchView.vue'
 import { canAccessProvisioning } from '@/constants/provisioning'
 
 const userStore = useUserStore()
@@ -184,7 +205,7 @@ const activeDomain = computed(() => userStore.activeSession?.accountDomain || ''
 const activeRole = computed(() => (userStore.activeUserInfo?.role || '').toUpperCase())
 const canAccessFinance = computed(() => FINANCE_ALLOWED_ROLES.includes(activeRole.value))
 const showFinanceShortcut = computed(() => activeDomain.value === 'FINANCE' && canAccessFinance.value)
-const showCreateProductAction = computed(() => userStore.isErpLoggedIn)
+const showLaunchAction = computed(() => userStore.isErpLoggedIn)
 const showProvisionUserAction = computed(() => userStore.isErpLoggedIn && canAccessProvisioning(userStore.activeUserInfo?.username))
 const showExpenseReviewEntry = computed(() => {
   const uid = String(userStore.activeUserInfo?.userId || '')
@@ -196,8 +217,33 @@ const showServerManagementEntry = computed(() => {
 })
 const showProjectFileManagerEntry = computed(() => userStore.isErpLoggedIn && canAccessProvisioning(userStore.activeUserInfo?.username))
 const showFullscreenCockpitEntry = computed(() => activeDomain.value === 'FINANCE' && canAccessFinance.value)
+
+const researchInitiatorWhitelist = ['焦淼', '胡军', '任涛', '余文清', 'jiaomiao', 'hujun', 'rentao', 'yuwenqing']
+const canLaunchProduct = computed(() => userStore.isErpLoggedIn)
+const canLaunchProject = computed(() => userStore.isErpLoggedIn && String(userStore.activeUserInfo?.role || '').toUpperCase() === 'BUSINESS')
+const canLaunchResearch = computed(() => {
+  if (!userStore.isErpLoggedIn) return false
+  const role = String(userStore.activeUserInfo?.role || '').toUpperCase()
+  if (role === 'RESEARCH') return true
+  const username = (userStore.activeUserInfo?.username || '').toLowerCase()
+  const name = (userStore.activeUserInfo?.name || '')
+  return researchInitiatorWhitelist.includes(username) || researchInitiatorWhitelist.includes(name)
+})
+
+const onLaunchSubmitted = () => {
+  showLaunchDialog.value = false
+  activeLaunchTab.value = 'product'
+}
+
+const submitLaunchForm = () => {
+  showLaunchDialog.value = false
+  activeLaunchTab.value = 'product'
+}
+
 const showMessageDrawer = ref(false)
 const showBadgeDialog = ref(false)
+const showLaunchDialog = ref(false)
+const activeLaunchTab = ref('product')
 const messages = ref([])
 const unreadMessageCount = ref(0)
 const pendingExpenseCount = ref(0)
@@ -218,11 +264,13 @@ const msgTabs = [
 const EXPENSE_TYPES = new Set(['EXPENSE_PENDING', 'EXPENSE_APPROVED', 'EXPENSE_REJECTED', 'EXPENSE_STATUS'])
 const PROJECT_TYPES = new Set(['PROJECT_JOINED', 'PROJECT_STATUS', 'PROJECT_DYNAMIC_INFO', 'MILESTONE_UPDATE'])
 const TASK_TYPES = new Set(['SUBTASK_ASSIGNED', 'TASK_ASSIGNED', 'EXECUTION_PLANNING', 'DDL_REMINDER'])
+const MEETING_TYPES = new Set(['MEETING_REMINDER'])
 
 const msgTypeCategory = type => {
   if (EXPENSE_TYPES.has(type)) return 'expense'
   if (PROJECT_TYPES.has(type)) return 'project'
   if (TASK_TYPES.has(type)) return 'task'
+  if (MEETING_TYPES.has(type)) return 'project'
   return 'all'
 }
 
@@ -244,14 +292,15 @@ const msgTypeLabel = type => {
   const map = {
     EXPENSE_PENDING: '待审批', EXPENSE_APPROVED: '已通过', EXPENSE_REJECTED: '已拒绝', EXPENSE_STATUS: '状态更新',
     PROJECT_JOINED: '加入项目', PROJECT_STATUS: '状态变更', PROJECT_DYNAMIC_INFO: '动态更新', MILESTONE_UPDATE: '里程碑',
-    SUBTASK_ASSIGNED: '子任务', TASK_ASSIGNED: '任务分配', EXECUTION_PLANNING: '执行规划', DDL_REMINDER: 'DDL提醒'
+    SUBTASK_ASSIGNED: '子任务', TASK_ASSIGNED: '任务分配', EXECUTION_PLANNING: '执行规划', DDL_REMINDER: 'DDL提醒',
+    MEETING_REMINDER: '会议提醒'
   }
   return map[type] || type
 }
 
 const msgTypeClass = type => {
   if (EXPENSE_TYPES.has(type)) return 'badge-expense'
-  if (PROJECT_TYPES.has(type)) return 'badge-project'
+  if (PROJECT_TYPES.has(type) || MEETING_TYPES.has(type)) return 'badge-project'
   if (TASK_TYPES.has(type)) return 'badge-task'
   return ''
 }
@@ -268,7 +317,8 @@ const MSG_TOAST_LABELS = {
   TASK_ASSIGNED: '📋 任务已分配',
   EXECUTION_PLANNING: '📐 项目进入执行规划',
   DDL_REMINDER: '⏰ 项目截止日期提醒',
-  PROJECT_DYNAMIC_INFO: '📊 项目动态信息更新'
+  PROJECT_DYNAMIC_INFO: '📊 项目动态信息更新',
+  MEETING_REMINDER: '⏰ 会议即将开始'
 }
 
 const applyTheme = (value) => {
@@ -320,6 +370,8 @@ const pollNewMessages = async () => {
       const label = MSG_TOAST_LABELS[msg.messageType]
       if (label) {
         ElMessage.info(`${label}：${msg.title}`)
+      } else if (msg.messageType === 'MEETING_REMINDER') {
+        ElMessage.warning(`⏰ 会议提醒：${msg.title}`)
       }
     }
     messages.value = list
@@ -631,6 +683,26 @@ body {
 }
 
 .tech-btn.primary:active {
+  transform: scale(0.95);
+}
+
+.tech-btn.launch-btn {
+  background-color: var(--science-blue);
+  color: #ffffff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.tech-btn.launch-btn:hover {
+  background-color: var(--science-blue-hover);
+}
+
+.tech-btn.launch-btn:active {
   transform: scale(0.95);
 }
 

@@ -63,6 +63,9 @@ public class MeetingRecord {
     @Builder.Default
     private Instant updatedAt = Instant.now();
 
+    @Column(name = "last_reminded_at")
+    private Instant lastRemindedAt;
+
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = Instant.now();

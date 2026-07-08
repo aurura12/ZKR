@@ -1,30 +1,40 @@
 <template>
-  <div class="create-shell">
+  <div v-if="embedded" class="embedded-body">
+    <el-input v-model="form.idea" type="textarea" :rows="3" placeholder="科研 idea（必填）" class="mb-3" />
+    <el-input v-model="form.innovationPoint" type="textarea" :rows="3" placeholder="创新点 innovation（必填）" class="mb-3" />
+    <el-input v-model="form.budget" type="number" placeholder="预算 budget（必填）" class="mb-3" />
+    <el-select v-model="form.hostUserId" filterable clearable placeholder="主持人 Host（可选，默认发起人）" style="width: 100%" class="mb-3">
+      <el-option v-for="u in users" :key="u.optionKey" :label="u.label" :value="u.value" />
+    </el-select>
+    <el-select v-model="form.chiefEngineerUserId" filterable clearable placeholder="总工程师 Chief Engineer（可选）" style="width: 100%" class="mb-3">
+      <el-option v-for="u in users" :key="u.optionKey" :label="u.label" :value="u.value" />
+    </el-select>
+    <el-select v-model="form.coreMemberIds" filterable multiple placeholder="核心成员（必选至少2人）" style="width: 100%">
+      <el-option v-for="u in users" :key="u.optionKey" :label="u.label" :value="u.value" />
+    </el-select>
+    <div class="form-tip">提示：核心成员至少选择2人（不含发起人）</div>
+  </div>
+  <div v-else class="create-shell">
     <div class="card">
       <div class="header">
         <h2>🧪 发起科研（Research Flow）</h2>
         <button class="close-btn" @click="$router.back()">×</button>
       </div>
-
       <div class="body">
         <el-input v-model="form.idea" type="textarea" :rows="3" placeholder="科研 idea（必填）" class="mb-3" />
         <el-input v-model="form.innovationPoint" type="textarea" :rows="3" placeholder="创新点 innovation（必填）" class="mb-3" />
         <el-input v-model="form.budget" type="number" placeholder="预算 budget（必填）" class="mb-3" />
-
         <el-select v-model="form.hostUserId" filterable clearable placeholder="主持人 Host（可选，默认发起人）" style="width: 100%" class="mb-3">
           <el-option v-for="u in users" :key="u.optionKey" :label="u.label" :value="u.value" />
         </el-select>
-
         <el-select v-model="form.chiefEngineerUserId" filterable clearable placeholder="总工程师 Chief Engineer（可选）" style="width: 100%" class="mb-3">
           <el-option v-for="u in users" :key="u.optionKey" :label="u.label" :value="u.value" />
         </el-select>
-
         <el-select v-model="form.coreMemberIds" filterable multiple placeholder="核心成员（必选至少2人）" style="width: 100%">
           <el-option v-for="u in users" :key="u.optionKey" :label="u.label" :value="u.value" />
         </el-select>
         <div class="form-tip">提示：核心成员至少选择2人（不含发起人）</div>
       </div>
-
       <div class="footer">
         <el-button @click="$router.back()">取消</el-button>
         <el-button type="primary" :disabled="!canSubmit" :loading="submitting" @click="submit">确认发起</el-button>
@@ -40,6 +50,8 @@ import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 import { getResearchWorkflowMemberRoles, getResearchWorkflowRoleCandidates } from '@/api/workflowMemberRoles'
 
+const props = defineProps({ embedded: { type: Boolean, default: false } })
+const emit = defineEmits(['submitted', 'cancel'])
 const router = useRouter()
 const route = useRoute()
 const submitting = ref(false)
@@ -118,7 +130,9 @@ const submit = async () => {
     })
     const project = res.data || res || {}
     ElMessage.success('科研创新发起成功')
-    if (project.projectId) {
+    if (props.embedded) {
+      emit('submitted')
+    } else if (project.projectId) {
       router.push(`/workspace/project/${project.projectId}`)
     } else {
       router.push('/manager/dashboard')

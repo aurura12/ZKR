@@ -35,28 +35,6 @@
           <el-icon style="margin-right: 6px"><User /></el-icon>
           队长工作台
         </el-button>
-        <el-button
-            v-if="showBusinessLaunch"
-            type="primary"
-            size="large"
-            color="#34C759"
-            @click="$router.push('/manager/project/create')"
-            style="font-weight: bold; border-radius: 8px; padding: 12px 24px;"
-        >
-          <el-icon style="margin-right: 6px"><Plus /></el-icon>
-          发起项目
-        </el-button>
-        <el-button
-            v-if="showResearchLaunch"
-            type="primary"
-            size="small"
-            color="#007AFF"
-            @click="$router.push('/manager/research/create')"
-            style="font-weight: 700; border-radius: 8px; padding: 8px 14px; margin-left: 8px;"
-        >
-          <el-icon style="margin-right: 6px"><Plus /></el-icon>
-          发起科研
-        </el-button>
       </div>
     </div>
 

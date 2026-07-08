@@ -23,4 +23,7 @@ public interface MeetingRecordRepository extends JpaRepository<MeetingRecord, Lo
 
     List<MeetingRecord> findByStartTimeBetweenAndStatusOrderByStartTimeDesc(
             LocalDateTime start, LocalDateTime end, String status);
+
+    List<MeetingRecord> findByStatusAndStartTimeBeforeAndLastRemindedAtIsNullOrderByStartTimeAsc(
+            String status, LocalDateTime before);
 }

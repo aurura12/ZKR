@@ -1,20 +1,49 @@
 <template>
-  <div class="create-shell">
+  <div v-if="embedded" class="embedded-body">
+    <div class="field-label">项目名称</div>
+    <el-input v-model="form.projectName" placeholder="项目名称" size="large" class="mb-3" />
+    <div class="field-label">预计收入金额 <span class="field-unit">单位：元</span></div>
+    <el-input v-model="form.estimatedRevenue" type="number" placeholder="请输入预计收入金额（元）" size="large" class="mb-3">
+      <template #append>元</template>
+    </el-input>
+    <div class="field-label">项目行业</div>
+    <el-select v-model="form.projectType" placeholder="选择行业" size="large" class="mb-3" style="width: 100%">
+      <el-option label="工业" value="INDUSTRIAL" />
+      <el-option label="军工" value="MILITARY" />
+      <el-option label="医药" value="MEDICAL" />
+      <el-option label="AI For Science" value="AI_FOR_SCIENCE" />
+      <el-option label="群体智能" value="SWARM_INTEL" />
+      <el-option label="自用" value="SELF_USE" />
+    </el-select>
+    <div class="field-label">指定数据工程师</div>
+    <el-select v-model="form.dataEngineerId" filterable placeholder="指定数据工程师" size="large" class="mb-3" style="width: 100%" popper-class="project-data-engineer-select-popper">
+      <el-option v-for="u in dataEngineers" :key="u.id" :label="`${u.name} / ${u.role}`" :value="u.id" />
+    </el-select>
+    <div class="field-hint mb-3">{{ selectedEngineerHint }}</div>
+    <div class="upload-card">
+      <div class="upload-title">发起附件（可选）</div>
+      <div class="upload-desc">可上传需求说明、背景材料或补充资料；该附件不替代后续可行性报告。</div>
+      <div class="upload-actions">
+        <label class="upload-button" for="initiation-attachment-input-embedded">选择文件</label>
+        <button v-if="initiationAttachment" type="button" class="clear-button" @click="clearInitiationAttachment">移除</button>
+      </div>
+      <div class="upload-file-name">{{ initiationAttachment ? initiationAttachment.name : '未选择文件' }}</div>
+      <input id="initiation-attachment-input-embedded" ref="attachmentInputRef" type="file" class="hidden-file-input" @change="handleAttachmentChange">
+    </div>
+  </div>
+  <div v-else class="create-shell">
     <div class="card">
       <div class="header">
         <h2>🚀 发起项目（交付流）</h2>
         <button class="close-btn" @click="$router.back()">×</button>
       </div>
-
       <div class="body">
         <div class="field-label">项目名称</div>
         <el-input v-model="form.projectName" placeholder="项目名称" size="large" class="mb-3" />
-
         <div class="field-label">预计收入金额 <span class="field-unit">单位：元</span></div>
         <el-input v-model="form.estimatedRevenue" type="number" placeholder="请输入预计收入金额（元）" size="large" class="mb-3">
           <template #append>元</template>
         </el-input>
-
         <div class="field-label">项目行业</div>
         <el-select v-model="form.projectType" placeholder="选择行业" size="large" class="mb-3" style="width: 100%">
           <el-option label="工业" value="INDUSTRIAL" />
@@ -24,24 +53,11 @@
           <el-option label="群体智能" value="SWARM_INTEL" />
           <el-option label="自用" value="SELF_USE" />
         </el-select>
-
         <div class="field-label">指定数据工程师</div>
-        <el-select
-          v-model="form.dataEngineerId"
-          filterable
-          placeholder="指定数据工程师"
-          size="large"
-          class="mb-3"
-          style="width: 100%"
-          popper-class="project-data-engineer-select-popper"
-        >
+        <el-select v-model="form.dataEngineerId" filterable placeholder="指定数据工程师" size="large" class="mb-3" style="width: 100%" popper-class="project-data-engineer-select-popper">
           <el-option v-for="u in dataEngineers" :key="u.id" :label="`${u.name} / ${u.role}`" :value="u.id" />
         </el-select>
-
-        <div class="field-hint mb-3">
-          {{ selectedEngineerHint }}
-        </div>
-
+        <div class="field-hint mb-3">{{ selectedEngineerHint }}</div>
         <div class="upload-card">
           <div class="upload-title">发起附件（可选）</div>
           <div class="upload-desc">可上传需求说明、背景材料或补充资料；该附件不替代后续可行性报告。</div>
@@ -53,7 +69,6 @@
           <input id="initiation-attachment-input" ref="attachmentInputRef" type="file" class="hidden-file-input" @change="handleAttachmentChange">
         </div>
       </div>
-
       <div class="footer">
         <el-button @click="$router.back()">取消</el-button>
         <el-button type="primary" :disabled="!canSubmit" :loading="submitting" @click="submit">确认发起</el-button>
@@ -68,6 +83,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 
+const props = defineProps({ embedded: { type: Boolean, default: false } })
+const emit = defineEmits(['submitted', 'cancel'])
 const router = useRouter()
 const submitting = ref(false)
 const dataEngineers = ref([])
@@ -167,7 +184,11 @@ const submit = async () => {
       ElMessage.success('项目交付发起成功')
     }
 
-    router.push('/manager/dashboard')
+    if (props.embedded) {
+      emit('submitted')
+    } else {
+      router.push('/manager/dashboard')
+    }
   } catch (e) {
     ElMessage.error(e.response?.data?.message || e.message || '发起失败')
   } finally {
