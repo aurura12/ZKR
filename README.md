@@ -2,11 +2,21 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.148` / `zhangqi_frontend:v1.168`
+**当前版本：** `zhangqi_backend:v1.148` / `zhangqi_frontend:v1.169`
 
 ## 最近变更
 
-### 2026-07-10 15:50 — 项目文件管理器全面修复和功能增强
+### 2026-07-10 16:01 — 侧边栏瘦身：跑批日志弹窗化 + AI/审计合并
+
+**原因：** Finance 侧边栏 14 个条目过于琐碎，跑批日志仅 70 行却独占一个路由。
+
+**改动位置：**
+- `lab-erp-demo/src/views/finance/BatchControlView.vue` — 新增「查看日志」按钮 + el-dialog 弹窗，内嵌跑批执行记录卡片列表
+- `lab-erp-demo/src/views/finance/FinanceAiHub.vue` — **新建**，双 tab 包装器：全局检索 | 智能助手
+- `lab-erp-demo/src/views/finance/FinanceAuditHub.vue` — **新建**，双 tab 包装器：手工调账 | 成本调整日志
+- `lab-erp-demo/src/router/financeRoutes.js` — 删除 5 个 navItem（调账、全局业务检索、全局业务助手、成本调整日志、跑批日志），新增 2 个（AI 业务、审计）
+
+**效果：** 侧边栏 14→11 条目；跑批日志在跑批控制页内一键查看；AI 和审计各聚合为一个入口
 
 **原因：** 文件系统只能浏览目录，无法选中文件，下载按钮名存实亡，缺少上传/预览/删除功能。
 
