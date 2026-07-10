@@ -518,8 +518,9 @@ public class FinanceCostBatchService {
         for (List<ProjectMemberParticipationHistory> list : historiesByProject.values()) {
             for (ProjectMemberParticipationHistory h : list) {
                 if (h != null && h.getUser() != null && h.getUser().getUserId() != null && h.getUser().getName() != null) {
-                    userNameToSysUserId.put(h.getUser().getName(), h.getUser().getUserId());
-                    userByName.putIfAbsent(h.getUser().getName(), h.getUser());
+                    String normalized = normalizeSysUserName(h.getUser().getName());
+                    userNameToSysUserId.put(normalized, h.getUser().getUserId());
+                    userByName.putIfAbsent(normalized, h.getUser());
                 }
             }
         }
@@ -531,7 +532,9 @@ public class FinanceCostBatchService {
         List<FinanceCostEntry> entries = new ArrayList<>();
 
         for (Map.Entry<String, Double> whEntry : workHoursByName.entrySet()) {
-            String userName = whEntry.getKey();
+            String rawName = whEntry.getKey();
+            String userName = normalizeAttendUserName(rawName);
+            if (userName == null) continue;
             double workHours = whEntry.getValue();
 
             String sysUserId = userNameToSysUserId.get(userName);
@@ -786,6 +789,20 @@ public class FinanceCostBatchService {
         }
     }
 
+
+    private static String normalizeSysUserName(String name) {
+        if (name == null) return null;
+        return name.endsWith("_实习") ? name.substring(0, name.length() - 3) : name;
+    }
+
+    private static String normalizeAttendUserName(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String name = raw.replaceFirst("^\\d{2}-\\d{2}-", "");
+        if (name.endsWith("主机位")) {
+            name = name.substring(0, name.length() - 3);
+        }
+        return name;
+    }
 
     private void validateLedgerMonth(String ledgerMonth) {
         if (ledgerMonth == null || !LEDGER_MONTH_PATTERN.matcher(ledgerMonth).matches()) {
