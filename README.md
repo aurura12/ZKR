@@ -2,9 +2,20 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.148` / `zhangqi_frontend:v1.169`
+**当前版本：** `zhangqi_backend:v1.149` / `zhangqi_frontend:v1.169`
 
 ## 最近变更
+
+### 2026-07-10 16:14 — 修复成本跑批 0607 以来为 0 的根因
+
+**原因：** 考勤表 `attendance_record.user_name` 与系统用户表 `sys_user.name` 存在格式差异导致全量匹配失败：
+- 系统用户名含 `_实习` 后缀（如 `刘浩洋_实习`），考勤名为纯名（如 `刘浩洋`）→ 39 人无法匹配
+- 考勤名偶有 `主机位` 后缀（如 `刘忠益主机位`）和 `MM-DD-` 日期前缀（如 `02-22-赵翌池`）
+
+**改动位置：**
+- `erp-backend/.../finance/service/FinanceCostBatchService.java:518-525,534,793-803` — 新增 `normalizeSysUserName()`（去 `_实习`）和 `normalizeAttendUserName()`（去 `主机位`、`\d{2}-\d{2}-`）方法；name→userId 映射与考勤查找两处均做归一化
+
+**效果：** 归一化后匹配率从 ~40% 升至 94%（缺 `郭健雯`/`孙鑫` 两名无系统记录用户），跑批恢复正常产出
 
 ### 2026-07-10 16:01 — 侧边栏瘦身：跑批日志弹窗化 + AI/审计合并
 
