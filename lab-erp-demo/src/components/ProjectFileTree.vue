@@ -19,7 +19,7 @@
         :key="file.id"
         class="tree-row file-row"
         :style="{ paddingLeft: ((level + 1) * 16 + 8) + 'px' }"
-        @click="download(file.id, file.name)"
+        @click="preview(file.id, file.name)"
       >
         <span class="icon">📄</span>
         <span class="name">{{ file.name }}</span>
@@ -103,19 +103,14 @@ const fetchTree = async () => {
   }
 }
 
-const download = async (fileId, filename) => {
+const preview = async (fileId, filename) => {
   try {
-    const blob = await request.get(`/api/admin/project-files/files/${fileId}/download`, { responseType: 'blob' })
+    const blob = await request.get(`/api/admin/project-files/files/${fileId}/preview`, { responseType: 'blob' })
     const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename || 'download'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
+    window.open(url, '_blank')
+    setTimeout(() => window.URL.revokeObjectURL(url), 60000)
   } catch (e) {
-    console.error('Download failed', e)
+    console.error('Preview failed', e)
   }
 }
 
@@ -141,10 +136,16 @@ watch(() => props.projectId, fetchTree)
   padding: 6px 8px;
   border-radius: 6px;
   cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
 }
 
 .tree-row:hover {
   background: var(--science-surface-muted);
+}
+
+.tree-row:active {
+  background: rgba(0, 102, 204, 0.1);
 }
 
 .tree-row .toggle {

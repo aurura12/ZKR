@@ -1,7 +1,6 @@
 <template>
   <div class="file-manager-page">
     <div class="file-manager-layout">
-      <!-- 左侧项目列表 -->
       <aside class="project-sidebar">
         <div class="sidebar-header">
           <h2>项目列表</h2>
@@ -21,7 +20,6 @@
         </div>
       </aside>
 
-      <!-- 右侧文件管理器 -->
       <main class="file-manager-main">
         <div class="toolbar">
           <el-breadcrumb separator="/">
@@ -36,19 +34,24 @@
           </el-breadcrumb>
           <div class="toolbar-actions">
             <el-button size="small" @click="showCreateFolderDialog">新建目录</el-button>
-            <el-button size="small" :disabled="!selectedFileId" @click="showMoveDialog">移动</el-button>
+            <el-button size="small" type="primary" @click="triggerUpload">上传文件</el-button>
+            <el-button size="small" :disabled="!selectedFileId" @click="previewSelected">预览</el-button>
             <el-button size="small" :disabled="!selectedFileId" @click="downloadSelected">下载</el-button>
+            <el-button size="small" :disabled="!selectedFileId" @click="showMoveDialog">移动</el-button>
+            <el-button size="small" :disabled="!selectedFileId" type="danger" @click="confirmDeleteFile">删除</el-button>
             <el-button size="small" @click="refresh">刷新</el-button>
           </div>
         </div>
 
-        <div class="file-tree">
+        <div class="file-tree" v-if="selectedProjectId">
+          <div v-if="currentFolders.length === 0 && currentFiles.length === 0" class="empty-hint">
+            当前目录为空
+          </div>
           <div class="folder-section">
             <div
               v-for="folder in currentFolders"
               :key="folder.id"
               class="tree-node folder-node"
-              :class="{ active: currentFolderId === folder.id }"
               @click="enterFolder(folder.id)"
             >
               <span class="icon">📁</span>
@@ -62,7 +65,7 @@
               class="tree-node file-node"
               :class="{ active: selectedFileId === file.id }"
               @click="selectFile(file.id)"
-              @dblclick="downloadFile(file.id)"
+              @dblclick="previewFile(file.id, file.name)"
             >
               <span class="icon">📄</span>
               <span class="name">{{ file.name }}</span>
@@ -70,10 +73,17 @@
             </div>
           </div>
         </div>
+        <div v-else class="empty-hint select-project-hint">请从左侧选择一个项目</div>
       </main>
     </div>
 
-    <!-- 新建目录对话框 -->
+    <input
+      ref="fileInputRef"
+      type="file"
+      style="display: none"
+      @change="handleFileSelected"
+    />
+
     <el-dialog v-model="createFolderVisible" title="新建目录" width="360px">
       <el-input v-model="newFolderName" placeholder="目录名称" />
       <template #footer>
@@ -82,7 +92,6 @@
       </template>
     </el-dialog>
 
-    <!-- 移动文件对话框 -->
     <el-dialog v-model="moveDialogVisible" title="移动到" width="360px">
       <el-select v-model="targetFolderId" placeholder="选择目标目录" style="width: 100%">
         <el-option label="根目录" :value="null" />
@@ -102,8 +111,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, computed, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 
 const projects = ref([])
@@ -112,6 +121,7 @@ const selectedProjectId = ref('')
 const treeData = ref({ folders: [], files: [] })
 const currentFolderId = ref(null)
 const selectedFileId = ref(null)
+const fileInputRef = ref(null)
 
 const createFolderVisible = ref(false)
 const newFolderName = ref('')
@@ -229,23 +239,100 @@ const confirmMove = async () => {
   }
 }
 
-const downloadSelected = () => {
-  if (selectedFileId.value) downloadFile(selectedFileId.value)
+const getSelectedFileName = () => {
+  const file = (treeData.value.files || []).find(f => f.id === selectedFileId.value)
+  return file ? file.name : 'download'
 }
 
-const downloadFile = async (fileId) => {
+const downloadSelected = () => {
+  if (selectedFileId.value) {
+    downloadFile(selectedFileId.value, getSelectedFileName())
+  }
+}
+
+const downloadFile = async (fileId, filename) => {
   try {
     const blob = await request.get(`/api/admin/project-files/files/${fileId}/download`, { responseType: 'blob' })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = ''
+    link.download = filename || 'download'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
   } catch (e) {
-    ElMessage.error('下载失败')
+    const msg = e.response?.data
+    if (msg instanceof Blob) {
+      ElMessage.error('下载失败')
+    } else {
+      ElMessage.error(typeof msg === 'string' ? msg : '下载失败')
+    }
+  }
+}
+
+const previewSelected = () => {
+  if (selectedFileId.value) {
+    previewFile(selectedFileId.value, getSelectedFileName())
+  }
+}
+
+const previewFile = async (fileId, filename) => {
+  try {
+    const blob = await request.get(`/api/admin/project-files/files/${fileId}/preview`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    setTimeout(() => window.URL.revokeObjectURL(url), 60000)
+  } catch (e) {
+    ElMessage.error('预览失败')
+  }
+}
+
+const triggerUpload = () => {
+  if (!selectedProjectId.value) {
+    ElMessage.warning('请先选择一个项目')
+    return
+  }
+  fileInputRef.value?.click()
+}
+
+const handleFileSelected = async (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+  const formData = new FormData()
+  formData.append('file', file)
+  if (currentFolderId.value !== null) {
+    formData.append('folderId', currentFolderId.value)
+  }
+  try {
+    await request.post(`/api/admin/project-files/${selectedProjectId.value}/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    ElMessage.success('文件上传成功')
+    fetchTree()
+  } catch (e) {
+    const msg = e.response?.data?.message || '文件上传失败'
+    ElMessage.error(msg)
+  }
+  event.target.value = ''
+}
+
+const confirmDeleteFile = async () => {
+  const fileName = getSelectedFileName()
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除文件「${fileName}」吗？`,
+      '删除确认',
+      { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' }
+    )
+    await request.delete(`/api/admin/project-files/files/${selectedFileId.value}?deletePhysical=true`)
+    ElMessage.success('文件删除成功')
+    selectedFileId.value = null
+    fetchTree()
+  } catch (e) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e.response?.data?.message || '文件删除失败')
+    }
   }
 }
 
@@ -329,11 +416,13 @@ onMounted(fetchProjects)
   padding: 12px 16px;
   border-bottom: 1px solid var(--border-soft);
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .toolbar-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .file-tree {
@@ -341,13 +430,25 @@ onMounted(fetchProjects)
   padding: 12px 16px;
 }
 
+.empty-hint {
+  color: var(--text-sub);
+  padding: 24px 12px;
+  text-align: center;
+}
+
+.select-project-hint {
+  padding-top: 60px;
+}
+
 .tree-node {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-radius: 8px;
   cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
 }
 
 .tree-node:hover {
@@ -355,7 +456,8 @@ onMounted(fetchProjects)
 }
 
 .tree-node.active {
-  background: var(--science-blue-soft);
+  background: rgba(0, 102, 204, 0.12);
+  outline: 1px solid rgba(0, 102, 204, 0.3);
 }
 
 .tree-node .name {
@@ -366,7 +468,15 @@ onMounted(fetchProjects)
 }
 
 .folder-section {
-  margin-bottom: 12px;
+  margin-bottom: 6px;
+}
+
+.folder-node .icon {
+  font-size: 16px;
+}
+
+.file-node {
+  padding: 10px 14px 10px 30px;
 }
 
 .file-node .source-tag {
@@ -375,6 +485,7 @@ onMounted(fetchProjects)
   background: var(--science-surface-muted);
   padding: 2px 6px;
   border-radius: 4px;
+  flex-shrink: 0;
 }
 
 @media (max-width: 768px) {

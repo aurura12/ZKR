@@ -18,7 +18,7 @@ services:
 
   erp-backend:
     container_name: zkr-erp-backend
-    image: 127.0.0.1:5555/zhangqi_backend:v1.147
+    image: 127.0.0.1:5555/zhangqi_backend:v1.148
     restart: unless-stopped
     depends_on:
       postgres:
@@ -120,7 +120,7 @@ services:
 
   lab-erp-demo:
     container_name: zkr-lab-erp-demo
-    image: 127.0.0.1:5555/zhangqi_frontend:v1.167
+    image: 127.0.0.1:5555/zhangqi_frontend:v1.168
     restart: unless-stopped
     ports:
       - "${FRONTEND_PUBLIC_PORT}:80"

@@ -6,12 +6,14 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.net.URLEncoder;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -76,21 +78,71 @@ public class ProjectFileManagerController {
     public ResponseEntity<byte[]> downloadFile(@PathVariable Long mappingId) {
         requireProvisionAdmin();
         byte[] content = fileManagerService.downloadFile(mappingId);
-
-        ProjectFileMapping mapping = null; // avoid second query if possible; re-query for filename
-        // service could return pair, but here we just use generic name
         String filename = "download";
         try {
-            mapping = fileManagerService.getMapping(mappingId);
-            if (mapping != null) filename = mapping.getDisplayName();
+            ProjectFileMapping mapping = fileManagerService.getMapping(mappingId);
+            if (mapping != null && mapping.getDisplayName() != null) {
+                filename = mapping.getDisplayName();
+            }
         } catch (Exception ignored) {
         }
 
-        String encoded = URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20");
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-        headers.setContentDispositionFormData("attachment", encoded);
+        headers.setContentDisposition(ContentDisposition.attachment()
+                .filename(filename, StandardCharsets.UTF_8)
+                .build());
         return ResponseEntity.ok().headers(headers).body(content);
+    }
+
+    @GetMapping("/files/{mappingId}/preview")
+    public ResponseEntity<byte[]> previewFile(@PathVariable Long mappingId) {
+        requireProvisionAdmin();
+        byte[] content = fileManagerService.downloadFile(mappingId);
+        String filename = "preview";
+        try {
+            ProjectFileMapping mapping = fileManagerService.getMapping(mappingId);
+            if (mapping != null && mapping.getDisplayName() != null) {
+                filename = mapping.getDisplayName();
+            }
+        } catch (Exception ignored) {
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        String mimeType = fileManagerService.getMimeType(filename);
+        headers.setContentType(MediaType.parseMediaType(mimeType));
+        ContentDisposition inline = ContentDisposition.inline()
+                .filename(filename, StandardCharsets.UTF_8)
+                .build();
+        headers.setContentDisposition(inline);
+        return ResponseEntity.ok().headers(headers).body(content);
+    }
+
+    @PostMapping("/{projectId}/upload")
+    public ResponseEntity<Map<String, Object>> uploadFile(
+            @PathVariable String projectId,
+            @RequestParam(required = false) Long folderId,
+            @RequestParam("file") MultipartFile file) {
+        requireProvisionAdmin();
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("上传文件不能为空");
+        }
+        try {
+            Map<String, Object> result = fileManagerService.uploadFile(
+                    projectId, folderId, file.getOriginalFilename(), file.getBytes());
+            return ResponseEntity.ok(result);
+        } catch (IOException e) {
+            throw new RuntimeException("文件上传失败: " + e.getMessage(), e);
+        }
+    }
+
+    @DeleteMapping("/files/{mappingId}")
+    public ResponseEntity<Map<String, String>> deleteFile(
+            @PathVariable Long mappingId,
+            @RequestParam(defaultValue = "false") boolean deletePhysical) {
+        requireProvisionAdmin();
+        fileManagerService.deleteFile(mappingId, deletePhysical);
+        return ResponseEntity.ok(Map.of("message", "文件删除成功"));
     }
 
     @PostMapping("/scan")

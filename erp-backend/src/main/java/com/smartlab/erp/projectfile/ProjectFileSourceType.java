@@ -5,7 +5,8 @@ public enum ProjectFileSourceType {
     EXECUTION_FILE("执行文件"),
     PROJECT_EXPENSE_FILE("费用报销"),
     FINANCE_EXPENSE_SUBMISSION("财务报销"),
-    PROJECT_COST_ADJUSTMENT("成本调整");
+    PROJECT_COST_ADJUSTMENT("成本调整"),
+    UPLOADED_FILE("上传文件");
 
     private final String defaultFolderName;
 

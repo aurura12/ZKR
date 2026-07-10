@@ -167,7 +167,80 @@ public class ProjectFileManagerService {
             case PROJECT_EXPENSE_FILE -> downloadProjectExpenseFile(mapping.getSourceId());
             case FINANCE_EXPENSE_SUBMISSION -> downloadFinanceExpenseSubmission(mapping.getSourceId());
             case PROJECT_COST_ADJUSTMENT -> downloadProjectCostAdjustment(mapping.getSourceId());
+            case UPLOADED_FILE -> downloadUploadedFile(mapping.getSourceId());
         };
+    }
+
+    private byte[] downloadUploadedFile(String sourceId) {
+        Path path = Path.of(uploadsDir, sourceId);
+        return readBytes(path);
+    }
+
+    @Transactional
+    public Map<String, Object> uploadFile(String projectId, Long folderId, String originalFilename, byte[] content) {
+        String relativePath = "project-files/" + projectId + "/" + UUID.randomUUID() + "_" + originalFilename;
+        Path targetPath = Path.of(uploadsDir, relativePath);
+        try {
+            Files.createDirectories(targetPath.getParent());
+            Files.write(targetPath, content);
+        } catch (IOException e) {
+            throw new RuntimeException("文件保存失败: " + e.getMessage(), e);
+        }
+
+        ProjectFileMapping mapping = new ProjectFileMapping();
+        mapping.setProjectId(projectId);
+        mapping.setFolderId(folderId);
+        mapping.setSourceType(ProjectFileSourceType.UPLOADED_FILE);
+        mapping.setSourceId(relativePath);
+        mapping.setDisplayName(originalFilename);
+        mappingRepository.save(mapping);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", mapping.getId());
+        result.put("name", mapping.getDisplayName());
+        result.put("sourceType", mapping.getSourceType());
+        return result;
+    }
+
+    @Transactional
+    public void deleteFile(Long mappingId, boolean deletePhysical) {
+        ProjectFileMapping mapping = getMapping(mappingId);
+        if (deletePhysical && mapping.getSourceType() == ProjectFileSourceType.UPLOADED_FILE) {
+            Path path = Path.of(uploadsDir, mapping.getSourceId());
+            try {
+                Files.deleteIfExists(path);
+            } catch (IOException e) {
+                log.warn("删除物理文件失败: {}", path, e);
+            }
+        }
+        mappingRepository.delete(mapping);
+    }
+
+    public byte[] downloadFileBytes(Long mappingId) {
+        return downloadFile(mappingId);
+    }
+
+    public String getMimeType(String filename) {
+        if (filename == null) return "application/octet-stream";
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".pdf")) return "application/pdf";
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".gif")) return "image/gif";
+        if (lower.endsWith(".webp")) return "image/webp";
+        if (lower.endsWith(".svg")) return "image/svg+xml";
+        if (lower.endsWith(".txt")) return "text/plain";
+        if (lower.endsWith(".html") || lower.endsWith(".htm")) return "text/html";
+        if (lower.endsWith(".json")) return "application/json";
+        if (lower.endsWith(".xml")) return "application/xml";
+        if (lower.endsWith(".csv")) return "text/csv";
+        if (lower.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        if (lower.endsWith(".xls")) return "application/vnd.ms-excel";
+        if (lower.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        if (lower.endsWith(".doc")) return "application/msword";
+        if (lower.endsWith(".pptx")) return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+        if (lower.endsWith(".zip")) return "application/zip";
+        return "application/octet-stream";
     }
 
     private byte[] downloadProjectAsset(String sourceId) {
