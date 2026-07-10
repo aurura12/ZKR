@@ -51,8 +51,8 @@ export const financeNavigationItems = [
     label: '跑批控制',
     eyebrow: '系统',
     title: '跑批控制台',
-    description: '管理系统定时跑批任务，支持暂停、手动触发和项目级精细控制。',
-    highlights: ['暂停/启用', '手动触发', '项目级控制']
+    description: '管理系统定时跑批任务，支持暂停、手动触发、项目级精细控制和执行日志。',
+    highlights: ['暂停/启用', '手动触发', '项目级控制', '执行日志']
   },
   {
     path: '/finance/clearing',
@@ -73,13 +73,13 @@ export const financeNavigationItems = [
     highlights: ['状态分组', '分红单', '确认面板']
   },
   {
-    path: '/finance/adjustments',
-    routeName: 'finance-adjustments',
-    label: '调账',
+    path: '/finance/audit',
+    routeName: 'finance-audit',
+    label: '审计',
     eyebrow: '审计',
-    title: '手工调账中心',
-    description: '借贷调整与审计记录。',
-    highlights: ['调账录入', '审计日志', '校验结果']
+    title: '审计中心',
+    description: '手工调账录入与成本调整操作追溯。',
+    highlights: ['调账录入', '审计日志', '成本调整追溯']
   },
   {
     path: '/finance/expenses',
@@ -91,22 +91,13 @@ export const financeNavigationItems = [
     highlights: ['采购申请', '差旅报销', '发票下载']
   },
   {
-    path: '/finance/rag',
-    routeName: 'finance-rag',
-    label: '全局业务检索',
-    eyebrow: '业务问答',
-    title: '全局业务检索',
-    description: '',
-    highlights: ['全局检索', '引用列表', '上下文块']
-  },
-  {
-    path: '/finance/ai',
-    routeName: 'finance-ai',
-    label: '全局业务助手',
-    eyebrow: '业务问答',
-    title: '全局业务智能助手',
-    description: '',
-    highlights: ['会话流', '全局上下文', '助手动作']
+    path: '/finance/ai-hub',
+    routeName: 'finance-ai-hub',
+    label: 'AI 业务',
+    eyebrow: 'AI',
+    title: 'AI 业务中心',
+    description: '全局业务检索与智能助手，自然语言问答和上下文感知。',
+    highlights: ['全局检索', '智能助手', '上下文块']
   },
   {
     path: '/finance/attendance',
@@ -116,24 +107,6 @@ export const financeNavigationItems = [
     title: '考勤工资',
     description: '钉钉考勤打卡数据总览与纠偏。',
     highlights: ['打卡明细', '月度汇总', '纠偏申请']
-  },
-  {
-    path: '/finance/cost-adjustment-log',
-    routeName: 'finance-cost-adjustment-log',
-    label: '成本调整日志',
-    eyebrow: '审计',
-    title: '成本调整日志',
-    description: '追溯全部项目的CEO成本调整记录。',
-    highlights: ['调整明细', '操作人', '金额', '发票']
-  },
-  {
-    path: '/finance/batch-log',
-    routeName: 'finance-batch-log',
-    label: '跑批日志',
-    eyebrow: '运维',
-    title: '成本跑批日志',
-    description: '每日成本跑批执行记录，每天仅执行一次。',
-    highlights: ['执行状态', '产出记录', '失败原因']
   },
   {
     path: '/finance/labor-relations',
@@ -212,7 +185,7 @@ export const financeRoutes = [
       }),
       withFinanceMeta({
         ...financeNavigationItems[6],
-        component: () => import('@/views/finance/AdjustmentCenterView.vue')
+        component: () => import('@/views/finance/FinanceAuditHub.vue')
       }),
       withFinanceMeta({
         ...financeNavigationItems[7],
@@ -220,26 +193,14 @@ export const financeRoutes = [
       }),
       withFinanceMeta({
         ...financeNavigationItems[8],
-        component: () => import('@/views/finance/RagSearchView.vue')
+        component: () => import('@/views/finance/FinanceAiHub.vue')
       }),
       withFinanceMeta({
         ...financeNavigationItems[9],
-        component: () => import('@/views/finance/FinanceAiChatView.vue')
-      }),
-      withFinanceMeta({
-        ...financeNavigationItems[10],
         component: () => import('@/views/finance/FinanceAttendanceView.vue')
       }),
       withFinanceMeta({
-        ...financeNavigationItems[11],
-        component: () => import('@/views/finance/CostAdjustmentLogView.vue')
-      }),
-      withFinanceMeta({
-        ...financeNavigationItems[12],
-        component: () => import('@/views/finance/BatchLogView.vue')
-      }),
-      withFinanceMeta({
-        ...financeNavigationItems[13],
+        ...financeNavigationItems[10],
         component: () => import('@/views/finance/LaborRelationsView.vue')
       })
     ]

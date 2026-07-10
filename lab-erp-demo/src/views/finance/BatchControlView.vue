@@ -16,7 +16,10 @@
           <span>全局任务</span>
           <h2>跑批作业</h2>
         </div>
-        <el-button type="primary" @click="fetchJobs" :loading="loading">刷新</el-button>
+        <div class="section-actions">
+          <el-button type="primary" @click="fetchJobs" :loading="loading">刷新</el-button>
+          <el-button @click="openBatchLog">查看日志</el-button>
+        </div>
       </header>
 
       <el-table :data="jobs" v-loading="loading" stripe style="width:100%;margin-top:16px">
@@ -96,12 +99,36 @@
         </el-table-column>
       </el-table>
     </article>
+
+    <el-dialog v-model="logVisible" title="成本跑批日志" width="720px" destroy-on-close>
+      <div v-loading="logLoading">
+        <div v-if="!logRows.length && !logLoading" class="empty-state">暂无跑批记录</div>
+        <div v-else class="log-list">
+          <div v-for="row in logRows" :key="row.id" class="log-card">
+            <div class="log-top">
+              <span class="log-status" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
+              <span class="log-time">{{ formatTime(row.startedAt || row.createdAt) }}</span>
+            </div>
+            <div class="log-body">
+              <div class="log-month">账期: {{ row.ledgerMonth }}</div>
+              <div v-if="row.batchDate" class="log-date">执行日: {{ row.batchDate }}</div>
+              <div v-if="row.generatedRecordCount != null" class="log-count">产出记录: {{ row.generatedRecordCount }} 条</div>
+              <div v-if="row.remark" class="log-remark">{{ row.remark }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="logVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import request from '@/utils/request'
 import {
   getBatchJobs,
   updateBatchJob,
@@ -116,11 +143,30 @@ const error = ref('')
 const jobs = ref([])
 const projectControls = ref([])
 
+const logVisible = ref(false)
+const logLoading = ref(false)
+const logRows = ref([])
+
 const statusType = status => {
   if (status === 'COMPLETED') return 'success'
   if (status === 'FAILED') return 'danger'
   if (status === 'RUNNING') return 'warning'
   return 'info'
+}
+
+const statusLabel = s => ({
+  COMPLETED: '成功', RUNNING: '执行中', FAILED: '失败' }[s] || s)
+
+const statusClass = s => ({
+  COMPLETED: 'status-completed',
+  RUNNING: 'status-running',
+  FAILED: 'status-failed' }[s] || '')
+
+const formatTime = v => {
+  if (!v) return ''
+  const d = new Date(v)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 const fetchJobs = async () => {
@@ -195,9 +241,26 @@ const updateProjectNote = async (row, note) => {
   }
 }
 
+const fetchBatchLog = async () => {
+  logLoading.value = true
+  try {
+    logRows.value = await request.get('/api/finance/batch-log')
+  } catch (e) {
+    logRows.value = []
+  } finally {
+    logLoading.value = false
+  }
+}
+
+const openBatchLog = () => {
+  logVisible.value = true
+  if (!logRows.value.length) fetchBatchLog()
+}
+
 onMounted(() => {
   fetchJobs()
   fetchProjectControls()
+  fetchBatchLog()
 })
 </script>
 
@@ -222,8 +285,7 @@ onMounted(() => {
   background-image: linear-gradient(135deg, rgba(12, 74, 110, 0.08), rgba(217, 249, 157, 0.22));
 }
 .eyebrow,
-.section-header span,
-.metric-label {
+.section-header span {
   margin: 0 0 8px;
   font-size: 12px;
   letter-spacing: 0.14em;
@@ -248,10 +310,27 @@ h2 { font-size: 22px; }
   justify-content: space-between;
   align-items: flex-start;
 }
+.section-actions {
+  display: flex;
+  gap: 8px;
+}
 .feedback-banner {
   padding: 14px 18px;
   border-radius: 18px;
   border: 1px solid rgba(220, 38, 38, 0.18);
 }
 .feedback-banner.error { color: #b91c1c; }
+
+.empty-state { color: #94a3b8; padding: 24px; text-align: center; }
+.log-list { max-height: 480px; overflow-y: auto; }
+.log-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 10px; }
+.log-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.log-status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+.status-completed { background: #e8f5e9; color: #2e7d32; }
+.status-running { background: #fff3e0; color: #e65100; }
+.status-failed { background: #ffebee; color: #c62828; }
+.log-time { font-size: 11px; color: #94a3b8; }
+.log-month { font-size: 14px; font-weight: 600; }
+.log-date, .log-count { font-size: 13px; color: #475569; margin-top: 2px; }
+.log-remark { font-size: 12px; color: #c62828; margin-top: 4px; word-break: break-all; }
 </style>
