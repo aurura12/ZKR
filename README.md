@@ -2,11 +2,22 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.147` / `zhangqi_frontend:v1.167`
+**当前版本：** `zhangqi_backend:v1.148` / `zhangqi_frontend:v1.168`
 
 ## 最近变更
 
-### 2026-07-08 15:49 — 修复发起弹窗确认按钮无响应（第二版）
+### 2026-07-10 15:50 — 项目文件管理器全面修复和功能增强
+
+**原因：** 文件系统只能浏览目录，无法选中文件，下载按钮名存实亡，缺少上传/预览/删除功能。
+
+**改动位置：**
+- `erp-backend/.../projectfile/ProjectFileSourceType.java` — 新增 `UPLOADED_FILE` 枚举值
+- `erp-backend/.../projectfile/ProjectFileManagerService.java:161-241` — 新增 `uploadFile`、`deleteFile`、`downloadUploadedFile`、`getMimeType` 方法
+- `erp-backend/.../projectfile/ProjectFileManagerController.java:75-127` — 修复下载 Content-Disposition 双编码 bug；新增 `previewFile`（inline + 正确 MIME 类型）、`uploadFile`（multipart）、`deleteFile` 端点
+- `lab-erp-demo/src/views/ProjectFileManagerView.vue` — 修复文件节点不可点击（替换未定义 CSS 变量 `--science-blue-soft`）；新增预览/上传/删除按钮和对应逻辑；修复 `link.download` 空文件名
+- `lab-erp-demo/src/components/ProjectFileTree.vue` — 文件单点改为预览打开新标签页，hover/active 状态修复
+
+**效果：** 文件节点可点击选中并高亮显示；双击预览（新标签页 inline 展示）；工具栏支持下载/预览/移动/删除/上传完整操作；上传文件保存到 `uploads/project-files/{projectId}/` 目录。
 
 **原因：** `App.vue` 通过 ref 调用子组件 submit 方法，但三个子组件均使用 `<script setup>` 默认闭包，未 `defineExpose`，父组件调用时 `confirmCreate`/`submit` 为 `undefined`，静默跳过无效果。
 
