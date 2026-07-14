@@ -120,10 +120,10 @@
                     />
                   </template>
                 </el-table-column>
-                <el-table-column prop="status" label="项目状态" width="100">
+                <el-table-column prop="status" label="项目状态" width="140">
                   <template #default="{ row }">
                     <el-tag :type="getStatusType(row.status)" size="small">
-                      {{ row.status }}
+                      {{ formatStatus(row.status) }}
                     </el-tag>
                   </template>
                 </el-table-column>
@@ -212,10 +212,13 @@ const memberCount = computed(() => {
   return dashboardData.value?.members?.length || 0
 })
 
+// 结算/归档/搁置等终结状态
+const FINAL_STATUSES = new Set(['SETTLEMENT', 'COMPLETED', 'SHELVED', 'ARCHIVE', 'ARCHIVED_TO_MIDDLEWARE'])
+
 const activeProjectCount = computed(() => {
   if (!dashboardData.value?.members) return 0
   return dashboardData.value.members.reduce((count, member) => {
-    return count + member.projects.filter(p => p.status === 'ACTIVE').length
+    return count + member.projects.filter(p => !FINAL_STATUSES.has(p.status)).length
   }, 0)
 })
 
@@ -285,13 +288,43 @@ const formatFlowType = (flowType) => {
 }
 
 const getStatusType = (status) => {
-  const typeMap = {
-    'ACTIVE': 'success',
-    'COMPLETED': 'info',
-    'ARCHIVED': 'warning',
-    'CANCELLED': 'danger'
+  if (FINAL_STATUSES.has(status)) {
+    return status === 'COMPLETED' ? 'primary' : 'warning'
   }
-  return typeMap[status] || 'info'
+  return 'success'
+}
+
+const formatStatus = (status) => {
+  const map = {
+    'LEAD': '线索',
+    'BIDDING': '投标',
+    'INITIATED': '发起阶段',
+    'TEAM_FORMATION': '组队阶段',
+    'IMPLEMENTING': '实施',
+    'ACCEPTANCE': '验收',
+    'SETTLEMENT': '结算归档',
+    'COMPLETED': '已完成',
+    'IDEA': '创意孵化',
+    'PROMOTION': '推广组队',
+    'DEMO_EXECUTION': 'Demo实施',
+    'MEETING_DECISION': '会议决策',
+    'TESTING': '测试上线',
+    'LAUNCHED': '已上线',
+    'SHELVED': '已搁置',
+    'INIT': '发起',
+    'BLUEPRINT': '小群蓝图',
+    'EXPANSION': '大群深化',
+    'DESIGN': '实施前设计',
+    'EXECUTION': '施工执行',
+    'EVALUATION': '评测',
+    'ARCHIVE': '入库完成',
+    'PROBE': '初探',
+    'DEEPENING': '深化',
+    'PRE_EXECUTION': '实施前定调',
+    'CONSTRUCTION': '施工',
+    'ARCHIVED_TO_MIDDLEWARE': '入库中间件'
+  }
+  return map[status] || status
 }
 
 const getProgressColor = (weight) => {

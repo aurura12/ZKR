@@ -24,6 +24,9 @@ public interface SysProjectMemberRepository extends JpaRepository<SysProjectMemb
     @Query("SELECT m FROM SysProjectMember m JOIN FETCH m.user WHERE m.projectId IN :projectIds")
     List<SysProjectMember> findByProjectIdInWithUser(@Param("projectIds") List<String> projectIds);
 
+    @Query("SELECT m FROM SysProjectMember m JOIN FETCH m.user WHERE m.user.userId = :userId")
+    List<SysProjectMember> findByUserUserIdWithUser(@Param("userId") String userId);
+
     /**
      * ✅ 核心修复：添加这个缺失的方法
      * 根据 "项目ID" 和 "用户ID" 查找单个成员记录

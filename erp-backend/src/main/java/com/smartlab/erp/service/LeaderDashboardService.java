@@ -65,10 +65,7 @@ public class LeaderDashboardService {
 
     private LeaderDashboardResponse.MemberProjectInfo buildMemberProjectInfo(User user) {
         // 获取该成员参与的所有项目
-        List<SysProjectMember> projectMembers = projectMemberRepository.findByProjectIdWithUser(user.getUserId())
-                .stream()
-                .filter(pm -> pm.getUser() != null && pm.getUser().getUserId().equals(user.getUserId()))
-                .collect(Collectors.toList());
+        List<SysProjectMember> projectMembers = projectMemberRepository.findByUserUserIdWithUser(user.getUserId());
 
         // 重新查询以获取完整的项目信息
         List<String> projectIds = projectMembers.stream()
@@ -159,6 +156,18 @@ public class LeaderDashboardService {
     public void removeRoleFromUser(String userId, String role) {
         userRoleRepository.findByUserIdAndRole(userId, role.toUpperCase())
                 .ifPresent(userRoleRepository::delete);
+    }
+
+    /**
+     * 获取某角色的当前队长
+     */
+    @Transactional(readOnly = true)
+    public User findCurrentLeader(String role) {
+        return userRoleRepository.findLeadersByRoleWithUser(role.toUpperCase())
+                .stream()
+                .findFirst()
+                .map(UserRole::getUser)
+                .orElse(null);
     }
 
     /**

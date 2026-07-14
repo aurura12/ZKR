@@ -27,6 +27,13 @@ export function assignRole(data) {
 export function removeRole(data) {
     return request.delete('/api/leader/remove-role', { data })
 }
+/** 
+ * 获取某角色的当前队长信息
+ */
+export function getCurrentLeader(role) {
+    return request.get('/api/leader/current-leader', { params: { role } })
+}
+
 /**
  * 获取所有用户列表
  */
