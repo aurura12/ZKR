@@ -217,9 +217,11 @@ const FINAL_STATUSES = new Set(['SETTLEMENT', 'COMPLETED', 'SHELVED', 'ARCHIVE',
 
 const activeProjectCount = computed(() => {
   if (!dashboardData.value?.members) return 0
-  return dashboardData.value.members.reduce((count, member) => {
-    return count + member.projects.filter(p => !FINAL_STATUSES.has(p.status)).length
-  }, 0)
+  const allProjects = dashboardData.value.members.flatMap(m => m.projects)
+  const uniqueActiveProjects = new Set(
+    allProjects.filter(p => !FINAL_STATUSES.has(p.status)).map(p => p.projectId)
+  )
+  return uniqueActiveProjects.size
 })
 
 const totalWeight = computed(() => {
