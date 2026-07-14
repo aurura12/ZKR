@@ -1139,37 +1139,37 @@
       <el-form label-position="top" :model="promotionSetupForm">
         <el-form-item label="推广执行人 (Promotion IC)" required>
           <el-select v-model="promotionSetupForm.promotionIcUserId" filterable placeholder="选择推广执行人" style="width: 100%">
-            <el-option v-for="user in productMemberAddCandidates" :key="`promotion-ic-${user.userId}`" :label="user.label" :value="user.userId" />
+            <el-option v-for="user in allUserCandidates" :key="`promotion-ic-${user.userId}`" :label="user.label" :value="user.userId" />
           </el-select>
         </el-form-item>
         <el-form-item label="推广参与成员 (至少2人，含主理人)" required>
           <el-select v-model="promotionSetupForm.promotionMemberIds" multiple filterable placeholder="选择推广成员" style="width: 100%">
-            <el-option v-for="user in productMemberAddCandidates" :key="`promotion-${user.userId}`" :label="user.label" :value="user.userId" />
+            <el-option v-for="user in allUserCandidates" :key="`promotion-${user.userId}`" :label="user.label" :value="user.userId" />
           </el-select>
         </el-form-item>
         <el-form-item label="Demo 工程师 (精确4人)" required>
           <el-select v-model="promotionSetupForm.demoEngineerIds" multiple filterable placeholder="选择Demo工程师" style="width: 100%">
-            <el-option v-for="user in productMemberAddCandidates" :key="`demo-${user.userId}`" :label="user.label" :value="user.userId" />
+            <el-option v-for="user in allUserCandidates" :key="`demo-${user.userId}`" :label="user.label" :value="user.userId" />
           </el-select>
         </el-form-item>
         <el-form-item label="工程文件责任人" required>
           <el-select v-model="promotionSetupForm.demoEngineeringOwnerUserId" filterable placeholder="选择工程文件上传责任人" style="width: 100%">
-            <el-option v-for="user in demoResponsibleCandidates" :key="`owner-engineering-${user.id}`" :label="user.label" :value="user.id" />
+            <el-option v-for="user in demoResponsibleCandidates" :key="`owner-engineering-${user.userId}`" :label="user.label" :value="user.userId" />
           </el-select>
         </el-form-item>
         <el-form-item label="Demo 演示责任人" required>
           <el-select v-model="promotionSetupForm.demoFileOwnerUserId" filterable placeholder="选择 Demo 演示上传责任人" style="width: 100%">
-            <el-option v-for="user in demoResponsibleCandidates" :key="`owner-demo-${user.id}`" :label="user.label" :value="user.id" />
+            <el-option v-for="user in demoResponsibleCandidates" :key="`owner-demo-${user.userId}`" :label="user.label" :value="user.userId" />
           </el-select>
         </el-form-item>
         <el-form-item label="描述文档责任人" required>
           <el-select v-model="promotionSetupForm.demoDescriptionOwnerUserId" filterable placeholder="选择描述文档上传责任人" style="width: 100%">
-            <el-option v-for="user in demoResponsibleCandidates" :key="`owner-description-${user.id}`" :label="user.label" :value="user.id" />
+            <el-option v-for="user in demoResponsibleCandidates" :key="`owner-description-${user.userId}`" :label="user.label" :value="user.userId" />
           </el-select>
         </el-form-item>
         <el-form-item label="可行性验证责任人" required>
           <el-select v-model="promotionSetupForm.demoFeasibilityOwnerUserId" filterable placeholder="选择可行性验证上传责任人" style="width: 100%">
-            <el-option v-for="user in demoResponsibleCandidates" :key="`owner-feasibility-${user.id}`" :label="user.label" :value="user.id" />
+            <el-option v-for="user in demoResponsibleCandidates" :key="`owner-feasibility-${user.userId}`" :label="user.label" :value="user.userId" />
           </el-select>
         </el-form-item>
         <el-form-item label="项目评级" required>
@@ -1277,7 +1277,7 @@
       <div class="member-manage-section">
         <div class="execution-label">新增成员</div>
         <el-select v-model="productMemberForm.addUserIds" multiple filterable placeholder="选择要新增的成员" style="width: 100%">
-          <el-option v-for="user in productMemberAddCandidates" :key="`add-${user.id}`" :label="user.label" :value="user.id" />
+          <el-option v-for="user in productMemberAddCandidates" :key="`add-${user.userId}`" :label="user.label" :value="user.userId" />
         </el-select>
         <div class="action-row">
           <el-button type="primary" :loading="productMemberLoading" @click="submitAddProductMembers">批量新增</el-button>
@@ -2176,6 +2176,12 @@ const productMemberAddCandidates = computed(() => {
       ...user,
       label: `${user.name || user.username || user.id} / ${formatRole(user.role || 'MEMBER')}`
     }))
+})
+const allUserCandidates = computed(() => {
+  return allUsers.value.map(user => ({
+    ...user,
+    label: `${user.name || user.username || user.id} / ${formatRole(user.role || 'MEMBER')}`
+  }))
 })
 const researchMemberAddCandidates = computed(() => {
   const existingIds = new Set((project.value?.members || []).map(member => String(member.userId || '')))
