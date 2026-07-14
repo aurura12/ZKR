@@ -2,9 +2,23 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.149` / `zhangqi_frontend:v1.169`
+**当前版本：** `zhangqi_backend:v1.150` / `zhangqi_frontend:v1.170`
 
 ## 最近变更
+
+### 2026-07-14 16:50 — 个人采购申请弹窗化，归属国科九天公司，含OCR台账
+
+**原因：** 替换旧的整页表单，改为弹窗+三tab（合同/采购/报销），复用项目详情 dialog 和完整审批→OCR 流程，归属主体从项目变为国科九天公司。
+
+**改动位置：**
+- `erp-backend/.../config/CompanyProjectInitializer.java` — **新建**，启动时创建 projectId=COMPANY 的公司项目
+- `erp-backend/.../controller/ProjectController.java:310-325` — 新增 `POST /api/projects/expenses/company` 端点
+- `lab-erp-demo/src/components/CompanyExpenseDialog.vue` — **新建**，三tab弹窗
+- `lab-erp-demo/src/App.vue:65,531` — 按钮改为弹窗
+- `lab-erp-demo/src/views/UserProfile.vue:51` — 同上
+- `lab-erp-demo/src/router/index.js` — 删除旧路由
+
+**效果：** ZIP 附件自动拆包生成 InvoiceLedger，审批通过后自动触发 PaddleOCR 识别形成台账
 
 ### 2026-07-10 16:14 — 修复成本跑批 0607 以来为 0 的根因
 
