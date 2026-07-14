@@ -1139,17 +1139,17 @@
       <el-form label-position="top" :model="promotionSetupForm">
         <el-form-item label="推广执行人 (Promotion IC)" required>
           <el-select v-model="promotionSetupForm.promotionIcUserId" filterable placeholder="选择推广执行人" style="width: 100%">
-            <el-option v-for="user in productMemberAddCandidates" :key="`promotion-ic-${user.id}`" :label="user.label" :value="user.id" />
+            <el-option v-for="user in productMemberAddCandidates" :key="`promotion-ic-${user.userId}`" :label="user.label" :value="user.userId" />
           </el-select>
         </el-form-item>
         <el-form-item label="推广参与成员 (至少2人，含主理人)" required>
           <el-select v-model="promotionSetupForm.promotionMemberIds" multiple filterable placeholder="选择推广成员" style="width: 100%">
-            <el-option v-for="user in productMemberAddCandidates" :key="`promotion-${user.id}`" :label="user.label" :value="user.id" />
+            <el-option v-for="user in productMemberAddCandidates" :key="`promotion-${user.userId}`" :label="user.label" :value="user.userId" />
           </el-select>
         </el-form-item>
         <el-form-item label="Demo 工程师 (精确4人)" required>
           <el-select v-model="promotionSetupForm.demoEngineerIds" multiple filterable placeholder="选择Demo工程师" style="width: 100%">
-            <el-option v-for="user in productMemberAddCandidates" :key="`demo-${user.id}`" :label="user.label" :value="user.id" />
+            <el-option v-for="user in productMemberAddCandidates" :key="`demo-${user.userId}`" :label="user.label" :value="user.userId" />
           </el-select>
         </el-form-item>
         <el-form-item label="工程文件责任人" required>
