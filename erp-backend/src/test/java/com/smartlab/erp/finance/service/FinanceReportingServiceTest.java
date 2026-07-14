@@ -30,6 +30,7 @@ import com.smartlab.erp.repository.SysProjectMemberRepository;
 import com.smartlab.erp.repository.ProductIdeaDetailRepository;
 import com.smartlab.erp.repository.ResearchProjectProfileRepository;
 import com.smartlab.erp.repository.UserRepository;
+import com.smartlab.erp.repository.CompanyExpenseRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -75,6 +76,8 @@ class FinanceReportingServiceTest {
     private ResearchProjectProfileRepository researchProjectProfileRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private CompanyExpenseRepository companyExpenseRepository;
 
     private FinanceReportingService financeReportingService;
 
@@ -92,7 +95,8 @@ class FinanceReportingServiceTest {
                 sysProjectMemberRepository,
                 productIdeaDetailRepository,
                 researchProjectProfileRepository,
-                userRepository
+                userRepository,
+                companyExpenseRepository
         );
     }
 
