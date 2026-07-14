@@ -48,7 +48,7 @@
         <div class="section">
           <h3>快速操作</h3>
           <div class="action-buttons">
-            <button v-if="userStore.isErpLoggedIn" class="action-btn" @click="router.push('/erp/personal-procurement')">
+            <button v-if="userStore.isErpLoggedIn" class="action-btn" @click="showCompanyExpense = true">
               <span>🛒</span> 个人采购申请
             </button>
             <button class="action-btn" @click="handleSwitchView">
@@ -129,6 +129,8 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <CompanyExpenseDialog v-model="showCompanyExpense" />
   </div>
 </template>
 
@@ -138,6 +140,7 @@ import { useUserStore } from '@/stores/userStore'
 import { useRouter, useRoute } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
+import CompanyExpenseDialog from '@/components/CompanyExpenseDialog.vue'
 
 const userStore = useUserStore()
 const router = useRouter()
@@ -151,6 +154,7 @@ const showAvatarDialog = ref(false)
 const selectedAvatar = ref('')
 const customAvatarUrl = ref('')
 const updating = ref(false)
+const showCompanyExpense = ref(false)
 
 // 预设头像选项（使用 DiceBear API 生成）
 const avatarOptions = [

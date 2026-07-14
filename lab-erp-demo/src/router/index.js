@@ -12,7 +12,6 @@ import CreateDeliveryProjectView from '../views/CreateDeliveryProjectView.vue'
 import CreateResearchView from '../views/CreateResearchView.vue'
 import UserProfile from '../views/UserProfile.vue'
 import AdminCreateUserView from '../views/AdminCreateUserView.vue'
-import PersonalProcurementView from '../views/PersonalProcurementView.vue'
 import LeaderDashboardView from '../views/LeaderDashboardView.vue'
 import LeaderManagementView from '../views/LeaderManagementView.vue'
 import WageManagementView from '../views/WageManagementView.vue'
@@ -117,15 +116,7 @@ const router = createRouter({
         requiresAuth: true
       }
     },
-    {
-      path: '/erp/personal-procurement',
-      name: 'personal-procurement',
-      component: PersonalProcurementView,
-      meta: {
-        requiresAuth: true,
-        routeDomain: DOMAIN_ERP
-      }
-    },
+
     // === 会议中心 ===
     {
       path: '/meetings',

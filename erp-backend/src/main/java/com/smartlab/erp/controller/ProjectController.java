@@ -1,5 +1,6 @@
 package com.smartlab.erp.controller;
 
+import com.smartlab.erp.config.CompanyProjectInitializer;
 import com.smartlab.erp.dto.AdjustProjectCostRequest;
 import com.smartlab.erp.dto.CreateProjectRequest;
 import com.smartlab.erp.dto.FinanceDashboardResponse;
@@ -305,6 +306,23 @@ public class ProjectController {
         request.setAmount(amount);
         request.setCounterparty(counterparty);
         return ResponseEntity.ok(projectService.submitProjectExpense(projectId, request, invoiceFiles));
+    }
+
+    @PostMapping("/expenses/company")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> submitCompanyExpense(
+            @RequestParam("expenseType") String expenseType,
+            @RequestParam("itemName") String itemName,
+            @RequestParam("amount") String amount,
+            @RequestParam(value = "counterparty", required = false) String counterparty,
+            @RequestParam(value = "invoiceFiles", required = false) List<MultipartFile> invoiceFiles) {
+        SubmitProjectExpenseRequest request = new SubmitProjectExpenseRequest();
+        request.setExpenseType(expenseType);
+        request.setItemName(itemName);
+        request.setAmount(amount);
+        request.setCounterparty(counterparty);
+        return ResponseEntity.ok(projectService.submitProjectExpense(
+                CompanyProjectInitializer.COMPANY_PROJECT_ID, request, invoiceFiles));
     }
 
     @PostMapping("/expenses/{expenseId}/review")

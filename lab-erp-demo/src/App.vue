@@ -176,6 +176,8 @@
         <el-button type="primary" @click="submitLaunchForm">确认发起</el-button>
       </template>
     </el-dialog>
+
+    <CompanyExpenseDialog v-model="showCompanyExpense" />
   </div>
 </template>
 
@@ -191,6 +193,7 @@ import CreateProject from '@/views/CreateProject.vue'
 import CreateDeliveryProjectView from '@/views/CreateDeliveryProjectView.vue'
 import CreateResearchView from '@/views/CreateResearchView.vue'
 import { canAccessProvisioning } from '@/constants/provisioning'
+import CompanyExpenseDialog from '@/components/CompanyExpenseDialog.vue'
 
 const userStore = useUserStore()
 const router = useRouter()
@@ -252,6 +255,7 @@ const submitLaunchForm = () => {
 const showMessageDrawer = ref(false)
 const showBadgeDialog = ref(false)
 const showLaunchDialog = ref(false)
+const showCompanyExpense = ref(false)
 const activeLaunchTab = ref('product')
 const messages = ref([])
 const unreadMessageCount = ref(0)
@@ -526,7 +530,7 @@ const requestBrowserFullscreen = async () => {
 }
 
 const handleCommand = (cmd) => {
-  if (cmd === 'personal-procurement') router.push('/erp/personal-procurement')
+  if (cmd === 'personal-procurement') showCompanyExpense.value = true
   else if (cmd === 'profile') router.push('/profile')
   else if (cmd === 'provision-user') router.push('/admin/users/create')
   else if (cmd === 'wage-management') router.push('/admin/wage-management')
