@@ -145,6 +145,15 @@ public class ProjectFileManagerController {
         return ResponseEntity.ok(Map.of("message", "文件删除成功"));
     }
 
+    @DeleteMapping("/files/batch-delete")
+    public ResponseEntity<Map<String, String>> batchDeleteFiles(
+            @RequestBody List<Long> ids,
+            @RequestParam(defaultValue = "false") boolean deletePhysical) {
+        requireProvisionAdmin();
+        fileManagerService.deleteFiles(ids, deletePhysical);
+        return ResponseEntity.ok(Map.of("message", "批量删除成功"));
+    }
+
     @PostMapping("/scan")
     public ResponseEntity<Map<String, String>> scan() {
         requireProvisionAdmin();

@@ -70,6 +70,8 @@ public class ProjectFileManagerService {
             node.put("sourceId", m.getSourceId());
             node.put("name", m.getDisplayName());
             node.put("type", "file");
+            node.put("createdAt", m.getCreatedAt());
+            node.put("size", resolveFileSize(m));
             return node;
         }).toList();
 
@@ -127,13 +129,22 @@ public class ProjectFileManagerService {
         if (!folder.getProjectId().equals(projectId)) {
             throw new IllegalArgumentException("目录不属于该项目");
         }
+        // 删除目录下所有文件（含物理文件）
         List<ProjectFileMapping> files = mappingRepository.findByProjectIdAndFolderId(projectId, folderId);
-        if (!files.isEmpty()) {
-            throw new IllegalArgumentException("目录非空，无法删除");
+        for (ProjectFileMapping mapping : files) {
+            if (mapping.getSourceType() == ProjectFileSourceType.UPLOADED_FILE) {
+                try {
+                    Files.deleteIfExists(Path.of(uploadsDir, mapping.getSourceId()));
+                } catch (IOException e) {
+                    log.warn("删除物理文件失败: {}", mapping.getSourceId(), e);
+                }
+            }
+            mappingRepository.delete(mapping);
         }
+        // 递归删除子目录
         List<ProjectFileFolder> children = folderRepository.findByProjectIdAndParentId(projectId, folderId);
-        if (!children.isEmpty()) {
-            throw new IllegalArgumentException("目录下存在子目录，无法删除");
+        for (ProjectFileFolder child : children) {
+            deleteFolder(projectId, child.getId());
         }
         folderRepository.delete(folder);
     }
@@ -216,8 +227,26 @@ public class ProjectFileManagerService {
         mappingRepository.delete(mapping);
     }
 
+    @Transactional
+    public void deleteFiles(List<Long> ids, boolean deletePhysical) {
+        for (Long id : ids) {
+            deleteFile(id, deletePhysical);
+        }
+    }
+
     public byte[] downloadFileBytes(Long mappingId) {
         return downloadFile(mappingId);
+    }
+
+    private long resolveFileSize(ProjectFileMapping mapping) {
+        if (mapping.getSourceType() == ProjectFileSourceType.UPLOADED_FILE) {
+            try {
+                return Files.size(Path.of(uploadsDir, mapping.getSourceId()));
+            } catch (IOException e) {
+                return 0;
+            }
+        }
+        return 0;
     }
 
     public String getMimeType(String filename) {

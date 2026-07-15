@@ -35,43 +35,59 @@
           <div class="toolbar-actions">
             <el-button size="small" @click="showCreateFolderDialog">新建目录</el-button>
             <el-button size="small" type="primary" @click="triggerUpload">上传文件</el-button>
-            <el-button size="small" :disabled="!selectedFileId" @click="previewSelected">预览</el-button>
-            <el-button size="small" :disabled="!selectedFileId" @click="downloadSelected">下载</el-button>
-            <el-button size="small" :disabled="!selectedFileId" @click="showMoveDialog">移动</el-button>
-            <el-button size="small" :disabled="!selectedFileId" type="danger" @click="confirmDeleteFile">删除</el-button>
+            <el-button size="small" :disabled="!currentFile" @click="previewFile(currentFile.id, currentFile.name)">预览</el-button>
+            <el-button size="small" :disabled="!currentFile" @click="downloadFile(currentFile.id, currentFile.name)">下载</el-button>
+            <el-button size="small" :disabled="!currentFile" @click="showMoveDialog">移动</el-button>
+            <el-button
+              size="small"
+              :disabled="selectedFileIds.length === 0"
+              type="danger"
+              @click="confirmBatchDelete"
+            >
+              删除选中{{ selectedFileIds.length > 0 ? `(${selectedFileIds.length})` : '' }}
+            </el-button>
             <el-button size="small" @click="refresh">刷新</el-button>
           </div>
         </div>
 
-        <div class="file-tree" v-if="selectedProjectId">
-          <div v-if="currentFolders.length === 0 && currentFiles.length === 0" class="empty-hint">
-            当前目录为空
-          </div>
-          <div class="folder-section">
-            <div
-              v-for="folder in currentFolders"
-              :key="folder.id"
-              class="tree-node folder-node"
-              @click="enterFolder(folder.id)"
-            >
-              <span class="icon">📁</span>
-              <span class="name">{{ folder.name }}</span>
-            </div>
-          </div>
-          <div class="file-section">
-            <div
-              v-for="file in currentFiles"
-              :key="file.id"
-              class="tree-node file-node"
-              :class="{ active: selectedFileId === file.id }"
-              @click="selectFile(file.id)"
-              @dblclick="previewFile(file.id, file.name)"
-            >
-              <span class="icon">📄</span>
-              <span class="name">{{ file.name }}</span>
-              <span class="source-tag">{{ file.sourceType }}</span>
-            </div>
-          </div>
+        <div class="file-table-wrapper" v-if="selectedProjectId">
+          <el-table
+            v-if="sortedItems.length > 0"
+            ref="fileTableRef"
+            :data="sortedItems"
+            style="width: 100%"
+            @selection-change="onSelectionChange"
+            @current-change="onCurrentRowChange"
+            @row-dblclick="onRowDblClick"
+            stripe
+            size="small"
+            highlight-current-row
+            @sort-change="onSortChange"
+          >
+            <el-table-column type="selection" width="40" />
+            <el-table-column label="名称" min-width="400" sortable="custom" prop="sortName">
+              <template #default="{ row }">
+                <div class="name-cell">
+                  <span class="item-icon">{{ row.type === 'folder' ? '📁' : '📄' }}</span>
+                  <span class="item-name">{{ row.name }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="大小" width="140" sortable="custom" prop="sortSize">
+              <template #default="{ row }">
+                <span v-if="row.type === 'file'">{{ formatSize(row.size) }}</span>
+                <span v-else class="text-muted">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="创建时间" width="220" sortable="custom" prop="createdAt">
+              <template #default="{ row }">
+                <span v-if="row.type === 'file'">{{ formatDate(row.createdAt) }}</span>
+                <span v-else class="text-muted">-</span>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <div v-if="sortedItems.length === 0" class="empty-hint">当前目录为空</div>
         </div>
         <div v-else class="empty-hint select-project-hint">请从左侧选择一个项目</div>
       </main>
@@ -84,7 +100,7 @@
       @change="handleFileSelected"
     />
 
-    <el-dialog v-model="createFolderVisible" title="新建目录" width="360px">
+    <el-dialog v-model="createFolderVisible" title="新建目录" width="420px">
       <el-input v-model="newFolderName" placeholder="目录名称" />
       <template #footer>
         <el-button @click="createFolderVisible = false">取消</el-button>
@@ -92,7 +108,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="moveDialogVisible" title="移动到" width="360px">
+    <el-dialog v-model="moveDialogVisible" title="移动到" width="420px">
       <el-select v-model="targetFolderId" placeholder="选择目标目录" style="width: 100%">
         <el-option label="根目录" :value="null" />
         <el-option
@@ -120,13 +136,23 @@ const projectSearch = ref('')
 const selectedProjectId = ref('')
 const treeData = ref({ folders: [], files: [] })
 const currentFolderId = ref(null)
-const selectedFileId = ref(null)
 const fileInputRef = ref(null)
+const fileTableRef = ref(null)
 
 const createFolderVisible = ref(false)
 const newFolderName = ref('')
 const moveDialogVisible = ref(false)
 const targetFolderId = ref(null)
+
+// 当前选中的文件行（点击行高亮，用于预览/下载/移动）
+const currentFile = ref(null)
+
+// 多选
+const selectedFileIds = ref([])
+const selectedItems = ref([])
+
+// 排序: { prop: 'sortName'|'sortSize'|'createdAt', order: 'ascending'|'descending' }
+const sortState = ref({ prop: 'sortName', order: 'ascending' })
 
 const filteredProjects = computed(() => {
   const q = projectSearch.value.trim().toLowerCase()
@@ -144,6 +170,52 @@ const currentFiles = computed(() => {
   return (treeData.value.files || []).filter(f => f.folderId === currentFolderId.value)
 })
 
+// 合并文件和文件夹，排序
+const sortedItems = computed(() => {
+  const folders = currentFolders.value.map(f => ({
+    id: f.id,
+    name: f.name,
+    type: 'folder',
+    size: null,
+    createdAt: null,
+    sortName: (f.name || '').toLowerCase(),
+    sortSize: -1,
+    _folder: f
+  }))
+  const files = currentFiles.value.map(f => ({
+    id: f.id,
+    name: f.name,
+    type: 'file',
+    size: f.size || 0,
+    createdAt: f.createdAt || null,
+    sortName: (f.name || '').toLowerCase(),
+    sortSize: Number(f.size || 0),
+    _file: f
+  }))
+  const all = [...folders, ...files]
+  const { prop, order } = sortState.value
+  const desc = order === 'descending'
+  all.sort((a, b) => {
+    let va = a[prop]
+    let vb = b[prop]
+    if (prop === 'sortName') {
+      va = String(va || '')
+      vb = String(vb || '')
+      return desc ? vb.localeCompare(va) : va.localeCompare(vb)
+    }
+    if (prop === 'createdAt') {
+      va = va ? new Date(va).getTime() : 0
+      vb = vb ? new Date(vb).getTime() : 0
+      return desc ? vb - va : va - vb
+    }
+    if (prop === 'sortSize') {
+      return desc ? vb - va : va - vb
+    }
+    return 0
+  })
+  return all
+})
+
 const breadcrumbs = computed(() => {
   const crumbs = []
   let fid = currentFolderId.value
@@ -156,6 +228,48 @@ const breadcrumbs = computed(() => {
   }
   return crumbs
 })
+
+const formatDate = (value) => {
+  if (!value) return '-'
+  const d = new Date(value)
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+const formatSize = (value) => {
+  if (!value && value !== 0) return '-'
+  const bytes = Number(value)
+  if (bytes <= 0) return '-'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let i = 0
+  let size = bytes
+  while (size >= 1024 && i < units.length - 1) {
+    size /= 1024
+    i++
+  }
+  return size.toFixed(i === 0 ? 0 : 1) + ' ' + units[i]
+}
+
+const onSortChange = ({ prop, order }) => {
+  sortState.value = { prop: prop || 'sortName', order: order || 'ascending' }
+}
+
+const onSelectionChange = (rows) => {
+  selectedFileIds.value = rows.map(r => r.id)
+  selectedItems.value = rows
+}
+
+const onCurrentRowChange = (row) => {
+  currentFile.value = row && row.type === 'file' ? row : null
+}
+
+const onRowDblClick = (row) => {
+  if (row.type === 'folder') {
+    enterFolder(row.id)
+  } else {
+    previewFile(row.id, row.name)
+  }
+}
 
 const fetchProjects = async () => {
   try {
@@ -172,7 +286,6 @@ const fetchTree = async () => {
   if (!selectedProjectId.value) return
   try {
     treeData.value = await request.get(`/api/admin/project-files/${selectedProjectId.value}/tree`)
-    selectedFileId.value = null
   } catch (e) {
     ElMessage.error('加载文件树失败')
   }
@@ -181,16 +294,17 @@ const fetchTree = async () => {
 const selectProject = (projectId) => {
   selectedProjectId.value = projectId
   currentFolderId.value = null
+  selectedFileIds.value = []
+  selectedItems.value = []
+  currentFile.value = null
   fetchTree()
 }
 
 const enterFolder = (folderId) => {
   currentFolderId.value = folderId
-  selectedFileId.value = null
-}
-
-const selectFile = (fileId) => {
-  selectedFileId.value = fileId
+  selectedFileIds.value = []
+  selectedItems.value = []
+  currentFile.value = null
 }
 
 const refresh = () => {
@@ -221,14 +335,23 @@ const confirmCreateFolder = async () => {
   }
 }
 
+const triggerUpload = () => {
+  if (!selectedProjectId.value) {
+    ElMessage.warning('请先选择一个项目')
+    return
+  }
+  fileInputRef.value?.click()
+}
+
 const showMoveDialog = () => {
   targetFolderId.value = null
   moveDialogVisible.value = true
 }
 
 const confirmMove = async () => {
+  if (!currentFile.value) return
   try {
-    await request.patch(`/api/admin/project-files/files/${selectedFileId.value}/move`, {
+    await request.patch(`/api/admin/project-files/files/${currentFile.value.id}/move`, {
       folderId: targetFolderId.value
     })
     ElMessage.success('移动成功')
@@ -237,63 +360,6 @@ const confirmMove = async () => {
   } catch (e) {
     ElMessage.error(e.response?.data?.message || '移动失败')
   }
-}
-
-const getSelectedFileName = () => {
-  const file = (treeData.value.files || []).find(f => f.id === selectedFileId.value)
-  return file ? file.name : 'download'
-}
-
-const downloadSelected = () => {
-  if (selectedFileId.value) {
-    downloadFile(selectedFileId.value, getSelectedFileName())
-  }
-}
-
-const downloadFile = async (fileId, filename) => {
-  try {
-    const blob = await request.get(`/api/admin/project-files/files/${fileId}/download`, { responseType: 'blob' })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename || 'download'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-  } catch (e) {
-    const msg = e.response?.data
-    if (msg instanceof Blob) {
-      ElMessage.error('下载失败')
-    } else {
-      ElMessage.error(typeof msg === 'string' ? msg : '下载失败')
-    }
-  }
-}
-
-const previewSelected = () => {
-  if (selectedFileId.value) {
-    previewFile(selectedFileId.value, getSelectedFileName())
-  }
-}
-
-const previewFile = async (fileId, filename) => {
-  try {
-    const blob = await request.get(`/api/admin/project-files/files/${fileId}/preview`, { responseType: 'blob' })
-    const url = window.URL.createObjectURL(blob)
-    window.open(url, '_blank')
-    setTimeout(() => window.URL.revokeObjectURL(url), 60000)
-  } catch (e) {
-    ElMessage.error('预览失败')
-  }
-}
-
-const triggerUpload = () => {
-  if (!selectedProjectId.value) {
-    ElMessage.warning('请先选择一个项目')
-    return
-  }
-  fileInputRef.value?.click()
 }
 
 const handleFileSelected = async (event) => {
@@ -317,21 +383,48 @@ const handleFileSelected = async (event) => {
   event.target.value = ''
 }
 
-const confirmDeleteFile = async () => {
-  const fileName = getSelectedFileName()
+const previewFile = async (fileId, filename) => {
   try {
-    await ElMessageBox.confirm(
-      `确定要删除文件「${fileName}」吗？`,
-      '删除确认',
-      { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' }
-    )
-    await request.delete(`/api/admin/project-files/files/${selectedFileId.value}?deletePhysical=true`)
-    ElMessage.success('文件删除成功')
-    selectedFileId.value = null
+    const blob = await request.get(`/api/admin/project-files/files/${fileId}/preview`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    setTimeout(() => window.URL.revokeObjectURL(url), 60000)
+  } catch (e) {
+    ElMessage.error('预览失败')
+  }
+}
+
+const confirmBatchDelete = async () => {
+  if (selectedFileIds.value.length === 0) return
+  const fileItems = selectedItems.value.filter(r => r.type === 'file')
+  const folderItems = selectedItems.value.filter(r => r.type === 'folder')
+  const fileCount = fileItems.length
+  const folderCount = folderItems.length
+  let msg = `确定要删除选中的 ${selectedFileIds.value.length} 个条目吗？`
+  if (fileCount > 0) msg += `\n文件: ${fileCount} 个（会同时删除物理文件）`
+  if (folderCount > 0) msg += `\n目录: ${folderCount} 个（仅当目录为空时才能删除）`
+  try {
+    await ElMessageBox.confirm(msg, '批量删除确认', { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' })
+
+    if (fileItems.length > 0) {
+      await request.delete('/api/admin/project-files/files/batch-delete?deletePhysical=true', {
+        data: fileItems.map(r => r.id)
+      })
+    }
+    for (const folder of folderItems) {
+      try {
+        await request.delete(`/api/admin/project-files/${selectedProjectId.value}/folders/${folder.id}`)
+      } catch (e) {
+        ElMessage.warning(`目录「${folder.name}」删除失败: ${e.response?.data?.message || '目录非空'}`)
+      }
+    }
+    ElMessage.success('删除操作完成')
+    selectedFileIds.value = []
+    selectedItems.value = []
     fetchTree()
   } catch (e) {
     if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e.response?.data?.message || '文件删除失败')
+      ElMessage.error(e.response?.data?.message || '批量删除失败')
     }
   }
 }
@@ -342,15 +435,15 @@ onMounted(fetchProjects)
 <style scoped>
 .file-manager-page {
   min-height: calc(100vh - var(--nav-height));
-  padding: 20px;
+  padding: 24px;
   background: var(--science-canvas);
 }
 
 .file-manager-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 320px 1fr;
   gap: 16px;
-  height: calc(100vh - var(--nav-height) - 40px);
+  height: calc(100vh - var(--nav-height) - 48px);
   background: var(--science-surface);
   border-radius: 20px;
   border: 1px solid var(--border-soft);
@@ -365,30 +458,36 @@ onMounted(fetchProjects)
 }
 
 .sidebar-header {
-  padding: 16px;
+  padding: 20px;
   display: grid;
-  gap: 10px;
+  gap: 12px;
   border-bottom: 1px solid var(--border-soft);
 }
 
 .sidebar-header h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 18px;
 }
 
 .project-list {
   overflow-y: auto;
-  padding: 8px;
+  padding: 12px;
 }
 
 .project-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 12px;
+  padding: 14px 16px;
   border-radius: 10px;
   cursor: pointer;
   gap: 8px;
+  font-size: 15px;
+}
+
+.project-item:hover,
+.project-item.active {
+  background: var(--science-surface-muted);
 }
 
 .project-item:hover,
@@ -413,21 +512,22 @@ onMounted(fetchProjects)
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--border-soft);
   gap: 12px;
   flex-wrap: wrap;
+  font-size: 14px;
 }
 
 .toolbar-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
-.file-tree {
+.file-table-wrapper {
   overflow-y: auto;
-  padding: 12px 16px;
+  padding: 12px 0;
 }
 
 .empty-hint {
@@ -440,52 +540,39 @@ onMounted(fetchProjects)
   padding-top: 60px;
 }
 
-.tree-node {
+.name-cell {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.15s;
+  gap: 10px;
 }
 
-.tree-node:hover {
-  background: var(--science-surface-muted);
+.item-icon {
+  font-size: 18px;
+  flex-shrink: 0;
 }
 
-.tree-node.active {
-  background: rgba(0, 102, 204, 0.12);
-  outline: 1px solid rgba(0, 102, 204, 0.3);
-}
-
-.tree-node .name {
-  flex: 1;
+.item-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 14px;
 }
 
-.folder-section {
-  margin-bottom: 6px;
-}
-
-.folder-node .icon {
-  font-size: 16px;
-}
-
-.file-node {
-  padding: 10px 14px 10px 30px;
-}
-
-.file-node .source-tag {
-  font-size: 11px;
+.text-muted {
   color: var(--text-sub);
-  background: var(--science-surface-muted);
-  padding: 2px 6px;
-  border-radius: 4px;
-  flex-shrink: 0;
+  font-size: 14px;
+}
+
+:deep(.el-table .el-table__cell) {
+  padding: 12px 0;
+}
+
+:deep(.el-table .cell) {
+  font-size: 14px;
+}
+
+:deep(.el-breadcrumb) {
+  font-size: 14px;
 }
 
 @media (max-width: 768px) {

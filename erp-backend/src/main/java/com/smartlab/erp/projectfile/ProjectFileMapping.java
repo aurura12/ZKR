@@ -25,7 +25,7 @@ public class ProjectFileMapping {
     @Enumerated(EnumType.STRING)
     private ProjectFileSourceType sourceType;
 
-    @Column(name = "source_id", nullable = false, length = 64)
+    @Column(name = "source_id", nullable = false, length = 512)
     private String sourceId;
 
     @Column(name = "display_name", nullable = false, length = 300)
