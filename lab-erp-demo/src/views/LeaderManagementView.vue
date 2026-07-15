@@ -48,6 +48,24 @@
           </span>
         </template>
       </el-tab-pane>
+
+      <el-tab-pane label="群体智能队长 (CI)" name="CI">
+        <template #label>
+          <span class="tab-label">
+            <el-icon><Link /></el-icon>
+            群体智能
+          </span>
+        </template>
+      </el-tab-pane>
+
+      <el-tab-pane label="商务队长 (BUSINESS)" name="BUSINESS">
+        <template #label>
+          <span class="tab-label">
+            <el-icon><Briefcase /></el-icon>
+            商务队长
+          </span>
+        </template>
+      </el-tab-pane>
     </el-tabs>
 
     <!-- 当前队长信息 -->
@@ -151,7 +169,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Back, Monitor, Cpu, DataAnalysis, Reading } from '@element-plus/icons-vue'
+import { Back, Monitor, Cpu, DataAnalysis, Reading, Link, Briefcase } from '@element-plus/icons-vue'
 import { getAllUsers, assignRole, getCurrentLeader } from '@/api/leader'
 import { useUserStore } from '@/stores/userStore'
 
@@ -168,7 +186,9 @@ const roleTitles = {
   'DEV': '开发',
   'ALGORITHM': '算法',
   'DATA': '数据',
-  'RESEARCH': '研究'
+  'RESEARCH': '研究',
+  'CI': '群体智能',
+  'BUSINESS': '商务'
 }
 
 const roleTitle = computed(() => roleTitles[activeRole.value] || '技术')
@@ -301,7 +321,8 @@ const formatRole = (role) => {
     'DATA': '数据',
     'RESEARCH': '研究',
     'ADMIN': '管理员',
-    'BUSINESS': '商务'
+    'BUSINESS': '商务',
+    'CI': '群体智能'
   }
   return map[role] || role
 }
@@ -313,7 +334,9 @@ const getRoleTagType = (role) => {
     'ALGORITHM': 'success',
     'DATA': 'warning',
     'RESEARCH': '',
-    'ADMIN': 'danger'
+    'ADMIN': 'danger',
+    'BUSINESS': 'info',
+    'CI': 'info'
   }
   return typeMap[role] || 'info'
 }
