@@ -151,7 +151,7 @@ import request from '@/utils/request'
 
 const router = useRouter()
 
-const roleOptions = ['RESEARCH', 'BUSINESS', 'PROMOTION', 'DATA', 'DEV', 'ALGORITHM']
+const roleOptions = ['RESEARCH', 'BUSINESS', 'PROMOTION', 'DATA', 'DEV', 'ALGORITHM', 'CI']
 const agreementOptions = [
   { label: '互联网实习生协议', value: 'INTERNET' },
   { label: '实习生协议', value: 'GENERAL' },

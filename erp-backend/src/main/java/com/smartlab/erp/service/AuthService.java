@@ -41,8 +41,8 @@ import java.util.Set;
 @Service
 public class AuthService {
 
-    private static final Set<String> REGISTER_ALLOWED_ROLES = Set.of("RESEARCH", "DATA", "DEV", "ALGORITHM", "BUSINESS", "PROMOTION");
-    private static final Set<String> EXTRA_PROVISION_USERNAMES = Set.of("guojianwen", "jiaomiao");
+    private static final Set<String> REGISTER_ALLOWED_ROLES = Set.of("RESEARCH", "DATA", "DEV", "ALGORITHM", "BUSINESS", "PROMOTION", "CI");
+    private static final Set<String> EXTRA_PROVISION_USERNAMES = Set.of("guojianwen", "jiaomiao", "admin", "leader");
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
@@ -171,7 +171,7 @@ public class AuthService {
 
     private String normalizeRegisterRole(String inputRole) {
         if (inputRole == null || inputRole.isBlank()) {
-            throw new RuntimeException("注册失败：角色不能为空，仅支持 research/business/promotion/algorithm/data/dev");
+            throw new RuntimeException("注册失败：角色不能为空，仅支持 research/business/promotion/algorithm/data/dev/ci");
         }
 
         String normalized = inputRole.trim().toUpperCase(Locale.ROOT);
@@ -187,9 +187,12 @@ public class AuthService {
         if ("NORMAL".equals(normalized)) {
             normalized = "RESEARCH";
         }
+        if ("COLLECTIVE_INTELLIGENCE".equals(normalized)) {
+            normalized = "CI";
+        }
 
         if (!REGISTER_ALLOWED_ROLES.contains(normalized)) {
-            throw new RuntimeException("注册失败：角色非法，仅支持 research/business/promotion/algorithm/data/dev");
+            throw new RuntimeException("注册失败：角色非法，仅支持 research/business/promotion/algorithm/data/dev/ci");
         }
 
         return normalized;

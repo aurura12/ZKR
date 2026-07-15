@@ -17,7 +17,7 @@ import java.util.Set;
 public class NaturalLanguageParserService {
 
     private static final Set<String> VALID_ROLES = Set.of(
-            "RESEARCH", "BUSINESS", "PROMOTION", "DATA", "DEV", "ALGORITHM"
+            "RESEARCH", "BUSINESS", "PROMOTION", "DATA", "DEV", "ALGORITHM", "CI"
     );
 
     private final LlmClient llmClient;
@@ -29,7 +29,7 @@ public class NaturalLanguageParserService {
             {
               "username": "登录账号，建议用姓名的拼音或英文名小写，没有则留空",
               "name": "姓名",
-              "role": "角色，必须是 RESEARCH/BUSINESS/PROMOTION/DATA/DEV/ALGORITHM 之一，没有则推断最接近的或留空",
+              "role": "角色，必须是 RESEARCH/BUSINESS/PROMOTION/DATA/DEV/ALGORITHM/CI 之一，没有则推断最接近的或留空",
               "domain": "账号域，ERP 或 FINANCE，默认 ERP",
               "position": "岗位，例如 实习生、工程师、研究员，没有则留空",
               "ethnicity": "民族，例如 汉族，没有则留空",
@@ -123,6 +123,7 @@ public class NaturalLanguageParserService {
             case "数据", "数据工程师", "DATA ENGINEER" -> "DATA";
             case "开发", "DEVELOPER" -> "DEV";
             case "算法", "ALGORITHM ENGINEER" -> "ALGORITHM";
+            case "群体智能", "COLLECTIVE INTELLIGENCE", "CI" -> "CI";
             default -> "";
         };
     }

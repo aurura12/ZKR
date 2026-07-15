@@ -9,5 +9,6 @@ public enum  SystemRole {
     PROMOTION,  // 推广
     DATA,       // 数据分析/数据工程
     DEV,        // 开发工程师
-    ALGORITHM   // 算法工程师
+    ALGORITHM,  // 算法工程师
+    CI          // Collective Intelligence 群体智能
 }
