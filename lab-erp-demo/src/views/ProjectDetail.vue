@@ -242,31 +242,66 @@
 
         <div class="panel project-task-panel">
           <div class="panel-header-row">
-            <h3 class="panel-title">🧩 任务分配</h3>
-            <el-button v-if="canManageProductTaskAssignments" type="primary" size="small" plain :loading="productTaskAssignmentSaving" @click="saveProductTaskAssignments">保存分配</el-button>
+            <h3 class="panel-title">📋 工单</h3>
+            <span v-if="project?.managerName" style="font-size:13px;color:#999;">组长：{{ project.managerName }}</span>
           </div>
-          <div v-if="productTaskAssignmentLoading" class="empty-panel-text">任务分配加载中...</div>
-          <div v-else-if="!productTaskAssignments.length" class="empty-panel-text">无安排</div>
+          <div v-if="workOrderLoading" class="empty-panel-text">工单加载中...</div>
           <div v-else class="schedule-list">
-            <div v-for="item in productTaskAssignments" :key="`assign-${item.userId}`" class="schedule-item">
+            <div v-for="member in project?.members || []" :key="`wo-member-${member.userId}`" class="schedule-item" style="margin-bottom:12px;">
               <div class="schedule-header">
-                <strong>{{ item.name }}</strong>
-                <span class="schedule-role">{{ formatRole(item.role) }}</span>
+                <strong style="font-size:15px;">{{ member.name || member.userId }}</strong>
+                <span class="schedule-role" style="font-size:13px;">{{ formatRole(member.role) }}</span>
+                <button v-if="canManageProductTaskAssignments" class="text-action" style="margin-left:auto;font-weight:500;font-size:13px;" @click="openCreateWorkOrderDialog(member.userId)">+ 发起工单</button>
               </div>
-              <template v-if="canManageProductTaskAssignments">
-                <div class="schedule-editor-row">
-                  <el-input v-model="item.taskName" placeholder="分配任务（未填则显示无安排）" />
-                  <el-input v-model="item.expectedOutput" placeholder="预期产出（可选）" />
-                </div>
-                <div class="schedule-editor-row">
-                  <el-date-picker v-model="item.expectedEndDate" type="datetime" format="YYYY-MM-DD HH:mm" value-format="x" placeholder="截止时间（必填）" style="width: 100%" />
+
+              <!-- 进行中的工单 -->
+              <template v-if="memberWorkOrders(member.userId, false).length">
+                <div v-for="wo in memberWorkOrders(member.userId, false)" :key="`wo-${wo.id}`" style="padding:10px 0;border-bottom:1px solid var(--border-color,#eee);">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <el-tag :type="wo.status === 'PENDING' ? 'warning' : 'primary'" size="small" effect="plain">
+                        {{ workOrderStatusText(wo.status) }}
+                      </el-tag>
+                      <strong style="font-size:15px;">{{ wo.title }}</strong>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                      <button v-if="wo.status === 'PENDING' && wo.assigneeId === activeUserId" class="text-action" style="color:var(--el-color-primary);font-size:13px;" @click="acceptWorkOrderAction(wo.id)">接单</button>
+                      <button v-if="wo.status === 'IN_PROGRESS' && wo.assigneeId === activeUserId" class="text-action" style="color:var(--el-color-primary);font-size:13px;" @click="submitWorkOrderAction(wo.id)">提交完成</button>
+                      <button v-if="canManageProductTaskAssignments" class="text-action" style="color:#999;font-size:12px;" @click="cancelWorkOrderAction(wo.id)">取消</button>
+                    </div>
+                  </div>
+                  <div v-if="wo.description" style="font-size:14px;color:#666;margin-top:6px;">{{ wo.description }}</div>
+                  <div style="font-size:13px;color:#999;margin-top:6px;display:flex;gap:16px;">
+                    <span v-if="wo.expectedOutput">产出：{{ wo.expectedOutput }}</span>
+                    <span>截止：{{ wo.deadline ? formatMilestoneTimestamp(wo.deadline) : '未设置' }}</span>
+                  </div>
                 </div>
               </template>
-              <template v-else>
-                <div class="execution-text">任务：{{ item.taskName || '无安排' }}</div>
-                <div class="execution-text">产出：{{ item.expectedOutput || '无安排' }}</div>
-                <div class="execution-text">截止：{{ item.expectedEndDate ? formatMilestoneTimestamp(item.expectedEndDate) : '无安排' }}</div>
-              </template>
+              <div v-else class="execution-text" style="padding:8px 0;font-size:13px;color:#999;">暂无进行中的工单</div>
+
+              <!-- 已完成/已取消工单 -->
+              <div v-if="hasMoreWorkOrders(member.userId)">
+                <template v-if="showCompletedWorkOrders">
+                  <div v-for="wo in memberWorkOrders(member.userId, true)" :key="`wo-done-${wo.id}`" style="padding:8px 0;border-bottom:1px dashed var(--border-color,#eee);opacity:0.7;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                      <div style="display:flex;align-items:center;gap:8px;">
+                        <el-tag :type="wo.status === 'COMPLETED' ? 'success' : wo.status === 'CLOSED' ? 'info' : 'info'" size="small" effect="plain">
+                          {{ workOrderStatusText(wo.status) }}
+                        </el-tag>
+                        <span style="font-size:14px;">{{ wo.title }}</span>
+                      </div>
+                      <button v-if="wo.status === 'COMPLETED' && canManageProductTaskAssignments" class="text-action" style="color:var(--el-color-success);font-size:12px;" @click="confirmWorkOrderAction(wo.id)">确认关闭</button>
+                    </div>
+                    <div style="font-size:12px;color:#999;margin-top:4px;">
+                      <span>截止：{{ wo.deadline ? formatMilestoneTimestamp(wo.deadline) : '未设置' }}</span>
+                      <span v-if="wo.completedAt" style="margin-left:12px;">完成于：{{ formatMilestoneTimestamp(wo.completedAt) }}</span>
+                    </div>
+                  </div>
+                </template>
+                <button class="text-action" style="font-size:12px;color:#999;padding:6px 0;" @click="showCompletedWorkOrders = !showCompletedWorkOrders">
+                  {{ showCompletedWorkOrders ? '收起已完成工单' : '查看已完成工单' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -584,33 +619,14 @@
 
       <div v-if="isProductFlow" class="panel timeline-panel">
         <div class="panel-header-row">
-          <h3 class="panel-title">🧩 任务分配</h3>
-          <el-button v-if="canManageProductTaskAssignments" type="primary" size="small" plain :loading="productTaskAssignmentSaving" @click="saveProductTaskAssignments">保存分配</el-button>
+          <h3 class="panel-title">📋 工单概览</h3>
         </div>
-
-        <div v-if="productTaskAssignmentLoading" class="empty-panel-text">任务分配加载中...</div>
-        <div v-else-if="!productTaskAssignments.length" class="empty-panel-text">无安排</div>
-        <div v-else class="schedule-list">
-          <div v-for="item in productTaskAssignments" :key="`assign-${item.userId}`" class="schedule-item">
-            <div class="schedule-header">
-              <strong>{{ item.name }}</strong>
-              <span class="schedule-role">{{ formatRole(item.role) }}</span>
-            </div>
-            <template v-if="canManageProductTaskAssignments">
-              <div class="schedule-editor-row">
-                <el-input v-model="item.taskName" placeholder="分配任务（未填则显示无安排）" />
-                <el-input v-model="item.expectedOutput" placeholder="预期产出（可选）" />
-              </div>
-              <div class="schedule-editor-row">
-                <el-date-picker v-model="item.expectedEndDate" type="datetime" format="YYYY-MM-DD HH:mm" value-format="x" placeholder="截止时间（必填）" style="width: 100%" />
-              </div>
-            </template>
-            <template v-else>
-              <div class="execution-text">任务：{{ item.taskName || '无安排' }}</div>
-              <div class="execution-text">产出：{{ item.expectedOutput || '无安排' }}</div>
-              <div class="execution-text">截止：{{ item.expectedEndDate ? formatMilestoneTimestamp(item.expectedEndDate) : '无安排' }}</div>
-            </template>
-          </div>
+        <div v-if="workOrderLoading" class="empty-panel-text">加载中...</div>
+        <div v-else class="execution-text">
+          待处理 {{ workOrderStats.pending || 0 }} ·
+          进行中 {{ workOrderStats.inProgress || 0 }} ·
+          已完成 {{ workOrderStats.completed || 0 }} ·
+          已关闭 {{ workOrderStats.closed || 0 }}
         </div>
       </div>
 
@@ -1135,6 +1151,33 @@
       </template>
     </el-dialog>
 
+    <!-- 发起工单对话框 -->
+    <el-dialog v-model="showCreateWorkOrderDialog" title="发起工单" width="520px" custom-class="tech-dialog">
+      <el-form label-position="top" :model="workOrderForm">
+        <el-form-item label="选择成员" required>
+          <el-select v-model="workOrderForm.assigneeId" filterable placeholder="选择执行人" style="width: 100%">
+            <el-option v-for="member in project?.members || []" :key="member.userId" :label="member.name" :value="member.userId" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="任务标题" required>
+          <el-input v-model="workOrderForm.title" placeholder="请输入任务标题" />
+        </el-form-item>
+        <el-form-item label="任务描述">
+          <el-input v-model="workOrderForm.description" type="textarea" :rows="3" placeholder="任务描述（可选）" />
+        </el-form-item>
+        <el-form-item label="预期产出">
+          <el-input v-model="workOrderForm.expectedOutput" placeholder="预期产出（可选）" />
+        </el-form-item>
+        <el-form-item label="截止时间" required>
+          <el-date-picker v-model="workOrderForm.deadline" type="datetime" format="YYYY-MM-DD HH:mm" value-format="x" placeholder="选择截止时间" style="width: 100%" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showCreateWorkOrderDialog = false">取消</el-button>
+        <el-button type="primary" :loading="workOrderCreating" @click="submitCreateWorkOrder">确认发起</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="showPromotionSetupDialog" title="推广阶段配置" width="620px" custom-class="tech-dialog">
       <el-form label-position="top" :model="promotionSetupForm">
         <el-form-item label="推广执行人 (Promotion IC)" required>
@@ -1497,6 +1540,15 @@ import {
   getProductWorkflowMemberRoles,
   getResearchWorkflowMemberRoles
 } from '@/api/workflowMemberRoles'
+import {
+  createWorkOrder,
+  listWorkOrders,
+  getWorkOrderStats,
+  acceptWorkOrder,
+  submitWorkOrder,
+  confirmWorkOrder,
+  cancelWorkOrder
+} from '@/api/workOrders'
 
 const route = useRoute()
 const userStore = useUserStore()
@@ -1572,6 +1624,21 @@ const productMemberLoading = ref(false)
 const productTaskAssignmentLoading = ref(false)
 const productTaskAssignmentSaving = ref(false)
 const productTaskAssignments = ref([])
+
+// ── 工单（Work Order）相关状态 ──
+const workOrders = ref([])
+const workOrderLoading = ref(false)
+const workOrderStats = ref({ pending: 0, inProgress: 0, completed: 0, closed: 0 })
+const showCompletedWorkOrders = ref(false)
+const showCreateWorkOrderDialog = ref(false)
+const workOrderCreating = ref(false)
+const workOrderForm = ref({
+  assigneeId: '',
+  title: '',
+  description: '',
+  expectedOutput: '',
+  deadline: null
+})
 const projectTaskAssignmentLoading = ref(false)
 const projectTaskAssignmentSaving = ref(false)
 const projectTaskAssignments = ref([])
@@ -2500,6 +2567,95 @@ const projectTaskAssignmentsForTimeline = computed(() => {
   })
 })
 
+// ── 工单方法 ──
+
+const workOrderStatusText = status => {
+  const map = { PENDING: '待处理', IN_PROGRESS: '进行中', COMPLETED: '已完成', CLOSED: '已关闭', CANCELLED: '已取消' }
+  return map[status] || status
+}
+
+const isActiveStatus = status => status === 'PENDING' || status === 'IN_PROGRESS'
+
+const memberWorkOrders = (memberId, showCompleted) => {
+  return (workOrders.value || []).filter(wo => {
+    if (wo.assigneeId !== memberId) return false
+    return showCompleted ? !isActiveStatus(wo.status) : isActiveStatus(wo.status)
+  })
+}
+
+const hasMoreWorkOrders = memberId => {
+  return (workOrders.value || []).some(wo => wo.assigneeId === memberId && !isActiveStatus(wo.status))
+}
+
+const openCreateWorkOrderDialog = (memberId) => {
+  workOrderForm.value = { assigneeId: memberId || '', title: '', description: '', expectedOutput: '', deadline: null }
+  showCreateWorkOrderDialog.value = true
+}
+
+const submitCreateWorkOrder = async () => {
+  const targetId = props.projectId || route.params.id
+  if (!workOrderForm.value.assigneeId) return ElMessage.warning('请选择执行成员')
+  if (!workOrderForm.value.title.trim()) return ElMessage.warning('请填写任务标题')
+  workOrderCreating.value = true
+  try {
+    await createWorkOrder({
+      projectId: targetId,
+      assigneeId: workOrderForm.value.assigneeId,
+      title: workOrderForm.value.title.trim(),
+      description: workOrderForm.value.description?.trim() || '',
+      expectedOutput: workOrderForm.value.expectedOutput?.trim() || '',
+      deadline: workOrderForm.value.deadline || null
+    })
+    ElMessage.success('工单已发起')
+    showCreateWorkOrderDialog.value = false
+    await fetchWorkOrders()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.message || e.message || '发起工单失败')
+  } finally {
+    workOrderCreating.value = false
+  }
+}
+
+const fetchWorkOrders = async () => {
+  const targetId = props.projectId || route.params.id
+  if (!targetId || !isProductFlow.value) {
+    workOrders.value = []
+    return
+  }
+  workOrderLoading.value = true
+  try {
+    const res = await listWorkOrders(targetId)
+    workOrders.value = res.data || res || []
+    const statsRes = await getWorkOrderStats(targetId)
+    workOrderStats.value = statsRes.data || statsRes || { pending: 0, inProgress: 0, completed: 0, closed: 0 }
+  } catch (e) {
+    workOrders.value = []
+  } finally {
+    workOrderLoading.value = false
+  }
+}
+
+const addWorkOrderAction = async (actionFn, id, successMsg) => {
+  try {
+    await actionFn(id)
+    ElMessage.success(successMsg)
+    await fetchWorkOrders()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.message || e.message || '操作失败')
+  }
+}
+
+const acceptWorkOrderAction = id => addWorkOrderAction(acceptWorkOrder, id, '已接单')
+const submitWorkOrderAction = id => addWorkOrderAction(submitWorkOrder, id, '已提交完成')
+const confirmWorkOrderAction = id => addWorkOrderAction(confirmWorkOrder, id, '已确认关闭')
+
+const cancelWorkOrderAction = async (id) => {
+  try {
+    await ElMessageBox.confirm('确定要取消此工单吗？', '确认取消', { type: 'warning', confirmButtonText: '取消工单', cancelButtonText: '返回' })
+    await addWorkOrderAction(cancelWorkOrder, id, '工单已取消')
+  } catch { /* 取消操作 */ }
+}
+
 const syncProductTaskSlots = (rawAssignments = []) => {
   const assignmentMap = new Map((rawAssignments || []).map(item => [String(item.userId || ''), item]))
   productTaskAssignments.value = (project.value?.members || []).map(member => {
@@ -2854,6 +3010,7 @@ const fetchProject = async () => {
     await fetchGitRepositories()
     await fetchChatBootstrap()
     await fetchProductTaskAssignments()
+    await fetchWorkOrders()
     await fetchProjectTaskAssignments()
     await fetchWorkflowMemberRoles(targetId)
   } catch (e) {

@@ -276,7 +276,7 @@ const msgTabs = [
 
 const EXPENSE_TYPES = new Set(['EXPENSE_PENDING', 'EXPENSE_APPROVED', 'EXPENSE_REJECTED', 'EXPENSE_STATUS'])
 const PROJECT_TYPES = new Set(['PROJECT_JOINED', 'PROJECT_STATUS', 'PROJECT_DYNAMIC_INFO', 'MILESTONE_UPDATE'])
-const TASK_TYPES = new Set(['SUBTASK_ASSIGNED', 'TASK_ASSIGNED', 'EXECUTION_PLANNING', 'DDL_REMINDER'])
+const TASK_TYPES = new Set(['SUBTASK_ASSIGNED', 'TASK_ASSIGNED', 'EXECUTION_PLANNING', 'DDL_REMINDER', 'WORK_ORDER_ASSIGNED'])
 const MEETING_TYPES = new Set(['MEETING_REMINDER'])
 
 const msgTypeCategory = type => {
@@ -305,7 +305,7 @@ const msgTypeLabel = type => {
   const map = {
     EXPENSE_PENDING: '待审批', EXPENSE_APPROVED: '已通过', EXPENSE_REJECTED: '已拒绝', EXPENSE_STATUS: '状态更新',
     PROJECT_JOINED: '加入项目', PROJECT_STATUS: '状态变更', PROJECT_DYNAMIC_INFO: '动态更新', MILESTONE_UPDATE: '里程碑',
-    SUBTASK_ASSIGNED: '子任务', TASK_ASSIGNED: '任务分配', EXECUTION_PLANNING: '执行规划', DDL_REMINDER: 'DDL提醒',
+    SUBTASK_ASSIGNED: '子任务', TASK_ASSIGNED: '任务分配', EXECUTION_PLANNING: '执行规划', DDL_REMINDER: 'DDL提醒', WORK_ORDER_ASSIGNED: '工单',
     MEETING_REMINDER: '会议提醒'
   }
   return map[type] || type
@@ -331,7 +331,8 @@ const MSG_TOAST_LABELS = {
   EXECUTION_PLANNING: '📐 项目进入执行规划',
   DDL_REMINDER: '⏰ 项目截止日期提醒',
   PROJECT_DYNAMIC_INFO: '📊 项目动态信息更新',
-  MEETING_REMINDER: '⏰ 会议即将开始'
+  MEETING_REMINDER: '⏰ 会议即将开始',
+  WORK_ORDER_ASSIGNED: '📋 您有新的工单任务'
 }
 
 const applyTheme = (value) => {
