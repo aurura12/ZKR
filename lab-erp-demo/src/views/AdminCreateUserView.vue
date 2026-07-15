@@ -189,7 +189,7 @@ const handleUsernameBlur = async () => {
   const q = form.username?.trim()
   if (!q || q.length < 2) return
   try {
-    const res = await request.get('/api/admin/users/search', { params: { q } })
+    const res = await request.get('/api/admin/users/users/search', { params: { q } })
     if (res && res.length > 0) {
       const u = res[0]
       if (!form.name) form.name = u.name

@@ -192,7 +192,7 @@ const handleExport = async () => {
   exporting.value = true
   try {
     const token = localStorage.getItem('erp_token')
-    const response = await axios.get('/api/admin/users/export', {
+    const response = await axios.get('/api/admin/users/users/export', {
       responseType: 'blob',
       headers: { Authorization: `Bearer ${token}` }
     })
