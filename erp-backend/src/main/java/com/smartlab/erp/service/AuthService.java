@@ -42,7 +42,7 @@ import java.util.Set;
 public class AuthService {
 
     private static final Set<String> REGISTER_ALLOWED_ROLES = Set.of("RESEARCH", "DATA", "DEV", "ALGORITHM", "BUSINESS", "PROMOTION", "CI");
-    private static final Set<String> EXTRA_PROVISION_USERNAMES = Set.of("guojianwen", "jiaomiao", "admin", "leader");
+    private static final Set<String> EXTRA_PROVISION_USERNAMES = Set.of("guojianwen", "jiaomiao");
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
