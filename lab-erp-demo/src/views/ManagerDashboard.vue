@@ -264,7 +264,7 @@ const isAdmin = computed(() => {
 const showLeaderDashboard = computed(() => {
   if (!userStore.isErpLoggedIn) return false
   const role = String(userStore.activeUserInfo?.role || '').toUpperCase()
-  const leaderRoles = ['DEV', 'ALGORITHM', 'DATA', 'RESEARCH']
+  const leaderRoles = ['DEV', 'ALGORITHM', 'DATA', 'RESEARCH', 'CI', 'BUSINESS']
   return leaderRoles.includes(role)
 })
 

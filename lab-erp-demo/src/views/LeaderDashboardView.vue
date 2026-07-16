@@ -199,7 +199,9 @@ const roleTitle = computed(() => {
     'DEV': '开发',
     'ALGORITHM': '算法',
     'DATA': '数据',
-    'RESEARCH': '研究'
+    'RESEARCH': '研究',
+    'CI': '群体智能',
+    'BUSINESS': '商务'
   }
   return roleMap[role.value] || '技术'
 })

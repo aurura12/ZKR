@@ -122,7 +122,7 @@ export const useUserStore = defineStore('user', () => {
     // 🚩✍ Getter: 团队队长判断
     const isTeamLeader = computed(() => {
         const role = normalizeRole(activeUserInfo.value?.role)
-        const leaderRoles = ['DEV', 'ALGORITHM', 'DATA', 'RESEARCH']
+        const leaderRoles = ['DEV', 'ALGORITHM', 'DATA', 'RESEARCH', 'CI', 'BUSINESS']
         return leaderRoles.includes(role)
     })
     // ✅ 新增：同步更新头像的方法

@@ -4046,6 +4046,7 @@ const formatRole = (role) => {
     'DEV': '开发',
     'ALGORITHM': '算法',
     'RESEARCH': '研究',
+    'CI': '群体智能',
     'MEMBER': '成员'
   }
   const normalized = normalizeRoleAlias(role)
@@ -4063,7 +4064,8 @@ const formatMemberIdentityTag = member => {
     PROMOTION: '推广',
     PROMOTION_IC: '推广',
     BUSINESS: '商务',
-    BD: '商务'
+    BD: '商务',
+    CI: '群体智能'
   }
 
   if (String(member?.userId || '') === String(project.value?.managerId || '')) return '负责人'
