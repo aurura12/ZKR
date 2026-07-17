@@ -134,20 +134,22 @@
                 <el-button size="small" @click="changeAttendanceMonth(1)">›</el-button>
               </div>
               <!-- 统计 -->
-              <el-descriptions :column="4" border size="small" style="margin-bottom:16px">
-                <el-descriptions-item label="出勤">
-                  <span style="font-weight:700;color:#2e7d32">{{ attendanceData?.totalDays || 0 }} 天</span>
-                </el-descriptions-item>
-                <el-descriptions-item label="加班">
-                  <span style="font-weight:700;color:#e65100">{{ attendanceData?.overtimeDays || 0 }} 天</span>
-                </el-descriptions-item>
-                <el-descriptions-item label="缺卡">
-                  <span style="font-weight:700;color:#c62828">{{ attendanceData?.notSignedDays || 0 }} 天</span>
-                </el-descriptions-item>
+              <div class="attendance-stats">
+                <el-descriptions :column="4" border size="small">
+                  <el-descriptions-item label="出勤">
+                    <span style="font-weight:700;color:#2e7d32">{{ attendanceData?.totalDays || 0 }} 天</span>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="加班">
+                    <span style="font-weight:700;color:#e65100">{{ attendanceData?.overtimeDays || 0 }} 天</span>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="缺卡">
+                    <span style="font-weight:700;color:#c62828">{{ attendanceData?.notSignedDays || 0 }} 天</span>
+                  </el-descriptions-item>
                 <el-descriptions-item label="合计">
                   <span style="font-weight:700">{{ calendarDays.length }} 天</span>
                 </el-descriptions-item>
               </el-descriptions>
+            </div>
               <!-- 日历 -->
               <div class="calendar">
                 <div class="calendar-header">
@@ -209,9 +211,9 @@
             </el-table>
           </el-tab-pane>
 
-          <!-- Tab 6: 决策身份 -->
-          <el-tab-pane label="决策身份" name="leaders">
-            <div v-if="!detailData.leaderRoles || detailData.leaderRoles.length === 0" class="empty-tab">无决策身份</div>
+          <!-- Tab 6: 队长身份 -->
+          <el-tab-pane label="队长身份" name="leaders">
+            <div v-if="!detailData.leaderRoles || detailData.leaderRoles.length === 0" class="empty-tab">无队长身份</div>
             <el-table v-else :data="detailData.leaderRoles" stripe size="small">
               <el-table-column prop="role" label="角色" width="160" />
               <el-table-column label="身份" width="120">
@@ -650,17 +652,18 @@ h1 {
 .attendance-month {
   font-size: 18px; font-weight: 700; min-width: 130px; text-align: center;
 }
-.calendar { margin-bottom: 12px; }
+.calendar { margin-bottom: 12px; max-width: 420px; margin-left: auto; margin-right: auto; }
+.attendance-stats { max-width: 420px; margin: 0 auto 16px; }
 .calendar-header {
   display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 2px;
 }
 .calendar-header-cell {
-  text-align: center; font-size: 12px; font-weight: 600; color: #64748b; padding: 6px 0;
+  text-align: center; font-size: 11px; font-weight: 600; color: #64748b; padding: 4px 0;
 }
 .calendar-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 .calendar-cell {
-  aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  border-radius: 6px; font-size: 13px; cursor: default; position: relative; min-height: 44px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border-radius: 4px; font-size: 12px; cursor: default; position: relative; min-height: 32px; padding: 2px;
 }
 .calendar-cell.empty { background: transparent; cursor: default; }
 .calendar-cell.status-normal { background: #e8f5e9; }
