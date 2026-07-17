@@ -1026,6 +1026,11 @@ public class ProjectService {
                 .filter(Objects::nonNull)
                 .map(ProjectFinancialMetricsService.ProjectFinancialSnapshot::humanCost)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalHumanCost = managedProjects.stream()
+                .map(project -> projectFinancialSnapshots.get(project.getProjectId()))
+                .filter(Objects::nonNull)
+                .map(s -> s.costBreakdown().humanCost())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalRemainingProfit = managedProjects.stream()
                 .map(project -> projectFinancialSnapshots.get(project.getProjectId()))
                 .filter(Objects::nonNull)
@@ -1102,7 +1107,7 @@ public class ProjectService {
                 .managementRadius(managementRadius)
                 .totalBudget(totalBudget)
                 .totalCost(totalCost)
-                .totalHumanCost(totalCost)
+                .totalHumanCost(totalHumanCost)
                 .totalRemainingProfit(totalRemainingProfit)
                 .profitMargin(profitMargin)
                 .costUsageRate(costUsageRate)

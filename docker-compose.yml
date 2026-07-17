@@ -18,7 +18,7 @@ services:
 
   erp-backend:
     container_name: zkr-erp-backend
-    image: 127.0.0.1:5555/zhangqi_backend:v1.151
+    image: 127.0.0.1:5555/zhangqi_backend:v1.152
     restart: unless-stopped
     depends_on:
       postgres:
