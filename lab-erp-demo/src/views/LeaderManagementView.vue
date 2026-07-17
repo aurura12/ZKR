@@ -152,7 +152,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Back, Monitor, Cpu, DataAnalysis, Reading } from '@element-plus/icons-vue'
-import { getAllUsers, assignRole } from '@/api/leader'
+import { getAllUsers, assignRole, getCurrentLeader } from '@/api/leader'
 import { useUserStore } from '@/stores/userStore'
 
 const router = useRouter()
@@ -211,8 +211,21 @@ const loadUsers = async () => {
 
 // 检查是否是当前队长
 const isCurrentLeader = (user) => {
-  // TODO: 需要从后端获取真正的队长信息
-  return false
+  return currentLeader.value && currentLeader.value.userId === user.userId
+}
+
+// 加载当前队长信息
+const loadCurrentLeader = async () => {
+  try {
+    const res = await getCurrentLeader(activeRole.value)
+    if (res.exists) {
+      currentLeader.value = res
+    } else {
+      currentLeader.value = null
+    }
+  } catch {
+    currentLeader.value = null
+  }
 }
 
 // 确认设置为队长
@@ -235,7 +248,7 @@ const confirmSetLeader = async (user) => {
     })
 
     ElMessage.success('设置队长成功')
-    await loadUsers() // 重新加载
+    await loadCurrentLeader()
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error(error.response?.data?.message || '设置失败')
@@ -265,7 +278,7 @@ const confirmRemoveLeader = async () => {
     })
 
     ElMessage.success('已取消队长身份')
-    currentLeader.value = null
+    await loadCurrentLeader()
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error(error.response?.data?.message || '操作失败')
@@ -277,6 +290,7 @@ const confirmRemoveLeader = async () => {
 const handleRoleChange = async (role) => {
   activeRole.value = role
   searchKeyword.value = ''
+  await loadCurrentLeader()
 }
 
 // 格式化角色名称
@@ -306,6 +320,7 @@ const getRoleTagType = (role) => {
 
 onMounted(async () => {
   await loadUsers()
+  await loadCurrentLeader()
 })
 </script>
 

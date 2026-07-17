@@ -10,10 +10,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Slf4j
 @Service
@@ -70,6 +73,8 @@ public class ProjectFileManagerService {
             node.put("sourceId", m.getSourceId());
             node.put("name", m.getDisplayName());
             node.put("type", "file");
+            node.put("createdAt", m.getCreatedAt());
+            node.put("size", resolveFileSize(m));
             return node;
         }).toList();
 
@@ -127,13 +132,22 @@ public class ProjectFileManagerService {
         if (!folder.getProjectId().equals(projectId)) {
             throw new IllegalArgumentException("目录不属于该项目");
         }
+        // 删除目录下所有文件（含物理文件）
         List<ProjectFileMapping> files = mappingRepository.findByProjectIdAndFolderId(projectId, folderId);
-        if (!files.isEmpty()) {
-            throw new IllegalArgumentException("目录非空，无法删除");
+        for (ProjectFileMapping mapping : files) {
+            if (mapping.getSourceType() == ProjectFileSourceType.UPLOADED_FILE) {
+                try {
+                    Files.deleteIfExists(Path.of(uploadsDir, mapping.getSourceId()));
+                } catch (IOException e) {
+                    log.warn("删除物理文件失败: {}", mapping.getSourceId(), e);
+                }
+            }
+            mappingRepository.delete(mapping);
         }
+        // 递归删除子目录
         List<ProjectFileFolder> children = folderRepository.findByProjectIdAndParentId(projectId, folderId);
-        if (!children.isEmpty()) {
-            throw new IllegalArgumentException("目录下存在子目录，无法删除");
+        for (ProjectFileFolder child : children) {
+            deleteFolder(projectId, child.getId());
         }
         folderRepository.delete(folder);
     }
@@ -151,6 +165,77 @@ public class ProjectFileManagerService {
         }
         mapping.setFolderId(folderId);
         mappingRepository.save(mapping);
+    }
+
+    @Transactional
+    public void moveFiles(List<Long> mappingIds, Long targetFolderId) {
+        for (Long id : mappingIds) {
+            moveFile(id, targetFolderId);
+        }
+    }
+
+    @Transactional
+    public void moveFolders(List<Long> folderIds, Long targetFolderId, String projectId) {
+        for (Long id : folderIds) {
+            ProjectFileFolder folder = folderRepository.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("目录不存在"));
+            if (!folder.getProjectId().equals(projectId)) {
+                throw new IllegalArgumentException("不能跨项目移动目录");
+            }
+            folder.setParentId(targetFolderId);
+            folderRepository.save(folder);
+        }
+    }
+
+    public byte[] downloadBatch(List<Long> fileIds, List<Long> folderIds) {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             ZipOutputStream zos = new ZipOutputStream(baos)) {
+
+            for (Long fileId : fileIds) {
+                ProjectFileMapping mapping = getMapping(fileId);
+                byte[] content = downloadFile(fileId);
+                String fileName = sanitizeZipName(mapping.getDisplayName());
+                zos.putNextEntry(new ZipEntry(fileName));
+                zos.write(content);
+                zos.closeEntry();
+            }
+
+            for (Long folderId : folderIds) {
+                ProjectFileFolder folder = folderRepository.findById(folderId)
+                        .orElseThrow(() -> new IllegalArgumentException("目录不存在"));
+                addFolderToZip(zos, folder, folder.getName() + "/");
+            }
+
+            zos.finish();
+            return baos.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException("打包下载失败: " + e.getMessage(), e);
+        }
+    }
+
+    private void addFolderToZip(ZipOutputStream zos, ProjectFileFolder folder, String zipPath) throws IOException {
+        // 添加目录本身
+        zos.putNextEntry(new ZipEntry(zipPath));
+        zos.closeEntry();
+
+        // 添加目录下的文件
+        List<ProjectFileMapping> files = mappingRepository.findByProjectIdAndFolderId(folder.getProjectId(), folder.getId());
+        for (ProjectFileMapping mapping : files) {
+            byte[] content = readBytes(Path.of(uploadsDir, mapping.getSourceId()));
+            zos.putNextEntry(new ZipEntry(zipPath + sanitizeZipName(mapping.getDisplayName())));
+            zos.write(content);
+            zos.closeEntry();
+        }
+
+        // 递归添加子目录
+        List<ProjectFileFolder> children = folderRepository.findByProjectIdAndParentId(folder.getProjectId(), folder.getId());
+        for (ProjectFileFolder child : children) {
+            addFolderToZip(zos, child, zipPath + child.getName() + "/");
+        }
+    }
+
+    private String sanitizeZipName(String name) {
+        return name.replaceAll("[\\\\/:*?\"<>|]", "_");
     }
 
     public ProjectFileMapping getMapping(Long mappingId) {
@@ -216,8 +301,26 @@ public class ProjectFileManagerService {
         mappingRepository.delete(mapping);
     }
 
+    @Transactional
+    public void deleteFiles(List<Long> ids, boolean deletePhysical) {
+        for (Long id : ids) {
+            deleteFile(id, deletePhysical);
+        }
+    }
+
     public byte[] downloadFileBytes(Long mappingId) {
         return downloadFile(mappingId);
+    }
+
+    private long resolveFileSize(ProjectFileMapping mapping) {
+        if (mapping.getSourceType() == ProjectFileSourceType.UPLOADED_FILE) {
+            try {
+                return Files.size(Path.of(uploadsDir, mapping.getSourceId()));
+            } catch (IOException e) {
+                return 0;
+            }
+        }
+        return 0;
     }
 
     public String getMimeType(String filename) {

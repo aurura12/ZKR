@@ -1,6 +1,7 @@
 package com.smartlab.erp.controller;
 
 import com.smartlab.erp.dto.LeaderDashboardResponse;
+import com.smartlab.erp.entity.User;
 import com.smartlab.erp.security.UserPrincipal;
 import com.smartlab.erp.service.LeaderDashboardService;
 import lombok.Data;
@@ -78,6 +79,25 @@ public class LeaderDashboardController {
     public ResponseEntity<Void> removeRole(@RequestBody RemoveRoleRequest request) {
         leaderDashboardService.removeRoleFromUser(request.getUserId(), request.getRole());
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 获取某角色的当前队长信息
+     */
+    @GetMapping("/current-leader")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> getCurrentLeader(@RequestParam String role) {
+        User leader = leaderDashboardService.findCurrentLeader(role);
+        if (leader == null) {
+            return ResponseEntity.ok(Map.of("exists", false));
+        }
+        Map<String, Object> result = new HashMap<>();
+        result.put("exists", true);
+        result.put("userId", leader.getUserId());
+        result.put("username", leader.getUsername());
+        result.put("name", leader.getName());
+        result.put("role", role.toUpperCase());
+        return ResponseEntity.ok(result);
     }
 
     @Data

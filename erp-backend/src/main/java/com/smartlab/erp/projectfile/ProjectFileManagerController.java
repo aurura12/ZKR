@@ -118,6 +118,43 @@ public class ProjectFileManagerController {
         return ResponseEntity.ok().headers(headers).body(content);
     }
 
+    @PostMapping("/download-batch")
+    public ResponseEntity<byte[]> downloadBatch(@RequestBody Map<String, Object> request) {
+        requireProvisionAdmin();
+        @SuppressWarnings("unchecked")
+        List<Long> fileIds = toLongList((List<Object>) request.getOrDefault("fileIds", List.of()));
+        @SuppressWarnings("unchecked")
+        List<Long> folderIds = toLongList((List<Object>) request.getOrDefault("folderIds", List.of()));
+        String zipName = (String) request.getOrDefault("zipName", "files_export.zip");
+
+        byte[] zipBytes = fileManagerService.downloadBatch(fileIds, folderIds);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        headers.setContentDisposition(ContentDisposition.attachment()
+                .filename(zipName, StandardCharsets.UTF_8)
+                .build());
+        return ResponseEntity.ok().headers(headers).body(zipBytes);
+    }
+
+    @PatchMapping("/move-batch")
+    public ResponseEntity<Map<String, String>> moveBatch(@RequestBody Map<String, Object> request) {
+        requireProvisionAdmin();
+        Long targetFolderId = request.get("targetFolderId") != null
+                ? ((Number) request.get("targetFolderId")).longValue() : null;
+        String projectId = (String) request.get("projectId");
+        @SuppressWarnings("unchecked")
+        List<Long> fileIds = toLongList((List<Object>) request.getOrDefault("fileIds", List.of()));
+        @SuppressWarnings("unchecked")
+        List<Long> folderIds = toLongList((List<Object>) request.getOrDefault("folderIds", List.of()));
+        if (!fileIds.isEmpty()) {
+            fileManagerService.moveFiles(fileIds, targetFolderId);
+        }
+        if (!folderIds.isEmpty()) {
+            fileManagerService.moveFolders(folderIds, targetFolderId, projectId);
+        }
+        return ResponseEntity.ok(Map.of("message", "移动成功"));
+    }
+
     @PostMapping("/{projectId}/upload")
     public ResponseEntity<Map<String, Object>> uploadFile(
             @PathVariable String projectId,
@@ -145,11 +182,27 @@ public class ProjectFileManagerController {
         return ResponseEntity.ok(Map.of("message", "文件删除成功"));
     }
 
+    @DeleteMapping("/files/batch-delete")
+    public ResponseEntity<Map<String, String>> batchDeleteFiles(
+            @RequestBody List<Object> ids,
+            @RequestParam(defaultValue = "false") boolean deletePhysical) {
+        requireProvisionAdmin();
+        fileManagerService.deleteFiles(toLongList(ids), deletePhysical);
+        return ResponseEntity.ok(Map.of("message", "批量删除成功"));
+    }
+
     @PostMapping("/scan")
     public ResponseEntity<Map<String, String>> scan() {
         requireProvisionAdmin();
         fileManagerService.scanAndInitializeMappings();
         return ResponseEntity.ok(Map.of("message", "扫描完成"));
+    }
+
+    private List<Long> toLongList(List<Object> list) {
+        if (list == null) return List.of();
+        return list.stream()
+                .map(v -> ((Number) v).longValue())
+                .toList();
     }
 
     @Data
