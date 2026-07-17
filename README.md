@@ -2,9 +2,24 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.153` / `zhangqi_frontend:v1.172`
+**当前版本：** `zhangqi_backend:v1.154` / `zhangqi_frontend:v1.173`
 
 ## 最近变更
+
+### 2026-07-17 10:25 — 合并并部署 PR #6（队长管理、项目文件管理器、工单）
+
+**原因：** 合并同事 aurura12 提交的 PR #6，包含队长管理、项目文件管理器增强、产品流工单等功能；同时关闭已被覆盖的旧 PR #4。
+
+**改动位置：**
+- 后端新增 `WorkOrder` / `WorkOrderStatus` / `WorkOrderRepository` / `WorkOrderService` / `WorkOrderController`，支持产品流工单创建、接单、完成、关闭/取消及站内通知。
+- 后端新增 `V20260715_001__create_work_order.sql` Flyway 迁移，创建 `work_order` 表。
+- `LeaderDashboardController` / `LeaderDashboardService` / `SysProjectMemberRepository` 完善队长工作台数据查询与 `GET /api/leader/current-leader` 接口。
+- `ProjectFileManagerController` / `ProjectFileManagerService` 增强：表格排序、勾选批量删除、递归删目录、批量下载/移动、单文件直接下载、zip 命名等。
+- 前端 `LeaderDashboardView.vue` / `LeaderManagementView.vue` / `ProjectDetail.vue` / `ProjectFileManagerView.vue` / `App.vue` 同步队长与文件管理器改造。
+- 新增 `lab-erp-demo/src/api/workOrders.js` 与 `lab-erp-demo/src/api/leader.js`。
+- `docker-compose.yml:21,123` — 后端镜像更新为 `v1.154`，前端镜像更新为 `v1.173`。
+
+**效果：** PR #6 已合并到 `main` 并部署到 `zhangqi_backend:v1.154` / `zhangqi_frontend:v1.173`；PR #4 已关闭并说明原因。
 
 ### 2026-07-17 09:55 — 项目成本调整支持「调增人力成本」并部署 v1.153/v1.172
 
