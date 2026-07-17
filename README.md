@@ -2,9 +2,20 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.154` / `zhangqi_frontend:v1.173`
+**当前版本：** `zhangqi_backend:v1.155` / `zhangqi_frontend:v1.173`
 
 ## 最近变更
+
+### 2026-07-17 11:20 — 修复「调增人力成本」保存时报系统内部错误
+
+**原因：** 新增 `ProjectCostAdjustmentType.LABOR` 后，后端代码已能解析并保存，但数据库 `project_cost_adjustment` 表的 check constraint `project_cost_adjustment_adjustment_type_check` 只允许 `HARDWARE`、`SERVER_COMPUTE`、`EXTERNAL_SERVICE`、`REIMBURSEMENT`，未包含 `LABOR`，导致 INSERT 被 PostgreSQL 拒绝。
+
+**改动位置：**
+- 数据库 `project_cost_adjustment` — 通过 `ALTER TABLE ... DROP CONSTRAINT ... ADD CONSTRAINT ...` 把 `LABOR` 加入 check constraint 允许列表。
+- 后端镜像更新为 `127.0.0.1:5555/zhangqi_backend:v1.155`。
+- `docker-compose.yml:21` — 后端镜像更新为 `v1.155`。
+
+**效果：** 管理员点击「调增人力成本」并提交后，记录可正常写入 `project_cost_adjustment` 表；跑批后金额会计入 `FinanceCostSummary.totalLaborCost`。
 
 ### 2026-07-17 10:25 — 合并并部署 PR #6（队长管理、项目文件管理器、工单）
 
