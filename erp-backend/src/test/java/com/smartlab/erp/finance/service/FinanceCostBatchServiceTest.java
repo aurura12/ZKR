@@ -1,11 +1,16 @@
 package com.smartlab.erp.finance.service;
 
+import com.smartlab.erp.entity.CompanyExpense;
 import com.smartlab.erp.entity.FlowType;
+import com.smartlab.erp.entity.ProjectCostAdjustment;
+import com.smartlab.erp.entity.ProjectExpense;
 import com.smartlab.erp.entity.ProjectMemberParticipationHistory;
 import com.smartlab.erp.entity.ProjectStatus;
 import com.smartlab.erp.entity.SysProject;
 import com.smartlab.erp.entity.SysProjectMember;
 import com.smartlab.erp.entity.User;
+import com.smartlab.erp.enums.CompanyExpenseStatus;
+import com.smartlab.erp.enums.ProjectExpenseStatus;
 import com.smartlab.erp.finance.dto.FinanceCostBatchRunResponse;
 import com.smartlab.erp.finance.entity.BatchProjectCostControl;
 import com.smartlab.erp.finance.entity.FinanceCostBatch;
@@ -18,6 +23,10 @@ import com.smartlab.erp.finance.repository.FinanceCostBatchRepository;
 import com.smartlab.erp.finance.repository.FinanceCostEntryRepository;
 import com.smartlab.erp.finance.repository.FinanceCostSummaryRepository;
 import com.smartlab.erp.finance.repository.FinanceVentureProfileRepository;
+import com.smartlab.erp.repository.AttendanceRecordRepository;
+import com.smartlab.erp.repository.CompanyExpenseRepository;
+import com.smartlab.erp.repository.ProjectCostAdjustmentRepository;
+import com.smartlab.erp.repository.ProjectExpenseRepository;
 import com.smartlab.erp.repository.ProjectMemberParticipationHistoryRepository;
 import com.smartlab.erp.repository.SysProjectMemberRepository;
 import com.smartlab.erp.repository.SysProjectRepository;
@@ -31,8 +40,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -65,6 +76,14 @@ class FinanceCostBatchServiceTest {
     private BatchProjectCostControlRepository batchProjectCostControlRepository;
     @Mock
     private SysProjectRepository projectRepository;
+    @Mock
+    private AttendanceRecordRepository attendanceRecordRepository;
+    @Mock
+    private ProjectExpenseRepository expenseRepository;
+    @Mock
+    private ProjectCostAdjustmentRepository costAdjustmentRepository;
+    @Mock
+    private CompanyExpenseRepository companyExpenseRepository;
 
     @InjectMocks
     private FinanceCostBatchService financeCostBatchService;
@@ -488,5 +507,59 @@ class FinanceCostBatchServiceTest {
         assertEquals(31, savedEntries.size());
         assertEquals(new BigDecimal("300.00"), savedEntries.get(0).getDailyWageSnapshot());
         assertEquals(new BigDecimal("300.00"), savedEntries.get(0).getFinalSettlementCost());
+    }
+
+    @Test
+    void nonLaborEntriesShouldNotContributeToLaborCost() throws Exception {
+        SysProject project = SysProject.builder()
+                .projectId("P-A").flowType(FlowType.PROJECT).projectStatus(ProjectStatus.IMPLEMENTING)
+                .cost(BigDecimal.ZERO).build();
+
+        Instant dayStart = java.time.LocalDate.parse("2026-03-01")
+                .atStartOfDay(java.time.ZoneId.of("Asia/Shanghai")).toInstant();
+        Instant expenseTime = dayStart.plusSeconds(3600);
+
+        ProjectExpense projectExpense = ProjectExpense.builder()
+                .id(1L).projectId("P-A").amount(new BigDecimal("1000.00"))
+                .status(ProjectExpenseStatus.APPROVED).chenleiAt(expenseTime).build();
+        ProjectCostAdjustment adjustment = ProjectCostAdjustment.builder()
+                .id(2L).projectId("P-A").amount(new BigDecimal("200.00")).createdAt(expenseTime).build();
+        CompanyExpense companyExpense = CompanyExpense.builder()
+                .id(3L).totalAmount(new BigDecimal("500.00"))
+                .approvalStatus(CompanyExpenseStatus.APPROVED).chenleiAt(expenseTime).build();
+
+        when(expenseRepository.findAll()).thenReturn(List.of(projectExpense));
+        when(costAdjustmentRepository.findAll()).thenReturn(List.of(adjustment));
+        when(companyExpenseRepository.findByApprovalStatusAndChenleiAtBetween(any(), any(), any()))
+                .thenReturn(List.of(companyExpense));
+
+        FinanceCostBatch batch = FinanceCostBatch.builder().id(1L).ledgerMonth("2026-03").build();
+        LocalDate accrualDate = java.time.LocalDate.parse("2026-03-01");
+        Map<String, Boolean> costControlEnabled = Map.of("P-A", true);
+
+        java.lang.reflect.Method method = FinanceCostBatchService.class
+                .getDeclaredMethod("buildNonLaborEntries", FinanceCostBatch.class, String.class,
+                        LocalDate.class, List.class, Map.class);
+        method.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        List<FinanceCostEntry> entries = (List<FinanceCostEntry>) method.invoke(
+                financeCostBatchService, batch, "2026-03", accrualDate, List.of(project), costControlEnabled);
+
+        assertEquals(3, entries.size());
+
+        FinanceCostEntry expenseEntry = entries.stream()
+                .filter(e -> "project_expense".equals(e.getSourceTable())).findFirst().orElseThrow();
+        assertEquals(new BigDecimal("1000.00"), expenseEntry.getFinalSettlementCost());
+        assertEquals(0, expenseEntry.getLaborCost().compareTo(BigDecimal.ZERO));
+
+        FinanceCostEntry adjustmentEntry = entries.stream()
+                .filter(e -> "project_cost_adjustment".equals(e.getSourceTable())).findFirst().orElseThrow();
+        assertEquals(new BigDecimal("200.00"), adjustmentEntry.getFinalSettlementCost());
+        assertEquals(0, adjustmentEntry.getLaborCost().compareTo(BigDecimal.ZERO));
+
+        FinanceCostEntry companyEntry = entries.stream()
+                .filter(e -> "company_expense".equals(e.getSourceTable())).findFirst().orElseThrow();
+        assertEquals(new BigDecimal("500.00"), companyEntry.getFinalSettlementCost());
+        assertEquals(0, companyEntry.getLaborCost().compareTo(BigDecimal.ZERO));
     }
 }

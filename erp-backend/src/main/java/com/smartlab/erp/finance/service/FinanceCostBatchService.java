@@ -631,7 +631,7 @@ public class FinanceCostBatchService {
                     .batch(batch).project(project).user(null)
                     .ledgerMonth(ledgerMonth).accrualDate(accrualDate)
                     .workHours(BigDecimal.ZERO).dailyWageSnapshot(BigDecimal.ZERO)
-                    .laborCost(FinanceAmounts.scale(exp.getAmount()))
+                    .laborCost(BigDecimal.ZERO)
                     .middlewareRoyaltyFee(BigDecimal.ZERO)
                     .finalSettlementCost(FinanceAmounts.scale(exp.getAmount()))
                     .sourceTable("project_expense").sourceId(exp.getId()).build());
@@ -649,7 +649,7 @@ public class FinanceCostBatchService {
                     .batch(batch).project(project).user(null)
                     .ledgerMonth(ledgerMonth).accrualDate(accrualDate)
                     .workHours(BigDecimal.ZERO).dailyWageSnapshot(BigDecimal.ZERO)
-                    .laborCost(FinanceAmounts.scale(adj.getAmount()))
+                    .laborCost(BigDecimal.ZERO)
                     .middlewareRoyaltyFee(BigDecimal.ZERO)
                     .finalSettlementCost(FinanceAmounts.scale(adj.getAmount()))
                     .sourceTable("project_cost_adjustment").sourceId(adj.getId()).build());
@@ -667,7 +667,7 @@ public class FinanceCostBatchService {
                     .accrualDate(accrualDate)
                     .workHours(BigDecimal.ZERO)
                     .dailyWageSnapshot(BigDecimal.ZERO)
-                    .laborCost(FinanceAmounts.scale(expense.getTotalAmount()))
+                    .laborCost(BigDecimal.ZERO)
                     .middlewareRoyaltyFee(BigDecimal.ZERO)
                     .finalSettlementCost(FinanceAmounts.scale(expense.getTotalAmount()))
                     .sourceTable("company_expense")
