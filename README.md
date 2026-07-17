@@ -2,9 +2,19 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.150` / `zhangqi_frontend:v1.170`
+**当前版本：** `zhangqi_backend:v1.151` / `zhangqi_frontend:v1.171`
 
 ## 最近变更
+
+### 2026-07-17 09:30 — 部署 v1.151/v1.171 到本地 5555 仓库
+
+**原因：** 重新构建并发布前后端镜像，使运行中的容器使用最新版本。
+
+**改动位置：**
+- `docker-compose.yml:21` — 后端镜像更新为 `127.0.0.1:5555/zhangqi_backend:v1.151`
+- `docker-compose.yml:123` — 前端镜像更新为 `127.0.0.1:5555/zhangqi_frontend:v1.171`
+
+**效果：** 本地 5555 仓库已推送 `zhangqi_backend:v1.151` / `zhangqi_frontend:v1.171`，容器 `zkr-erp-backend` 与 `zkr-lab-erp-demo` 已重新创建并运行。
 
 ### 2026-07-17 09:10 — 修复非人工成本条目混入人力成本汇总
 
