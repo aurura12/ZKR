@@ -2,9 +2,22 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.152` / `zhangqi_frontend:v1.171`
+**当前版本：** `zhangqi_backend:v1.153` / `zhangqi_frontend:v1.172`
 
 ## 最近变更
+
+### 2026-07-17 09:55 — 项目成本调整支持「调增人力成本」并部署 v1.153/v1.172
+
+**原因：** 需要在项目详情「调整项目成本」区域增加一个直接调增人力成本的入口，使人工成本可以通过调整单补充。
+
+**改动位置：**
+- `erp-backend/src/main/java/com/smartlab/erp/enums/ProjectCostAdjustmentType.java` — 新增 `LABOR` 枚举值。
+- `erp-backend/src/main/java/com/smartlab/erp/finance/service/FinanceCostBatchService.java:645-655` — `project_cost_adjustment` 类型为 `LABOR` 时生成的跑批条目 `laborCost` 等于金额；其他类型保持为 0。
+- `erp-backend/src/main/java/com/smartlab/erp/service/ProjectFinancialMetricsService.java:327-329` 与 `erp-backend/src/main/java/com/smartlab/erp/service/ProjectService.java:2427-2429` — 成本分解的 `adjustmentCost` 跳过 `LABOR` 类型，避免与人力成本重复统计。
+- `lab-erp-demo/src/views/ProjectDetail.vue:52,1409,2970-2981` — 新增 `👤 调增人力成本` 按钮，成本类型下拉增加「人力成本」，打开弹窗时自动填充默认值。
+- `docker-compose.yml:21,123` — 后端镜像更新为 `v1.153`，前端镜像更新为 `v1.172`。
+
+**效果：** 管理员在项目详情页可直接调增人力成本；调增金额会在下次成本跑批后计入 `FinanceCostSummary.totalLaborCost`，并在 ManagerDashboard/项目详情成本分解中显示为「人力成本」，不再重复计入「成本调整」。
 
 ### 2026-07-17 09:50 — 修复 ManagerDashboard 「人力成本」等于「总成本」的问题并部署 v1.152
 
