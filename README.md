@@ -6,6 +6,17 @@
 
 ## 最近变更
 
+### 2026-07-17 09:10 — 修复非人工成本条目混入人力成本汇总
+
+**原因：** `FinanceCostBatchService.buildNonLaborEntries()` 在生成 project_expense、project_cost_adjustment、company_expense 三类非人工条目时，把金额同时写入 `laborCost`，导致成本分解/人力成本汇总把非人工金额也计算进去。
+
+**改动位置：**
+- `erp-backend/src/main/java/com/smartlab/erp/finance/service/FinanceCostBatchService.java:634,652,670` — 三类非人工条目的 `laborCost` 改为 `BigDecimal.ZERO`，`finalSettlementCost` 保持原金额不变。
+- `erp-backend/src/test/java/com/smartlab/erp/finance/service/FinanceCostBatchServiceTest.java` — 新增 `nonLaborEntriesShouldNotContributeToLaborCost` 单测，验证非人工条目人力成本为 0。
+- `erp-backend/src/test/java/com/smartlab/erp/finance/FinanceReportingServiceTest.java:80,86` 和 `erp-backend/src/test/java/com/smartlab/erp/finance/service/FinanceReportingServiceTest.java:80,83` — 补充 `CompanyExpenseRepository` 构造参数，修复编译错误。
+
+**效果：** 成本分解中人力成本仅包含考勤/人工分摊，不再把项目费用、成本调整、公司报销等非人工金额重复计入。
+
 ### 2026-07-14 16:50 — 个人采购申请弹窗化，归属国科九天公司，含OCR台账
 
 **原因：** 替换旧的整页表单，改为弹窗+三tab（合同/采购/报销），复用项目详情 dialog 和完整审批→OCR 流程，归属主体从项目变为国科九天公司。
