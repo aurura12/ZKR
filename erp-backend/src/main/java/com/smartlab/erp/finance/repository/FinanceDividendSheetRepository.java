@@ -16,4 +16,8 @@ public interface FinanceDividendSheetRepository extends JpaRepository<FinanceDiv
     List<FinanceDividendSheet> findByProject_ProjectIdOrderByIdDesc(String projectId);
 
     boolean existsByProject_ProjectIdAndStatus(String projectId, FinanceDividendStatus status);
+
+    List<FinanceDividendSheet> findByUser_UserIdOrderByCreatedAtDesc(String userId);
+
+    List<FinanceDividendSheet> findByUser_UserIdAndStatusOrderByCreatedAtDesc(String userId, FinanceDividendStatus status);
 }

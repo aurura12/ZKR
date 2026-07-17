@@ -32,6 +32,18 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import com.smartlab.erp.entity.ProjectExpense;
+import com.smartlab.erp.entity.SysProjectMember;
+import com.smartlab.erp.entity.UserRole;
+import com.smartlab.erp.finance.entity.FinanceDividendSheet;
+import com.smartlab.erp.finance.enums.FinanceDividendStatus;
+import com.smartlab.erp.finance.repository.FinanceDividendSheetRepository;
+import com.smartlab.erp.repository.ProjectExpenseRepository;
+import com.smartlab.erp.repository.SysProjectMemberRepository;
+import com.smartlab.erp.repository.SysProjectRepository;
+import com.smartlab.erp.repository.UserRoleRepository;
 
 @RestController
 @RequestMapping("/api/admin/users")
@@ -45,6 +57,11 @@ public class AdminUserController {
     private final AgreementGenerationService agreementGenerationService;
     private final AgreementZipService agreementZipService;
     private final NaturalLanguageParserService naturalLanguageParserService;
+    private final ProjectExpenseRepository projectExpenseRepository;
+    private final SysProjectMemberRepository sysProjectMemberRepository;
+    private final UserRoleRepository userRoleRepository;
+    private final FinanceDividendSheetRepository financeDividendSheetRepository;
+    private final SysProjectRepository sysProjectRepository;
 
     @Value("${app.uploads.dir:/app/uploads}")
     private String uploadsDir;
@@ -274,6 +291,131 @@ public class AdminUserController {
             map.put("createdAt", log.getCreatedAt() != null ? log.getCreatedAt().toString() : null);
             return map;
         }).toList());
+    }
+
+    @GetMapping("/{userId}/profile")
+    public ResponseEntity<Map<String, Object>> getUserProfile(@PathVariable String userId) {
+        requireProvisionAdmin();
+
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        // 个人信息
+        Map<String, Object> profile = new HashMap<>();
+        profile.put("userId", user.getUserId());
+        profile.put("username", user.getUsername());
+        profile.put("name", user.getName());
+        profile.put("email", user.getEmail());
+        profile.put("role", user.getRole());
+        profile.put("accountDomain", user.getAccountDomain());
+        profile.put("active", user.getActive());
+        profile.put("dailyWage", user.getDailyWage());
+        profile.put("phone", user.getPhone());
+        profile.put("idNumber", user.getIdNumber());
+        profile.put("ethnicity", user.getEthnicity());
+        profile.put("position", user.getPosition());
+        profile.put("partTime", user.getPartTime());
+        profile.put("paymentEntity", user.getPaymentEntity());
+        profile.put("schoolDepartment", user.getSchoolDepartment());
+        profile.put("address", user.getAddress());
+        profile.put("bankName", user.getBankName());
+        profile.put("bankAccount", user.getBankAccount());
+        profile.put("entryDate", user.getEntryDate());
+        profile.put("departureDate", user.getDepartureDate());
+
+        // 合同文档
+        List<Map<String, Object>> documents = listUserDocuments(userId);
+        profile.put("documents", documents);
+
+        // 报销记录
+        List<ProjectExpense> expenses = projectExpenseRepository.findBySubmitterUserIdOrderByCreatedAtDesc(userId);
+        profile.put("expenses", expenses.stream().map(e -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", e.getId());
+            m.put("projectName", e.getProjectName());
+            m.put("itemName", e.getItemName());
+            m.put("expenseType", e.getExpenseType());
+            m.put("amount", e.getAmount());
+            m.put("status", e.getStatus());
+            m.put("createdAt", e.getCreatedAt());
+            return m;
+        }).collect(Collectors.toList()));
+
+        // 参与项目
+        List<SysProjectMember> members = sysProjectMemberRepository.findByUserUserIdWithUser(userId);
+        profile.put("projects", members.stream().map(m -> {
+            Map<String, Object> mp = new HashMap<>();
+            String projectName = sysProjectRepository.findById(m.getProjectId())
+                    .map(com.smartlab.erp.entity.SysProject::getName)
+                    .orElse(m.getProjectId());
+            mp.put("projectName", projectName);
+            mp.put("role", m.getRole());
+            mp.put("joinedAt", m.getJoinedAt());
+            return mp;
+        }).collect(Collectors.toList()));
+
+        // 决策身份（队长）
+        List<UserRole> userRoles = userRoleRepository.findByUserId(userId);
+        profile.put("leaderRoles", userRoles.stream().filter(UserRole::getIsLeader).map(r -> {
+            Map<String, Object> mr = new HashMap<>();
+            mr.put("role", r.getRole());
+            mr.put("isLeader", r.getIsLeader());
+            return mr;
+        }).collect(Collectors.toList()));
+
+        // 已分成
+        List<FinanceDividendSheet> dividends = financeDividendSheetRepository.findByUser_UserIdAndStatusOrderByCreatedAtDesc(userId, FinanceDividendStatus.CONFIRMED);
+        profile.put("dividends", dividends.stream().map(d -> {
+            Map<String, Object> md = new HashMap<>();
+            md.put("id", d.getId());
+            md.put("amount", d.getAmount());
+            md.put("ledgerMonth", d.getLedgerMonth());
+            md.put("status", d.getStatus());
+            md.put("confirmedAt", d.getConfirmedAt());
+            if (d.getProject() != null) {
+                md.put("projectId", d.getProject().getProjectId());
+                md.put("projectName", d.getProject().getName());
+            }
+            return md;
+        }).collect(Collectors.toList()));
+
+        // 待确认分成
+        List<FinanceDividendSheet> pendingDividends = financeDividendSheetRepository.findByUser_UserIdAndStatusOrderByCreatedAtDesc(userId, FinanceDividendStatus.PENDING);
+        profile.put("pendingDividends", pendingDividends.stream().map(d -> {
+            Map<String, Object> md = new HashMap<>();
+            md.put("id", d.getId());
+            md.put("amount", d.getAmount());
+            md.put("ledgerMonth", d.getLedgerMonth());
+            md.put("status", d.getStatus());
+            if (d.getProject() != null) {
+                md.put("projectId", d.getProject().getProjectId());
+                md.put("projectName", d.getProject().getName());
+            }
+            return md;
+        }).collect(Collectors.toList()));
+
+        return ResponseEntity.ok(profile);
+    }
+
+    private List<Map<String, Object>> listUserDocuments(String userId) {
+        try {
+            Path userDir = documentsDir().resolve(userId);
+            if (!Files.exists(userDir)) return List.of();
+            return Files.list(userDir).map(p -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("filename", p.getFileName().toString());
+                map.put("size", p.toFile().length());
+                try { map.put("modifiedAt", Files.getLastModifiedTime(p).toString()); } catch (Exception ignored) {}
+                map.put("type", p.getFileName().toString().startsWith("agreement") ? "协议" :
+                        p.getFileName().toString().startsWith("id_card") ? "身份证" :
+                        p.getFileName().toString().startsWith("student_card") ? "学生证" : "其他");
+                return map;
+            }).toList();
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     private boolean isBlank(String s) {

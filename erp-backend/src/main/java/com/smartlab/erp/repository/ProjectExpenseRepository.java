@@ -20,4 +20,6 @@ public interface ProjectExpenseRepository extends JpaRepository<ProjectExpense, 
     List<ProjectExpense> findAllReviewed();
 
     long countByStatus(ProjectExpenseStatus status);
+
+    List<ProjectExpense> findBySubmitterUserIdOrderByCreatedAtDesc(String submitterUserId);
 }
