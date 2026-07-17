@@ -2430,6 +2430,9 @@ public class ProjectService {
 
         BigDecimal adjustment = BigDecimal.ZERO;
         for (ProjectCostAdjustment adj : costAdjustmentRepository.findByProjectIdOrderByCreatedAtDesc(projectId)) {
+            if (adj.getAdjustmentType() == ProjectCostAdjustmentType.LABOR) {
+                continue;
+            }
             BigDecimal adjAmt = adj.getAmount() != null ? adj.getAmount() : BigDecimal.ZERO;
             adjustment = adjustment.add(adjAmt);
         }

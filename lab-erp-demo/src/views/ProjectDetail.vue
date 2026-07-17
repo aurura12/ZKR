@@ -50,6 +50,7 @@
         <el-button type="warning" plain @click="openExpenseDialog('procurement')">🛒 采购</el-button>
         <el-button type="danger" plain @click="openExpenseDialog('reimbursement')">🧾 报销</el-button>
         <el-button v-if="isAdminUser" type="warning" plain @click="openCostAdjustDialog">📊 调整项目成本</el-button>
+        <el-button v-if="isAdminUser" type="success" plain @click="openLaborCostAdjustDialog">👤 调增人力成本</el-button>
         <el-button v-if="canDeleteCurrentProject" type="danger" plain @click="deleteCurrentProject">删除项目</el-button>
       </div>
     </div>
@@ -1409,6 +1410,7 @@
             <el-option label="硬件采购" value="HARDWARE" />
             <el-option label="外部技术服务" value="EXTERNAL_SERVICE" />
             <el-option label="报销" value="REIMBURSEMENT" />
+            <el-option label="人力成本" value="LABOR" />
           </el-select>
         </el-form-item>
         <el-form-item label="名称" required>
@@ -2967,9 +2969,19 @@ const handleStatusChange = async (newStatus) => {
   }
 }
 
-const openCostAdjustDialog = () => {
-  costAdjustForm.value = { type: 'HARDWARE', itemName: '', amount: null, invoiceFileList: [] }
+const openCostAdjustDialog = (defaultType = 'HARDWARE') => {
+  const isLabor = defaultType === 'LABOR'
+  costAdjustForm.value = {
+    type: defaultType,
+    itemName: isLabor ? '人力成本调整' : '',
+    amount: null,
+    invoiceFileList: []
+  }
   showCostAdjustDialog.value = true
+}
+
+const openLaborCostAdjustDialog = () => {
+  openCostAdjustDialog('LABOR')
 }
 
 const submitCostAdjust = async () => {

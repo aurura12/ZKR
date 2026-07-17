@@ -645,11 +645,12 @@ public class FinanceCostBatchService {
         for (ProjectCostAdjustment adj : adjustments) {
             SysProject project = findProjectById(projects, adj.getProjectId());
             if (project == null || !isActiveProject(project)) continue;
+            boolean isLaborAdjustment = adj.getAdjustmentType() == com.smartlab.erp.enums.ProjectCostAdjustmentType.LABOR;
             entries.add(FinanceCostEntry.builder()
                     .batch(batch).project(project).user(null)
                     .ledgerMonth(ledgerMonth).accrualDate(accrualDate)
                     .workHours(BigDecimal.ZERO).dailyWageSnapshot(BigDecimal.ZERO)
-                    .laborCost(BigDecimal.ZERO)
+                    .laborCost(isLaborAdjustment ? FinanceAmounts.scale(adj.getAmount()) : BigDecimal.ZERO)
                     .middlewareRoyaltyFee(BigDecimal.ZERO)
                     .finalSettlementCost(FinanceAmounts.scale(adj.getAmount()))
                     .sourceTable("project_cost_adjustment").sourceId(adj.getId()).build());

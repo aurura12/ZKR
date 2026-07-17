@@ -4,5 +4,6 @@ public enum ProjectCostAdjustmentType {
     HARDWARE,
     SERVER_COMPUTE,
     EXTERNAL_SERVICE,
-    REIMBURSEMENT
+    REIMBURSEMENT,
+    LABOR
 }

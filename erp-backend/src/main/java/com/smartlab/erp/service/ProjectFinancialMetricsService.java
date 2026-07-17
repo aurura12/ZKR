@@ -325,6 +325,9 @@ public class ProjectFinancialMetricsService {
 
         BigDecimal adjustment = BigDecimal.ZERO;
         for (ProjectCostAdjustment adj : costAdjustmentRepository.findByProjectIdOrderByCreatedAtDesc(projectId)) {
+            if (adj.getAdjustmentType() == com.smartlab.erp.enums.ProjectCostAdjustmentType.LABOR) {
+                continue;
+            }
             adjustment = adjustment.add(adj.getAmount() != null ? adj.getAmount() : BigDecimal.ZERO);
         }
 
