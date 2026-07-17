@@ -2,9 +2,19 @@
 
 容器化部署的 ERP 系统，包含前端（Vue 3）、后端（Spring Boot）和 RAG 服务（Python）。
 
-**当前版本：** `zhangqi_backend:v1.151` / `zhangqi_frontend:v1.171`
+**当前版本：** `zhangqi_backend:v1.152` / `zhangqi_frontend:v1.171`
 
 ## 最近变更
+
+### 2026-07-17 09:50 — 修复 ManagerDashboard 「人力成本」等于「总成本」的问题并部署 v1.152
+
+**原因：** 上一步虽然把非人工条目的 `laborCost` 改为 0，但 `ProjectService.getManagedProjectsSummary()` 里 `totalHumanCost` 直接复用了 `totalCost`（总结算成本），导致 ManagerDashboard 的「人力成本」KPI 仍与「总成本」相同。
+
+**改动位置：**
+- `erp-backend/src/main/java/com/smartlab/erp/service/ProjectService.java:1028-1033,1105` — 新增 `totalHumanCost` 统计：对每个项目取 `ProjectFinancialSnapshot.costBreakdown().humanCost()`（即 `FinanceCostSummary.totalLaborCost`）求和，不再复用 `totalCost`。
+- `docker-compose.yml:21` — 后端镜像更新为 `127.0.0.1:5555/zhangqi_backend:v1.152`
+
+**效果：** ManagerDashboard 的「人力成本」现在仅包含考勤/人工分摊，「总成本」仍包含项目费用、成本调整、公司报销等全部非人工成本，两者不再相同。
 
 ### 2026-07-17 09:30 — 部署 v1.151/v1.171 到本地 5555 仓库
 
